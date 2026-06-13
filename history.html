@@ -96,6 +96,26 @@
     <div class="entry">
       <div class="entry-header">
         <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-003.1 — Explicit emission-intensity (decoupling) model</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — code complete (T1–T9) + reviewed; tests + lint green; docs updated. T10 (full-series re-run + coverage tuning) is data-gated on the complete TROPOMI fetch and recorded as a non-blocking follow-up.</dd>
+        <dt>Spec</dt>              <dd><code>specs/steel-intensity-model/</code></dd>
+        <dt>Summary</dt>          <dd>Additive increment on NOX-003: recover steel activity by modelling the emission-intensity decline <strong>explicitly</strong> instead of differencing blindly. Fit a smoothness-controlled secular trend <code>s(t)</code> to the meteo-normalised footprint signal; residual = activity proxy (Li 2024 decomposition). Smoothness chosen by blocked time-series CV <strong>on the NO₂ series alone — benchmark never consulted</strong> (anti-p-hacking). A smoothness-sensitivity sweep + the <code>s(t)</code> diagnostic are emitted; the report states both signs (levels − decoupling, residual + activity).</dd>
+        <dt>Finding</dt>           <dd><strong>Honest near-null persists; decoupling confirmed.</strong> On the partial cube: levels r=−0.35 (p&lt;0.001); explicit-model residual monthly r≈0.14 (peak ≈0.19), comparable to <code>yoy</code> (0.19), below the 0.5–0.75 bar. CV picks a near-linear trend (df=2); the sweep decays monotonically with df (no high-df plateau) — signal real-but-weak, no df choice manufactures it. The gain is methodological honesty (one fewer researcher degree of freedom), not a higher number.</dd>
+        <dt>Decisions</dt>        <dd>Explicit emission-intensity model (CV-selected trend) as the activity-recovery method of record; blind differencing kept only for replicability — recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/signal/intensity.py</code> (new), <code>noxus/signal/index.py</code> (dispatch + decomposition emit), <code>noxus/validation/report.py</code> (dual-sign decoupling), <code>noxus/config/run.py</code> (intensity_* params), <code>noxus/data/gridding.py</code> (cube-completeness gate, ERR-103), <code>analysis/preliminary_signal.py</code> (fig7–9 + sweep), <code>docs/preliminary-results.html</code> (§5 + figures); tests in <code>tests/{signal,validation,data}/</code>. No new dependency; no new egress.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 107 passed; <code>uv run ruff check .</code> → clean. Battery re-run on the real partial cube regenerated fig7–9 + <code>smoothness_sweep.csv</code>.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approve (T1–T9)</span> — see <code>specs/steel-intensity-model/review.html</code>; T10/T11 data-gated follow-ups.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13 (spec approved before implementation).</dd>
+        <dt>Follow-ups</dt>        <dd>T10: full-series re-run + radius/coverage tuning after the complete fetch (closes NOX-003 Q1/Q5, NOX-002b Q2). T11: project-map / methods-note docs. Then the full-series result gates the NOX-005 go/no-go.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
         <span class="badge badge-warning">in progress</span>
         <span class="entry-title">NOX-003 — Steel NO₂ activity signal + validation (preliminary real result)</span>
       </div>
@@ -108,7 +128,7 @@
         <dt>Files changed</dt>     <dd><code>noxus/data/era5.py</code> (CDS-only ingest), <code>noxus/signal/index.py</code> (yoy/stl methods), <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>, <code>noxus/validation/*</code>; <code>analysis/preliminary_signal.py</code> (reproducible); <code>docs/preliminary-results.html</code> + <code>docs/figures/preliminary/*</code>; tests across <code>tests/{data,signal,validation,cli}/</code>; deps scipy/statsmodels/cdsapi (gcsfs/zarr removed with ARCO).</dd>
         <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 90 passed; <code>uv run ruff check .</code> → clean. CDS path verified live (42 KB / 3-day probe; full era 8148 hourly steps, 3.8 MB).</dd>
         <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approve-with-nits</span> phase 1 (T1–T4) &amp; phase 2 (T5–T14); nits fixed. <strong>ERA5 source switch (CDS-only) is post-review → re-review of that change pending at T15.</strong></dd>
-        <dt>Follow-ups</dt>        <dd>T15: model the retrofit trend explicitly (Li 2024); flux-divergence NOX-004; curtailment calendar (Q6a); then mark done. Result may stand as a publishable honest null (Montgomery/Morris&amp;Zhang).</dd>
+        <dt>Follow-ups</dt>        <dd>T15: model the retrofit trend explicitly (Li 2024); flux-divergence NOX-005; curtailment calendar (Q6a); then mark done. Result may stand as a publishable honest null (Montgomery/Morris&amp;Zhang).</dd>
       </dl>
     </div>
 

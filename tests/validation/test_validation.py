@@ -130,6 +130,39 @@ def test_report_echoes_config_and_bar(planted_signal_pair, tmp_path):
     assert "0.30, 0.43" in summary or "[0.3, 0.43]" in summary
 
 
+def test_report_adds_decoupling_levels_relationship(planted_signal_pair, tmp_path):
+    # NOX-003.1 REQ-110: with a levels_frame, the report states both the levels (decoupling, negative)
+    # and the residual (activity, positive) relationship.
+    index_df, bench_df, _ = planted_signal_pair
+    lv = bench_df.dropna().copy()
+    levels_frame = pd.DataFrame(
+        {
+            "date": lv["date"],
+            "index_value": -lv["value"].to_numpy(),
+        }  # negatively related to benchmark
+    )
+    art = R.report(
+        index_df,
+        bench_df,
+        max_lag=8,
+        min_overlap=10,
+        config_echo={
+            "deseason_method": "intensity-model",
+            "intensity_df": 3.0,
+            "intensity_estimator": "spline",
+            "intensity_criterion": "blocked-cv",
+        },
+        levels_frame=levels_frame,
+        out_dir=tmp_path,
+    )
+    assert "levels_r" in art.results
+    assert art.results["levels_r"] < 0  # decoupling sign in levels
+    assert art.results["decoupling"] is True  # levels < 0 < residual
+    summary = art.summary_path.read_text(encoding="utf-8")
+    assert "Decoupling" in summary
+    assert "intensity_trend" in summary  # the intensity-model echo line
+
+
 def test_classify_bar_bands():
     assert R.classify_bar(0.80, (0.50, 0.75)) == "above-bar"
     assert R.classify_bar(0.60, (0.50, 0.75)) == "in-band"

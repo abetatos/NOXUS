@@ -23,7 +23,7 @@
         <h2>Technical summary</h2>
         <p>Four pipeline stages, each behind a small data contract so each is testable in isolation, ending
         in the revived validation engine. The chain realises the <strong>relative-index / cluster
-        paradigm</strong> (Kim 2023), <strong>not</strong> flux divergence (Beirle; deferred to NOX-004).</p>
+        paradigm</strong> (Kim 2023), <strong>not</strong> flux divergence (Beirle; deferred to NOX-005).</p>
         <ol>
           <li><strong>Attribution / footprint sampling</strong> (<code>noxus/attribution/source.py</code>):
           read the NOX-002b weekly cube + facility CSV; build a footprint mask around operating facilities;
@@ -131,7 +131,7 @@
             <tr><td><code>noxus/data/benchmark.py</code> (NOX-001)</td><td>Benchmark consumed read-only via its parquet contract.</td></tr>
             <tr><td><code>data/derived/tangshan_steel_facilities.csv</code></td><td>Input of record; read-only.</td></tr>
             <tr><td><code>.env</code>, credential files</td><td>Protected; CDS credential <code>CDSAPI_KEY</code> read from <code>.env</code> by variable name only, never read/logged/committed.</td></tr>
-            <tr><td>Flux-divergence / raw-L2 modules</td><td>NOX-004; out of scope here.</td></tr>
+            <tr><td>Flux-divergence / raw-L2 modules</td><td>NOX-005; out of scope here.</td></tr>
           </tbody>
         </table>
         <p><strong>spec-drift scope (tasks.json <code>scope</code> glob suggestion):</strong>
@@ -301,7 +301,7 @@ uv run noxus validate --max-lag 8              # widen the lead-lag window
           2021) and steel only ~30–43% of the column (Wen 2024) → strictly relative index, cap recorded
           (REQ-030/031). <strong>Rejected:</strong> any absolute steel-tonnage claim.</li>
           <li><strong>Paradigm risk (designed-around).</strong> The relative-index v1 may itself produce a
-          null; that is the explicit reason flux divergence is a <em>separate later phase</em> (NOX-004),
+          null; that is the explicit reason flux divergence is a <em>separate later phase</em> (NOX-005),
           gated on whether v1 finds any signal. <strong>Rejected here:</strong> flux divergence / raw-L2
           oversampling (out of scope, deferred).</li>
           <li><strong>Validation depth trade-off.</strong> v1 leads with Pearson r + lead-lag per the task;

@@ -144,6 +144,31 @@ def render_summary(results: dict) -> str:
         "decision below relies on the lag-0 sign test, not the selected peak.",
         f"Success bar (Kim 2023 / Kondragunta 2021): r ~ {lo:.2f}-{hi:.2f}  "
         f"-> classification: {r['bar_class']}.",
+    ]
+
+    if "levels_r" in r:
+        lci = (
+            f"[{r['levels_ci_low']:.3f}, {r['levels_ci_high']:.3f}]"
+            if r["levels_ci_low"] == r["levels_ci_low"]  # not NaN
+            else "[n/a]"
+        )
+        lines += [
+            "",
+            "Decoupling (levels vs residual; NOX-003.1):",
+            f"  LEVELS  r = {r['levels_r']:.3f} (p = {r['levels_p']:.3g}, n = {r['levels_n']}, "
+            f"95% CI {lci}) — raw footprint NO2 vs BF rate.",
+            f"  RESIDUAL r = {r['pearson_r']:.3f} — activity proxy after removing the intensity trend.",
+            (
+                "  -> DECOUPLING confirmed: NO2 levels fall as activity holds/rises (the secular "
+                "emission-intensity decline, Li 2024), while the de-trended residual tracks activity "
+                "positively. The negative levels sign is a finding, not a failed correlation."
+                if r.get("decoupling")
+                else "  -> Decoupling pattern NOT confirmed on this sample (levels not negative or "
+                "residual not positive); see the smoothness sweep before interpreting."
+            ),
+        ]
+
+    lines += [
         "",
         "Config echo (every knob that could move the result):",
         f"  deseason_method      : {echo.get('deseason_method')}",
@@ -157,7 +182,41 @@ def render_summary(results: dict) -> str:
         f"  attributable_cap     : {echo.get('attributable_cap')} "
         "(ceiling on the steel share of the column; the index is RELATIVE, not absolute tonnage)",
     ]
+    if echo.get("deseason_method") == "intensity-model":
+        lines.append(
+            f"  intensity_trend      : estimator={echo.get('intensity_estimator')}, "
+            f"df={echo.get('intensity_df')} (selected by {echo.get('intensity_criterion')} on the "
+            "NO2 series alone — benchmark never consulted, NFR-102)"
+        )
     return "\n".join(lines) + "\n"
+
+
+def add_levels_relationship(
+    results: dict,
+    levels_frame: pd.DataFrame,
+    benchmark: pd.DataFrame,
+    *,
+    freq: str,
+) -> dict:
+    """Add the levels↔benchmark relationship to ``results`` for decoupling reporting (REQ-110).
+
+    The intensity-model index is the *residual* (activity proxy); the raw *levels* footprint signal
+    relates to the benchmark with the opposite, decoupling sign (NO2 falls as activity holds — the
+    secular intensity decline, Li 2024). Reporting both, each with r/p/CI, frames the negative-levels
+    relationship as a finding rather than a failed positive correlation. No-op if the levels overlap is
+    too short to correlate. ``decoupling`` flags the expected pattern (levels r < 0 and residual r > 0).
+    """
+    lv = align_series(levels_frame, benchmark, freq=freq, min_coverage=0.0)
+    if len(lv) < 3:
+        return results
+    lc = correlate(lv["index"], lv["benchmark"])
+    results["levels_r"] = lc.pearson_r
+    results["levels_p"] = lc.p_value
+    results["levels_n"] = int(lc.n)
+    results["levels_ci_low"] = lc.ci_low
+    results["levels_ci_high"] = lc.ci_high
+    results["decoupling"] = bool(lc.pearson_r < 0 < results["pearson_r"])
+    return results
 
 
 def report(
@@ -170,6 +229,7 @@ def report(
     min_overlap: int = 26,
     bar: tuple[float, float] = (0.50, 0.75),
     config_echo: dict | None = None,
+    levels_frame: pd.DataFrame | None = None,
     out_dir: Path | None = None,
     results_name: str = "steel_validation_results.json",
     summary_name: str = "steel_validation_summary.txt",
@@ -180,6 +240,8 @@ def report(
     Aligns the index and benchmark, refuses on too-short overlap (ERR-004), computes sign/r-p/lead-lag,
     classifies against the bar, derives the conclusion (incl. the null), and writes both artifacts
     (unless ``write=False``, used by tests). ``config_echo`` records every knob for honesty (NFR-003).
+    When ``levels_frame`` is given (the raw footprint signal as ``date``/``index_value``), the
+    levels↔benchmark decoupling relationship is added too (REQ-110, NOX-003.1).
     """
     aligned = align_series(index, benchmark, freq=freq, min_coverage=min_coverage)
     if len(aligned) < min_overlap:
@@ -194,6 +256,8 @@ def report(
     echo.setdefault("freq", freq)
 
     results = build_results(aligned, max_lag=max_lag, bar=bar, config_echo=echo)
+    if levels_frame is not None:
+        results = add_levels_relationship(results, levels_frame, benchmark, freq=freq)
     summary = render_summary(results)
 
     out_dir = Path(out_dir) if out_dir is not None else Path("data/derived")
@@ -259,6 +323,23 @@ def run_validation(signal_cfg=None, validation_cfg=None) -> ReportArtifacts:
         "max_lag": validation_cfg.max_lag,
         "freq": validation_cfg.freq,
     }
+    if prov.get("deseason_method") == "intensity-model":
+        config_echo.update(
+            intensity_estimator=prov.get("intensity_estimator"),
+            intensity_df=prov.get("intensity_df"),
+            intensity_criterion=prov.get("intensity_criterion"),
+            intensity_cv_score=prov.get("intensity_cv_score"),
+        )
+
+    # When the intensity model ran, surface the levels↔benchmark decoupling relationship from the
+    # decomposition diagnostic (the raw footprint signal), so the report states both signs (REQ-110).
+    levels_frame = None
+    decomp_path = Path(signal_cfg.out_dir) / signal_cfg.decomposition_name
+    if prov.get("deseason_method") == "intensity-model" and decomp_path.exists():
+        decomp = pd.read_parquet(decomp_path)
+        levels_frame = pd.DataFrame(
+            {"date": pd.to_datetime(decomp["date"]), "index_value": decomp["signal"].to_numpy()}
+        )
 
     return report(
         index,
@@ -269,6 +350,7 @@ def run_validation(signal_cfg=None, validation_cfg=None) -> ReportArtifacts:
         min_overlap=validation_cfg.min_overlap,
         bar=validation_cfg.success_bar,
         config_echo=config_echo,
+        levels_frame=levels_frame,
         out_dir=Path(validation_cfg.out_dir),
         results_name=validation_cfg.results_name,
         summary_name=validation_cfg.summary_name,

@@ -37,12 +37,15 @@ from noxus.attribution.source import build_footprint_signal
 from noxus.config.run import SignalConfig
 from noxus.data import era5 as E
 from noxus.signal.index import deseasonalize, regress_out_meteo
+from noxus.signal.intensity import IntensityModelError, fit_intensity_trend, smoothness_sweep
 from noxus.validation.leadlag import correlate, lead_lag
 
 FIGDIR = Path("docs/figures/preliminary")
 RADIUS_KM = 5.0
-DESEASON = ("none", "yoy", "stl", "yoy-double-diff")
+DESEASON = ("none", "yoy", "stl", "yoy-double-diff", "intensity-model")
 FREQS = (("W", 52, "weekly"), ("ME", 12, "monthly"))
+# Smoothness grid for the explicit emission-intensity model (NOX-003.1); effective df of the trend.
+DF_GRID = (2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
 
 
 def _load_inputs():
@@ -82,6 +85,17 @@ def _aligned(x: pd.Series, b: pd.Series, freq: str) -> pd.DataFrame:
     return d
 
 
+def _deseason(base, method, period):
+    """Apply a deseason method; intensity-model uses the production fit (min_length lowered for the
+    short preliminary series). Returns None when the series is too short for the intensity trend."""
+    if method != "intensity-model":
+        return deseasonalize(base, method=method, period=period)
+    try:
+        return fit_intensity_trend(base, df_grid=DF_GRID, cv_folds=4, min_length=18).residual
+    except IntensityModelError:
+        return None
+
+
 def run_battery(sig, snap, fp, bench):
     rows = []
     for freq, period, flab in FREQS:
@@ -90,7 +104,9 @@ def run_battery(sig, snap, fp, bench):
         sg_m = regress_out_meteo(sg, me.reindex(sg.index), form="linear")
         for meteo_on, base in ((False, sg), (True, sg_m)):
             for method in DESEASON:
-                x = deseasonalize(base, method=method, period=period)
+                x = _deseason(base, method, period)
+                if x is None:
+                    continue
                 d = _aligned(x, bench, freq)
                 if len(d) < 10:
                     continue
@@ -238,6 +254,81 @@ def fig_radius(sweep):
     plt.close(fig)
 
 
+def fig_decomposition(sig):
+    """NOX-003.1: signal = s(t) intensity trend + activity residual (monthly). The trend IS the
+    decoupling (the secular emission-intensity decline), emitted as a diagnostic, not discarded."""
+    s = sig.resample("ME").mean().dropna()
+    fit = fit_intensity_trend(s, df_grid=DF_GRID, cv_folds=4, min_length=18)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 5.6), sharex=True)
+    ax1.plot(s.index, s.to_numpy() * 1e3, color="#b3261e", lw=1.5, label="NO2 footprint (level)")
+    ax1.plot(
+        fit.trend.index,
+        fit.trend.to_numpy() * 1e3,
+        color="#1f6feb",
+        lw=2.0,
+        label=f"s(t) intensity trend (df={fit.df:.0f}, {fit.criterion})",
+    )
+    ax1.set_ylabel("NO2 (×10⁻³ mol/m²)")
+    ax1.set_title(
+        "Explicit intensity decomposition: the trend captures the retrofit decline (Li 2024)"
+    )
+    ax1.legend(fontsize=8)
+    ax2.plot(fit.residual.index, fit.residual.to_numpy() * 1e3, color="#1a7f37", lw=1.3)
+    ax2.axhline(0, color="#999", lw=0.6)
+    ax2.set_ylabel("residual (×10⁻³)")
+    ax2.set_xlabel("date")
+    ax2.set_title("Activity residual = signal − s(t) (the recoverable activity proxy)")
+    fig.tight_layout()
+    fig.savefig(FIGDIR / "fig7_decomposition.png", dpi=130)
+    plt.close(fig)
+
+
+def fig_smoothness_sweep(sig, bench):
+    """NOX-003.1 REQ-103: residual↔benchmark r as a function of trend smoothness, CV point marked.
+    Shows whether any signal is robust across smoothing or an artefact of one df choice."""
+    s = sig.resample("ME").mean().dropna()
+    b = bench.resample("ME").mean()
+    sweep = smoothness_sweep(s, b, df_grid=DF_GRID, max_lag=6)
+    sel = fit_intensity_trend(s, df_grid=DF_GRID, cv_folds=4, min_length=18).df
+    sweep.to_csv(FIGDIR / "smoothness_sweep.csv", index=False)
+    fig, ax = plt.subplots(figsize=(7.0, 4.0))
+    ax.plot(sweep["df"], sweep["residual_r"], "o-", color="#1a7f37", label="residual r")
+    ax.axhline(0, color="#999", lw=0.6)
+    ax.axhspan(0.5, 0.75, color="#1f6feb", alpha=0.12, label="literature bar 0.5–0.75")
+    ax.axvline(sel, color="#b3261e", ls="--", lw=1.1, label=f"CV-selected df={sel:.0f}")
+    ax.set_xlabel("trend effective degrees of freedom (df)")
+    ax.set_ylabel("residual Pearson r vs BF rate")
+    ax.set_title("Smoothness sensitivity (monthly): is the signal robust to the df choice?")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIGDIR / "fig8_smoothness_sweep.png", dpi=130)
+    plt.close(fig)
+
+
+def fig_levels_vs_residual(sig, bench):
+    """NOX-003.1 REQ-110: the two signs side by side — levels (negative, decoupling) vs residual
+    (activity). Frames the negative levels correlation as a finding, not a failed correlation."""
+    s = sig.resample("ME").mean().dropna()
+    fit = fit_intensity_trend(s, df_grid=DF_GRID, cv_folds=4, min_length=18)
+    dl = _aligned(s, bench, "ME")
+    dr = _aligned(fit.residual, bench, "ME")
+    rl = correlate(dl["x"], dl["b"]).pearson_r
+    rr = correlate(dr["x"], dr["b"]).pearson_r
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.4, 4.2))
+    axL.scatter(dl["b"], dl["x"] * 1e3, s=16, color="#b3261e", alpha=0.7)
+    axL.set_title(f"LEVELS vs BF rate: r={rl:.2f} (decoupling)")
+    axL.set_xlabel("CREA BF operating rate (%)")
+    axL.set_ylabel("NO2 footprint level (×10⁻³)")
+    axR.scatter(dr["b"], dr["x"] * 1e3, s=16, color="#1a7f37", alpha=0.7)
+    axR.set_title(f"RESIDUAL vs BF rate: r={rr:.2f} (activity)")
+    axR.set_xlabel("CREA BF operating rate (%)")
+    axR.set_ylabel("activity residual (×10⁻³)")
+    fig.suptitle("Decoupling: NO2 levels fall as activity holds; the residual tracks activity")
+    fig.tight_layout()
+    fig.savefig(FIGDIR / "fig9_levels_vs_residual.png", dpi=130)
+    plt.close(fig)
+
+
 def main():
     FIGDIR.mkdir(parents=True, exist_ok=True)
     cfg, cube, fac, snap, bench = _load_inputs()
@@ -263,6 +354,13 @@ def main():
     fig_leadlag(sig, bench)
     fig_methods(battery)
     fig_radius(sweep)
+    # NOX-003.1 explicit intensity model (skip gracefully if the series is too short to fit a trend).
+    try:
+        fig_decomposition(sig)
+        fig_smoothness_sweep(sig, bench)
+        fig_levels_vs_residual(sig, bench)
+    except IntensityModelError as exc:
+        print(f"intensity-model figures skipped (series too short): {exc}")
     print(f"\nfigures + tables -> {FIGDIR}")
 
 

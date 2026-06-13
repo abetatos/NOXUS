@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — Steel emission-intensity (decoupling) model</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark progress with a status class on the <code>&lt;li&gt;</code>
+        (<code>done</code> / <code>in-progress</code> / <code>blocked</code>). Do not start until the task is
+        <code>human_approved</code>. All work is <strong>additive</strong> — existing methods/CLI stay intact.</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Intensity-model config (REQ-140).</strong></div>
+            <div class="task-item-body">In <code>noxus/config/run.py</code>: add intensity-model params on <code>SignalConfig</code> — estimator (<code>spline</code>|<code>loess</code>), df grid, CV folds, criterion (<code>blocked-cv</code>|<code>gcv</code>), min series length. Default <code>deseason_method</code> stays <code>yoy</code> (no behaviour change, NFR-103).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Tests: planted-decomposition + planted-null fixtures (basis for AT101–AT103).</strong></div>
+            <div class="task-item-body">Synthetic <code>signal = activity + known smooth trend + β·meteo + noise</code> with known df; an independent planted-null pair; fixed folds/seeds for determinism (NFR-105).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Implement trend fit + CV smoothness (REQ-101/102).</strong></div>
+            <div class="task-item-body">New <code>noxus/signal/intensity.py</code>: <code>fit_intensity_trend</code> (spline default, LOESS optional) returning <code>TrendFit(trend, residual, df, criterion, cv_score)</code>; blocked time-series CV selecting df on the NO₂ series alone — <strong>no benchmark argument</strong> (AT101/AT102). Short series → ERR-101; degenerate CV → ERR-102.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Smoothness-sensitivity sweep (REQ-103).</strong></div>
+            <div class="task-item-body"><code>smoothness_sweep(signal, benchmark, df_grid, max_lag)</code> → one row per df (residual_r/p, peak_lag, levels_r); used for reporting only, never for selection. Planted-null stays flat across df (AT103).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Wire <code>intensity-model</code> into <code>deseasonalize()</code> (REQ-101/140).</strong></div>
+            <div class="task-item-body">Add the branch in <code>noxus/signal/index.py</code>; record selected df + criterion in index provenance/attrs; emit <code>steel_intensity_decomposition.parquet</code> (signal, trend, residual). Existing branches byte-identical (AT105).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Dual-sign + decoupling reporting (REQ-104/110/131).</strong></div>
+            <div class="task-item-body">Extend <code>noxus/validation/report.py</code>: report levels↔benchmark (expected −) and residual↔benchmark (+) with r/p/CI, classify vs the r≈0.5–0.75 bar, state the null when present, frame the negative levels term as decoupling (Li 2024); emit the df-sweep artifact + the <code>s(t)</code> diagnostic (AT104).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>Error handling + full-rerun gate (ERR-101..103, REQ-120 gate).</strong></div>
+            <div class="task-item-body">Short-series refusal; degenerate CV config error; a "require complete cube" flag that refuses a partial cube and names <code>noxus grid</code> (AT-ERR-101).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Extend analysis battery + figures (REQ-130).</strong></div>
+            <div class="task-item-body">In <code>analysis/preliminary_signal.py</code>: add <code>fig7_decomposition</code>, <code>fig8_smoothness_sweep</code>, <code>fig9_levels_vs_residual</code>; keep all existing modes runnable from the same script (AT107).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Validation: tests + lint (AC-108).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; regression of existing methods/CLI confirmed (AT105).</div></li>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Full-series re-run + radius/coverage tuning (REQ-120/121) — data-gated.</strong></div>
+            <div class="task-item-body">After the complete TROPOMI fetch + <code>noxus grid</code> rebuild: run the chain on the longer weekly (+ monthly) series; emit the radius/coverage sensitivity tables; record the resolved values (closes NOX-003 Q1/Q5, NOX-002b Q2). If the fetch is still running at implementation, deliver the tuning harness + partial-labelled run and record the full-series number as a follow-up (AC-106).</div></li>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Docs + decisions + history.</strong></div>
+            <div class="task-item-body">Update <code>docs/preliminary-results.html</code> (decoupling narrative + new figures + full-series result), project map, methods note; propose decisions (intensity-model method of record; resolved radius/coverage; NOX-005 go/no-go); append to <code>history.html</code>.</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Trend recovered + residual = activity on planted decomposition.</li>
+          <li><input type="checkbox" disabled> Smoothness selected by CV on NO₂ alone — benchmark never consulted.</li>
+          <li><input type="checkbox" disabled> df-sensitivity sweep emitted; planted-null flat across df (no p-hacking).</li>
+          <li><input type="checkbox" disabled> Both signs reported with CIs; decoupling framed, not suppressed.</li>
+          <li><input type="checkbox" disabled> Existing methods + CLI unchanged (regression green).</li>
+          <li><input type="checkbox" disabled> NO₂-derived decomposition gitignored; no new egress.</li>
+          <li><input type="checkbox" disabled> Full-series re-run + radius/coverage tuning done or recorded as follow-up.</li>
+          <li><input type="checkbox" disabled> Tests + lint pass; reviewer (deep-review) approved.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

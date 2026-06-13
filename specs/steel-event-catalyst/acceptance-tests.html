@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Steel NO₂ event catalyst</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>All statistics verified on <strong>synthetic planted fixtures</strong>, never live data. The headline
+        guarantees: the detector recovers planted events and stays quiet on noise; weather/cloud spikes are not
+        events; the market study recovers a planted CAR and is null when returns are unrelated; and a
+        <strong>no-look-ahead guard</strong> proves no future information enters the signal. No network in tests.</p>
+      </section>
+
+      <section id="tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header"><span class="req-id ac">AT1</span><span class="card-title">Detector recovers planted events</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-002 · AC-001</dd>
+            <dt>Given</dt><dd>A residual with known step surges/drops at known dates.</dd>
+            <dt>When</dt><dd><code>detect_events</code> runs.</dd>
+            <dt>Then</dt><dd>The detected event dates + directions match the planted truth within tolerance; precision/recall against the truth are computed correctly.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header"><span class="req-id ac">AT2</span><span class="card-title">Planted-null: low false-positive rate</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>AC-002</dd>
+            <dt>Given</dt><dd>A pure-noise residual (no events).</dd>
+            <dt>When</dt><dd>Detection runs at the configured |z|.</dd>
+            <dt>Then</dt><dd>The false-positive rate is at/below the |z| tail expectation — the detector does not invent events.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header"><span class="req-id ac">AT3</span><span class="card-title">Coverage + meteo (ventilation/stagnation) screens</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-003 · REQ-004 · REQ-005 · AC-003</dd>
+            <dt>Given</dt><dd>A cloud-gapped (low-coverage) period and a stagnation-day NO₂ spike with no production change.</dd>
+            <dt>When</dt><dd>Detection runs.</dd>
+            <dt>Then</dt><dd>Neither is flagged as an event (coverage discard; the ventilation/stagnation control rejects the weather spike).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header"><span class="req-id ac">AT4</span><span class="card-title">Ground truth + match + lead</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-010..012 · REQ-020 · REQ-021 · AC-004</dd>
+            <dt>Given</dt><dd>Planted BF-rate jumps + calendar intervals, and NO₂ events planted to lead them by a known offset.</dd>
+            <dt>When</dt><dd>Labelling + matching run.</dd>
+            <dt>Then</dt><dd>Production events are recovered; precision/recall and the signed lead time match the planted offset; interval episodes match on edges (EDGE-002), no double-counting (EDGE-001).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header"><span class="req-id ac">AT5</span><span class="card-title">Market event-study recovers planted CAR; null when unrelated</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-031 · REQ-032 · REQ-033 · AC-005</dd>
+            <dt>Given</dt><dd>(a) synthetic returns with a planted cumulative abnormal return around events; (b) returns independent of events.</dd>
+            <dt>When</dt><dd><code>market_event_study</code> runs.</dd>
+            <dt>Then</dt><dd>(a) the CAR, directional hit rate and CI are recovered; (b) the CAR is indistinguishable from zero; confirmed vs unconfirmed events are reported separately.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header"><span class="req-id ac">AT6</span><span class="card-title">No-look-ahead guard</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-041 · REQ-042 · AC-006</dd>
+            <dt>Given</dt><dd>A series, then the same series with future periods appended.</dd>
+            <dt>When</dt><dd>Detection at time <em>t</em> and market alignment run.</dd>
+            <dt>Then</dt><dd>The event decision at <em>t</em> is unchanged by future data (causal); the first studied session is never before the overpass+latency; n_tests (multiplicity) is recorded.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header"><span class="req-id ac">AT7</span><span class="card-title">Graceful instrument skip</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-030 · ERR-002 · AC-007</dd>
+            <dt>Given</dt><dd>One requested instrument has no data (e.g. ferrous unavailable).</dd>
+            <dt>When</dt><dd>The market study runs.</dd>
+            <dt>Then</dt><dd>That instrument is skipped with a recorded note; the study completes on the rest.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header"><span class="req-id ac">AT8</span><span class="card-title">Catalyst report incl. null; tests + lint</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-040 · AC-008</dd>
+            <dt>Then</dt><dd>The report states lead/coincident/null in plain language with precision/recall/lead/CAR + CIs and the multiplicity count; <code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-err-1">
+          <div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Error states</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>ERR-001 · ERR-003</dd>
+            <dt>Then</dt><dd>Missing residual/benchmark → actionable error; fewer than the minimum (confirmed) events → refuse the study and report insufficient events (EDGE-006).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header"><span class="req-id ac">AT-REG-1</span><span class="card-title">CLI regression</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-050</dd>
+            <dt>Then</dt><dd>New subcommands wired + config-driven; existing NOX-001/002/003 subcommands unchanged.</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-002</td><td>AT1</td></tr>
+            <tr><td>REQ-003 / 004 / 005</td><td>AT3</td></tr>
+            <tr><td>REQ-010..012 / 020 / 021</td><td>AT4</td></tr>
+            <tr><td>REQ-030 / 031 / 032 / 033</td><td>AT5, AT7</td></tr>
+            <tr><td>REQ-040</td><td>AT8</td></tr>
+            <tr><td>REQ-041 / 042</td><td>AT6</td></tr>
+            <tr><td>REQ-050</td><td>AT-REG-1</td></tr>
+            <tr><td>ERR-001..003</td><td>AT-ERR-1</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

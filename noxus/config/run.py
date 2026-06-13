@@ -135,7 +135,18 @@ class SignalConfig:
     # "yoy" default (2026-06-13 sensitivity): removes annual cycle + secular retrofit trend (Li 2024)
     # while keeping year-over-year activity. "stl" / "yoy-double-diff" / "none" also available;
     # double-diff erased the signal on this weekly series, so it is no longer the default.
+    # "intensity-model" (NOX-003.1) models the secular intensity decline explicitly (CV-selected
+    # smooth trend; residual = activity proxy) instead of differencing blindly.
     deseason_method: str = "yoy"
+
+    # --- Explicit emission-intensity (decoupling) model (NOX-003.1, REQ-101/102) --------------
+    # Active only when deseason_method == "intensity-model". Smoothness (effective df) is chosen by
+    # cross-validation on the NO2 series ALONE (never against the benchmark, NFR-102).
+    intensity_estimator: str = "spline"  # "spline" (df = basis columns, exact) | "loess"
+    intensity_df_grid: tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
+    intensity_cv_folds: int = 5
+    intensity_criterion: str = "blocked-cv"  # "blocked-cv" (time-respecting) | "gcv" (spline only)
+    intensity_min_length: int = 24  # refuse to fit a trend on a shorter valid sample (ERR-101)
     # Heating season as (start_month, end_month) inclusive; Tangshan heating ~Nov 15 → Mar 15.
     heating_season_months: tuple[int, ...] = (11, 12, 1, 2, 3)
     # Source of the production-curtailment calendar exogenous control (REQ-022).
@@ -154,6 +165,8 @@ class SignalConfig:
     out_dir: Path = Path("data/derived/no2")
     footprint_signal_name: str = "steel_footprint_signal.parquet"
     index_name: str = "steel_activity_index.parquet"
+    # Intensity decomposition diagnostic (signal, s(t) trend, activity residual); NOX-003.1, REQ-104.
+    decomposition_name: str = "steel_intensity_decomposition.parquet"
 
 
 @dataclass(frozen=True)

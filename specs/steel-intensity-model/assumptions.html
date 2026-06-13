@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Steel emission-intensity (decoupling) model</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit assumptions behind the intensity-decomposition method and the full-series re-run. The first is the identifying assumption of the whole approach; if it fails, the method honestly cannot separate intensity from activity, and that is a reportable outcome.</p></section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">Timescale separation (identifying assumption)</span><span class="badge badge-blocking">Load-bearing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The emission-intensity decline (retrofit/policy decoupling, Li 2024) is <strong>slow and smooth</strong> relative to the activity variation we want to recover; i.e. the secular trend <code>s(t)</code> and the activity residual live on separable timescales.</dd>
+            <dt>Why it matters</dt><dd>This is what makes <code>signal − s(t) ≈ activity</code> identifiable. If intensity and activity share timescales, no smoothing separates them — double-differencing already demonstrated this failure mode on the weekly series.</dd>
+            <dt>If false</dt><dd>The df-sensitivity sweep (REQ-103) will show no stable plateau and the residual correlation will be smoothing-dependent → report as inseparable / null rather than forcing a number.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Smoothness can be chosen without the benchmark</span><span class="badge badge-warning">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A defensible trend smoothness can be selected by cross-validation on the NO₂ series alone (prediction error), independent of how well the residual correlates with the CREA benchmark.</dd>
+            <dt>Why it matters</dt><dd>Selecting df against the benchmark would be circular / p-hacking (NFR-102). CV on the series itself keeps the estimator honest.</dd>
+            <dt>If false</dt><dd>If CV is unstable on the short series, fall back to a recorded fixed low df and lean on the sensitivity sweep for honesty; never tune df to the benchmark.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Retrofit decline is approximately continuous, not a step</span><span class="badge badge-warning">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Over 2019→present the intensity decline is gradual enough that a smooth estimator captures it; discrete large plant upgrades (step changes) are second-order.</dd>
+            <dt>Why it matters</dt><dd>A single smooth trend mis-fits a sharp step (EDGE-103), biasing nearby residuals.</dd>
+            <dt>If false</dt><dd>Residual diagnostics flag the misfit; change-point / segmented trend modelling is noted as future work, out of this scope.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">Methodology can be developed on synthetic + partial data</span><span class="badge badge-warning">Process</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The decomposition + CV + sweep + reporting can be implemented and tested on synthetic planted fixtures and the current partial cube; the complete-fetch re-run (REQ-120/121) is the final acceptance gate, not a prerequisite to start.</dd>
+            <dt>Why it matters</dt><dd>Lets the work proceed in parallel with the still-running TROPOMI fetch.</dd>
+            <dt>If false</dt><dd>If the fetch completes first, run REQ-120/121 directly; if not, deliver the harness + partial-labelled run and record the full-series number as a follow-up (AC-106).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Existing libraries suffice</span><span class="badge badge-ok">Low risk</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd><code>scipy</code>/<code>statsmodels</code> (already present) provide a df-controllable smoother (spline / LOWESS / GAM) and the building blocks for blocked CV, so no new dependency is required.</dd>
+            <dt>Why it matters</dt><dd>Keeps the increment dependency-free (NFR-106).</dd>
+            <dt>If false</dt><dd>Propose a single, well-maintained dependency at implementation for explicit developer approval (open question Q2).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">Relative-index discipline still holds</span><span class="badge badge-ok">Inherited</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>All NOX-003 constraints carry over unchanged: relative index only (no absolute tonnage), attributable-fraction cap recorded, TROPOMI low-bias caveat, null is acceptable, flux divergence deferred to NOX-005.</dd>
+            <dt>Why it matters</dt><dd>This task changes the detrending, not the interpretation discipline.</dd>
+            <dt>If false</dt><dd>n/a — these are locked by the prior approval.</dd>
+          </dl></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

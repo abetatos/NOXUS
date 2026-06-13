@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Steel emission-intensity (decoupling) model + full-series re-run</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-003</code> (steel-activity-attribution, done)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-003 produced an <strong>honest, two-layer result</strong>: in <em>levels</em> the footprint NO₂
+        correlates <strong>negatively</strong> with the CREA blast-furnace operating rate (monthly r ≈ −0.35);
+        after blind year-over-year detrending it turns weakly positive (monthly r ≈ 0.19, peak +0.29 at lag
+        +6 months), below the literature bar (r ≈ 0.5–0.75). The negative-levels relationship is not noise —
+        it is the signature of <strong>decoupling</strong>: emission intensity (NOₓ per tonne of steel) falls
+        secularly faster than activity rises, driven by retrofits/policy (Li et al. 2024). The blind filters
+        currently available (<code>yoy</code>, <code>yoy-double-diff</code>) either under-remove that trend
+        (leaving the negative bias) or over-remove it (double-diff <strong>erased</strong> the signal on the
+        weekly series, Q4 of NOX-003).</p>
+        <p>This task adds an <strong>explicit emission-intensity model</strong>: instead of differencing
+        blindly, fit a smoothness-controlled secular intensity trend <code>s(t)</code> on the
+        meteorology-normalised footprint signal and define the <strong>activity proxy as the residual</strong>
+        after removing <code>s(t)</code> — the Li-2024 activity / intensity / meteorology decomposition. The
+        smoothness is selected by an <strong>out-of-sample / cross-validation criterion (never tuned against
+        the benchmark)</strong>, and a smoothness-sensitivity sweep is reported so the reader can see whether
+        any signal is an artefact of one smoothing choice. The secular trend itself is emitted as a
+        <strong>reportable diagnostic</strong> (the decoupling), not silently discarded.</p>
+        <p>The task also performs the <strong>deferred full-series re-run</strong>: once the complete TROPOMI
+        fetch + rebuilt cube exist, re-run the whole chain on the longer sample (current cube is partial; n is
+        too short to trust r ≈ 0.19) and (re)tune the footprint radius and coverage thresholds on the complete
+        coverage distribution — resolving NOX-003 open questions Q1/Q5 and NOX-002b Q2.</p>
+        <p><strong>Locked scope (inherited, not re-opened):</strong> relative-index / cluster paradigm (Kim
+        2023); flux-divergence (Beirle) stays deferred to NOX-005. <strong>No code is removed:</strong> all
+        existing execution modes (<code>yoy</code> / <code>stl</code> / <code>yoy-double-diff</code> /
+        <code>none</code>) remain selectable for replicability; the intensity model is an <em>additive</em>
+        new method. A rigorous <strong>NULL remains an acceptable, designed-for outcome</strong> (Morris &amp;
+        Zhang 2019).</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests. Numbering continues from NOX-003 in the
+        1xx range to avoid collision.</p>
+
+        <h3 id="fr-intensity">Explicit emission-intensity (decoupling) model</h3>
+        <div class="req-row"><span class="req-id">REQ-101</span><span>When the intensity-model detrending method is selected, the system shall fit an explicit secular <strong>emission-intensity trend <code>s(t)</code></strong> on the background-corrected, meteorology-normalised footprint signal using a smooth estimator (penalised regression spline by default; LOESS available), and shall define the <strong>activity proxy as the residual</strong> <code>signal − s(t)</code>. <em>Rationale:</em> levels are dominated by the secular intensity decline (decoupling, Li 2024); a blind difference filter (<code>yoy</code>/<code>yoy-double-diff</code>) over- or under-removes that trend.</span></div>
+        <div class="req-row"><span class="req-id">REQ-102</span><span>When fitting <code>s(t)</code>, the system shall <strong>select the trend smoothness by an out-of-sample / cross-validation criterion</strong> (e.g. blocked time-series CV or GCV) and shall <strong>never select smoothness by maximising correlation with the benchmark</strong>; the selected smoothness (effective degrees of freedom) and the selection criterion shall be recorded in the run provenance. <em>Rationale:</em> the smoothness knob is the dominant researcher degree of freedom here; tuning it against the validation target would manufacture a correlation (Morris &amp; Zhang 2019).</span></div>
+        <div class="req-row"><span class="req-id">REQ-103</span><span>When the intensity model runs, the system shall produce a <strong>smoothness-sensitivity sweep</strong>: the activity↔benchmark correlation (and peak lead-lag) as a function of trend effective degrees of freedom across a configured range, so the reader can see whether the signal survives across smoothing choices or is an artefact of one. <em>Rationale:</em> the secular trend and the activity term partly share timescales — double-differencing erased the signal — so the separation must be shown to be robust, not assumed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-104</span><span>When the intensity model runs, the system shall expose the <strong>additive decomposition</strong> in the Li-2024 frame — meteorology (already regressed out, REQ-011), the secular intensity trend <code>s(t)</code>, and the activity residual — and shall <strong>emit <code>s(t)</code> as a reportable diagnostic series</strong> (the decoupling itself), not merely discard it. <em>Rationale:</em> the negative levels↔activity relationship is a finding, not noise to suppress.</span></div>
+
+        <h3 id="fr-decoupling">Decoupling reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-110</span><span>When reporting, the system shall state explicitly <strong>both</strong> the levels↔benchmark relationship (expected negative — the intensity decline) <strong>and</strong> the residual (activity)↔benchmark relationship, each quantified with r, p and confidence interval, framing the negative levels relationship as the retrofit/decoupling signal (Li 2024) rather than as a failed positive correlation.</span></div>
+
+        <h3 id="fr-rerun">Full-series re-run &amp; tuning</h3>
+        <div class="req-row"><span class="req-id">REQ-120</span><span>When the complete TROPOMI fetch and the rebuilt NOX-002b cube are available, the system shall <strong>re-run the full chain</strong> (footprint → background → meteo → intensity model → validation) on the complete weekly series (and the monthly robustness view) and report the result on the longer sample. <em>Rationale:</em> the current cube is partial (232 slots / 76 aligned rows); n is too short to trust the r ≈ 0.19 estimate or its lag.</span></div>
+        <div class="req-row"><span class="req-id">REQ-121</span><span>When re-running, the system shall <strong>(re)tune the footprint radius</strong> (NOX-003 Q1) and the <strong>per-period / per-cell coverage thresholds</strong> (NOX-003 Q5, NOX-002b Q2) on the complete coverage distribution, recording the chosen values and emitting a <strong>sensitivity table</strong> (r vs radius; r vs coverage threshold). This resolves those inherited open questions on real data.</span></div>
+
+        <h3 id="fr-repro">Reproducibility &amp; honest reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-130</span><span>The reproducible analysis battery (<code>analysis/preliminary_signal.py</code>) and the result note (<code>docs/preliminary-results.html</code>) shall be <strong>extended</strong> with the intensity-model decomposition: a trend-vs-residual figure, the smoothness-sensitivity figure (REQ-103), and a levels-vs-residual sign panel. <strong>No execution mode is removed</strong> — all existing methods remain runnable from the same script for replicability (developer constraint, 2026-06-13).</span></div>
+        <div class="req-row"><span class="req-id">REQ-131</span><span>When reporting, the system shall preserve the NOX-003 honesty discipline: r/p with confidence intervals, the empirical sign check, classification against the r ≈ 0.5–0.75 bar, explicit NULL reporting when present, and <strong>no absolute steel-tonnage claim</strong> (relative index only; attributable-fraction cap recorded).</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-140</span><span>When the user runs <code>noxus index</code> / <code>noxus validate</code>, the intensity-model method shall be <strong>config-selectable</strong> as a new <code>deseason_method</code> value (e.g. <code>intensity-model</code>) alongside the existing values, with its parameters (estimator, smoothness range, CV criterion) driven by <code>noxus/config/run.py</code>. Existing subcommands and their defaults shall not break; the previous default behaviour remains reproducible.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-101</span><span><strong>Reproducibility.</strong> Every reported result reproducible from the committed cube + benchmark + ERA5 snapshot + recorded config (incl. the selected smoothness); no live fetch at analysis time.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-102</span><span><strong>No p-hacking.</strong> The smoothness selection rule is fixed before looking at the benchmark correlation; the full config and the sensitivity sweep are recorded so the result is auditable (Morris &amp; Zhang 2019).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-103</span><span><strong>Backward compatibility.</strong> Existing deseason methods and CLI behaviour are unchanged; the intensity model is additive.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-104</span><span><strong>No-publish.</strong> NO₂-derived outputs (footprint signal, index, trend/residual series) remain gitignored; only the small stats summary + figures may be committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-105</span><span><strong>Determinism.</strong> Given identical inputs/config the decomposition, CV split and outputs are deterministic (fixed seeds/folds).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-106</span><span><strong>Stack conformance.</strong> Python ≥3.12; reuse existing deps (numpy/pandas/xarray/scipy/statsmodels); passes <code>uv run pytest</code> and <code>uv run ruff check .</code>. No new heavy dependency unless approved (open question).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-101</span><span>Series too short for a stable trend fit / CV (e.g. partial cube) → the intensity model refuses to over-fit and either falls back to a recorded low-df trend or raises ERR-101, rather than fitting a wiggly trend that absorbs the activity.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-102</span><span>Over-smoothing limit (df→1, near-linear trend) vs under-smoothing limit (df large, trend absorbs activity) → both ends appear in the sensitivity sweep (REQ-103) so the trade-off is visible; the CV-selected point is marked.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-103</span><span>The retrofit decline is a step change (discrete plant upgrade) rather than smooth → a single smooth trend mis-fits near the step; flagged via residual diagnostics; change-point handling is noted as future work, not v3.1 scope.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-104</span><span>Heavy-cloud gaps in the longer series → trend fit handles missing periods (gap-aware), coverage screening still applies, no interpolation across gaps for validation alignment.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-105</span><span>Full re-run requested but the complete cube is not yet present → the system runs on the available partial series and clearly labels the output as partial (REQ-120 acceptance gate deferred), rather than silently claiming a full-series result.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-101</span><span>If the intensity-model method is selected but the series is shorter than a configured minimum for a stable trend fit + CV, the system shall raise an actionable error (state the minimum and the available length) rather than emit an over-fit trend.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-102</span><span>If the smoothness range / CV configuration is degenerate (e.g. empty df grid, folds &gt; samples), the system shall fail with a descriptive configuration error.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-103</span><span>If the full re-run (REQ-120) is invoked with an explicit "require complete cube" flag but the cube is incomplete, the system shall refuse and name the command that completes the fetch, rather than report a partial result as full.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-101</span><span>On a <strong>planted-decomposition</strong> synthetic series (<code>signal = activity + known smooth trend + β·meteo + noise</code>) the intensity model recovers the planted trend within tolerance, the residual correlates with the planted activity, and — when the trend dominates — the <em>levels</em> correlate negatively with activity while the <em>residual</em> correlates positively. This proves the decoupling mechanism is modelled, not assumed.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-102</span><span>The smoothness CV selects a degrees-of-freedom near the planted-trend smoothness on synthetic data, and the selection does <strong>not</strong> consult the benchmark; the chosen df + criterion are recorded.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-103</span><span>The smoothness-sensitivity sweep (REQ-103) is produced as a table/figure across the df range with the CV-selected point marked; on a planted-null series the sweep stays near r≈0 across all df (no df choice manufactures a correlation).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-104</span><span>The decomposition emits the secular trend <code>s(t)</code> as a diagnostic series and the report states both the negative levels relationship and the residual relationship with r/p/CI (REQ-104, REQ-110).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-105</span><span>Existing deseason methods (<code>yoy</code>/<code>stl</code>/<code>yoy-double-diff</code>/<code>none</code>) and CLI behaviour are unchanged (regression); the intensity model is selectable additively (REQ-140, NFR-103).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-106</span><span><strong>Full re-run (data-gated):</strong> when the complete cube exists, the chain runs on the longer series and the footprint-radius / coverage-threshold sensitivity tables are emitted (REQ-120/121). If the cube is still partial at implementation time, this AC is satisfied by the partial-labelled run plus the tuning harness, with the full-series number recorded as a follow-up.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-107</span><span>The analysis battery + result note are extended with the trend/residual, sensitivity and sign figures (REQ-130) and all execution modes remain runnable from the same script.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-108</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, parquet/JSON artifacts, and static figures.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. New static figures are <em>outputs</em>: trend-vs-residual decomposition, smoothness-sensitivity curve, levels-vs-residual sign panel, and (data-gated) radius/coverage sensitivity.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NOX-003 pipeline</strong> — footprint/background (<code>noxus/attribution/source.py</code>), meteo regress-out + deseasonalise (<code>noxus/signal/index.py</code>), validation (<code>noxus/validation/</code>), ERA5 ingest (<code>noxus/data/era5.py</code>). Extended, not rewritten.</li>
+          <li><strong>NOX-002b cube</strong> — <code>data/derived/no2/no2_cube_w.nc</code> (complete rebuild is the data gate for REQ-120/121; gitignored).</li>
+          <li><strong>NOX-001 benchmark</strong> — <code>data/derived/benchmark_tangshan_bf_operating_rate.parquet</code> + aux steel series.</li>
+          <li><strong>Python libraries</strong> — <code>scipy</code> / <code>statsmodels</code> already present (splines/LOESS/CV available); prefer reuse. Any new dependency requires developer approval (open question).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>docs/preliminary-results.html</code> (decomposition + decoupling
+        narrative + new figures), a short methods note on the intensity model + smoothness selection,
+        <code>.claude/context/project-map.md</code> (new method, extended analysis), possibly
+        <code>README.md</code> and <code>decisions/architecture-decisions.md</code> (intensity-model decision;
+        full-series tuning outcomes). Reviewer confirms the final list.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decisions to log at review time (developer decides): (a) explicit emission-intensity
+        trend modelling (CV-selected smoothness) as the method of record for recovering activity from levels,
+        with blind differencing retained only for replicability; (b) the resolved footprint radius + coverage
+        thresholds once tuned on the complete cube (closes NOX-003 Q1/Q5, NOX-002b Q2); (c) whether the
+        full-series result clears or misses the r ≈ 0.5–0.75 bar, and the consequent go/no-go on NOX-005.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-101</span></td><td>AT101</td><td>Trend fit + residual = activity proxy on planted decomposition.</td></tr>
+            <tr><td><span class="req-id">REQ-102</span></td><td>AT102</td><td>CV smoothness selection; benchmark not consulted; df recorded.</td></tr>
+            <tr><td><span class="req-id">REQ-103</span></td><td>AT103</td><td>Sensitivity sweep produced; planted-null stays flat.</td></tr>
+            <tr><td><span class="req-id">REQ-104/110</span></td><td>AT104</td><td>Trend diagnostic emitted; both signs reported with CIs.</td></tr>
+            <tr><td><span class="req-id">REQ-120/121</span></td><td>AT106</td><td>Full-series re-run + radius/coverage sensitivity (data-gated).</td></tr>
+            <tr><td><span class="req-id">REQ-130</span></td><td>AT107</td><td>Battery/figures extended; all modes runnable.</td></tr>
+            <tr><td><span class="req-id">REQ-131</span></td><td>AT104</td><td>CIs, sign, bar class, null, no tonnage.</td></tr>
+            <tr><td><span class="req-id">REQ-140</span></td><td>AT105</td><td>Method config-selectable; existing CLI unchanged.</td></tr>
+            <tr><td><span class="req-id">ERR-101..103</span></td><td>AT-ERR-101</td><td>Short series; degenerate CV; full-run gate.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

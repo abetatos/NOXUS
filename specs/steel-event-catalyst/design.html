@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Steel NO₂ event catalyst</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A new <code>noxus/catalyst/</code> package, four testable stages behind small contracts, consuming the
+        NOX-003.1 residual and the NOX-001 benchmark and ending in a catalyst report. The statistics are
+        <strong>event-study</strong>, not time-series correlation: detect discrete NO₂ events, label production
+        events, match them (precision/recall/lead), then study market abnormal returns around the events.</p>
+        <ol>
+          <li><strong>Event detection</strong> (<code>events.py</code>): on the meteo-normalised, intensity-detrended
+          residual, run a robust anomaly detector (median/MAD z) + a change-point/CUSUM detector;
+          coverage-screen; strengthen the meteo control (ventilation index, stagnation flag) so a still-air
+          spike is rejected. Emit a typed event table (date, direction, magnitude, detector).</li>
+          <li><strong>Ground truth</strong> (<code>groundtruth.py</code>): BF operating-rate jump events +
+          a public curtailment calendar; combine + cause-tag.</li>
+          <li><strong>Event study vs production</strong> (<code>study.py</code>): match within a window;
+          precision / recall / FPR / signed lead time with CIs; lead-vs-publication test.</li>
+          <li><strong>Market study</strong> (<code>market.py</code> ingest + <code>study.py</code>): daily
+          prices for miners / steel ETF / (best-effort) ferrous futures; abnormal returns + CAR over [−k,+k]
+          trading days; directional hit rate; production-confirmed vs unconfirmed split.</li>
+        </ol>
+        <p>The catalyst report ties it together with strict <strong>no-look-ahead</strong> (causal baselines;
+        trade at the next session after overpass+latency) and <strong>multiple-testing</strong> transparency.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="220" viewBox="0 0 720 220" aria-label="Catalyst data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="20" width="160" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="88" y="38" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">NOX-003.1 residual</text>
+            <text x="88" y="53" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">(+coverage, +meteo)</text>
+            <rect x="8" y="92" width="160" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="88" y="116" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">CREA BF rate + calendar</text>
+            <rect x="8" y="158" width="160" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="88" y="182" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">market prices (free)</text>
+
+            <line x1="168" y1="42" x2="206" y2="60" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="208" y="44" width="150" height="56" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="283" y="64" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">detect NO₂ events</text>
+            <text x="283" y="79" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">anomaly + change-pt</text>
+            <text x="283" y="94" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">coverage+meteo screen</text>
+
+            <line x1="358" y1="72" x2="396" y2="72" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <line x1="168" y1="112" x2="396" y2="86" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="398" y="48" width="150" height="56" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="473" y="68" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">match vs production</text>
+            <text x="473" y="83" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">precision/recall/lead</text>
+            <text x="473" y="98" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(confirmed events)</text>
+
+            <line x1="473" y1="104" x2="473" y2="140" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <line x1="168" y1="178" x2="396" y2="160" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="398" y="140" width="150" height="52" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="473" y="160" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">market event-study</text>
+            <text x="473" y="175" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">CAR, hit-rate (±k d)</text>
+
+            <line x1="548" y1="120" x2="586" y2="120" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="588" y="92" width="124" height="56" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="650" y="116" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">catalyst report</text>
+            <text x="650" y="131" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">+ null + multiplicity</text>
+            <text x="360" y="214" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">No look-ahead: causal baselines; trade at the next session after overpass+latency.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>New package <code>noxus/catalyst/</code> (<code>events.py</code>, <code>groundtruth.py</code>,
+        <code>market.py</code>, <code>study.py</code>, <code>report.py</code>); new <code>CatalystConfig</code>
+        in <code>noxus/config/run.py</code>; new CLI subcommands. Reuses the NOX-003.1 residual
+        (<code>noxus/signal/intensity.py</code>), the NOX-001 benchmark, and the existing ERA5 snapshot for the
+        ventilation/stagnation covariates. NO₂-derived events + market snapshots gitignored.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/catalyst/events.py</code></td><td>new</td><td>Anomaly + change-point detection; coverage + meteo (ventilation/stagnation) screens (REQ-002..005).</td></tr>
+            <tr><td><code>noxus/catalyst/groundtruth.py</code></td><td>new</td><td>BF-rate jump events + curtailment calendar + combine (REQ-010..012).</td></tr>
+            <tr><td><code>noxus/catalyst/market.py</code></td><td>new</td><td>Free market-data ingest → dated snapshots; abnormal returns (REQ-030/031).</td></tr>
+            <tr><td><code>noxus/catalyst/study.py</code></td><td>new</td><td>Match + precision/recall/lead; market event-study CAR/hit-rate; no-look-ahead + multiplicity (REQ-020..033,041,042).</td></tr>
+            <tr><td><code>noxus/catalyst/report.py</code></td><td>new</td><td>Event table + plain-language catalyst report incl. null (REQ-040).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>CatalystConfig</code> (thresholds, windows, instruments, latency, paths) (REQ-050).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td><code>detect-events</code>, <code>ingest-market</code>, <code>catalyst</code> subcommands; existing unchanged (REQ-050).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>NO₂-derived event series + market snapshots (NFR-005).</td></tr>
+            <tr><td><code>pyproject.toml</code></td><td>maybe</td><td>Market-data client (<code>yfinance</code>/<code>stooq</code>) and/or change-point (<code>ruptures</code>) — developer approval (Q2/Q3).</td></tr>
+            <tr><td><code>tests/catalyst/…</code></td><td>new</td><td>Planted-event / planted-null fixtures; look-ahead guard; synthetic market study.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/**</code>, <code>noxus/attribution/**</code>, <code>noxus/data/**</code></td><td>Consumed read-only via their contracts (residual, benchmark, ERA5 snapshot).</td></tr>
+            <tr><td><code>noxus/validation/**</code></td><td>NOX-003 continuous-correlation engine; untouched (different paradigm).</td></tr>
+            <tr><td>Flux-divergence / raw-L2 modules</td><td>NOX-005; out of scope.</td></tr>
+            <tr><td><code>.env</code>, credentials</td><td>Protected; any market-API key by name only.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/catalyst/**</code>, <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>,
+        <code>tests/catalyst/**</code>, <code>.gitignore</code>, <code>pyproject.toml</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/catalyst/events.py
+def ventilation_index(era5: pd.DataFrame) -> pd.Series: ...        # wind_speed * blh
+def detect_events(residual: pd.Series, coverage: pd.Series, meteo: pd.DataFrame, *,
+                  z_thresh: float, method: str, min_coverage: float) -> pd.DataFrame:
+    # cols: date, direction(surge|drop), z, magnitude, detector  (causal baseline)
+
+# noxus/catalyst/groundtruth.py
+def bf_rate_events(bench: pd.DataFrame, *, z_thresh: float) -> pd.DataFrame: ...     # date,direction
+def load_curtailment_calendar(path: Path | None) -> pd.DataFrame: ...               # start,end,direction,cause
+def production_events(bf_events, calendar) -> pd.DataFrame: ...                      # combined, cause-tagged
+
+# noxus/catalyst/study.py
+def match_events(no2_events, prod_events, *, window) -> MatchResult:  # precision,recall,fpr,lead,ci
+def market_event_study(events, prices, *, window, latency, benchmark) -> CARResult: # car, hit_rate, ci
+
+# noxus/catalyst/market.py
+def ingest_prices(cfg: CatalystConfig, snapshot_dir: Path) -> Path: ...   # free source -> dated snapshot
+def abnormal_returns(prices, benchmark, *, window) -> pd.DataFrame: ...
+
+# noxus/catalyst/report.py
+def report(...) -> CatalystArtifacts:   # event table + plain-language (incl. null) + multiplicity
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+steel_no2_events.parquet         # date, direction, z, magnitude, detector, coverage, confirmed
+
+# data/raw/market/  (gitignored — third-party prices)
+prices_&lt;YYYY-MM-DD&gt;.parquet      # instrument, date, close, return
+
+# data/derived/  (small stats summary — committable, no raw price/NO2 field)
+catalyst_results.json            # precision, recall, lead_days+ci, car_by_instrument+ci, hit_rate,
+                                 #   n_events, n_tests (multiplicity), conclusion(lead|coincident|null)
+catalyst_summary.txt             # plain-language, states the null explicitly
+# docs/figures/catalyst/*.png    # event timeline; CAR per instrument; precision/recall vs threshold
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus detect-events                 # NO2 residual -> screened event table
+uv run noxus ingest-market                 # free daily prices -> dated snapshot
+uv run noxus catalyst                       # match vs production + market event-study -> report (incl. null)
+uv run noxus catalyst --window 5 --latency 2   # ±5 trading-day study, 2-day overpass+processing latency
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored event series + market price snapshots; a small committable stats summary
+        (<code>catalyst_results.json</code>/<code>.txt</code>) with no raw price or NO₂ field. No database.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Adds one external data dependency (free market prices) and possibly a change-point library —
+        current-docs verification required at implementation:</p>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Market prices (free)</strong></td><td><code>yfinance</code> (Yahoo) or <code>pandas-datareader</code>/<code>stooq</code> — current API + rate limits; symbols BHP/RIO/VALE + a steel ETF (e.g. SLX).</td><td>New dep, developer approval (Q2). Dated snapshots; analysis reads the snapshot only (NFR-001).</td></tr>
+            <tr><td><strong>Chinese ferrous futures</strong></td><td>SHFE rebar / DCE iron ore + coking coal daily settlement (exchange sites). No clean free API; best-effort snapshot or deferred (Q1).</td><td>The public/free-data tension — resolved at approval; v1 may lead with miners+ETF only.</td></tr>
+            <tr><td><strong>Change-point</strong></td><td><code>ruptures</code> (PELT) API, or an in-house CUSUM (no dep).</td><td>Prefer in-house CUSUM to stay dependency-light unless approved (Q3).</td></tr>
+            <tr><td>NOX-003.1 residual / NOX-001 benchmark</td><td>Internal contracts.</td><td>Read-only.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>Market-data egress to a free public source (no key, or a key read by name only from <code>.env</code>,
+        never logged). No remote mutation. NO₂-derived events + price snapshots gitignored. Standard
+        protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (new <code>catalyst/</code> + CLI), <code>docs/data-access.md</code> (market sources +
+        ferrous tension), a methods note (event detection + event study + no-look-ahead/multiplicity), a
+        result note under <code>docs/</code>, <code>.gitignore</code>, possibly <code>references.bib</code>
+        (event-study methodology) and <code>decisions/</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Planted events</strong>: residual with known step surges/drops → detector recovers dates/directions; precision/recall correct (AT1).</li>
+          <li><strong>Planted null</strong>: pure-noise residual → low FP rate (AT2).</li>
+          <li><strong>Screens</strong>: cloud-gap + stagnation-day synthetic periods are not flagged (AT3).</li>
+          <li><strong>Ground truth + match</strong>: planted BF-rate jumps + calendar intervals; lead time recovered on a planted lead (AT4).</li>
+          <li><strong>Market study</strong>: synthetic returns with a planted CAR around events → recovered CAR/hit-rate/CI; planted-null returns → CAR ≈ 0 (AT5).</li>
+          <li><strong>No-look-ahead guard</strong>: detection at t unchanged by appending future data; market alignment never precedes overpass+latency (AT6).</li>
+          <li><strong>Graceful skip</strong>: a missing instrument is skipped with a note (AT7).</li>
+          <li><strong>CLI</strong>: subcommands wired; existing commands unchanged (AT-REG-1).</li>
+        </ul>
+        <p>All statistics tested on synthetic planted fixtures; no network in tests (market fetch mocked).</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). Static event-study plots eyeballed as outputs.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Multiple testing / overfitting (top risk).</strong> Many knobs (threshold, window, instrument, latency) → a positive CAR could be a search artefact. Mitigation: fix defaults before looking at market returns, record n_tests, adjust/flag multiplicity, lead with confirmed-event hypotheses (REQ-042, NFR-004).</li>
+          <li><strong>Look-ahead leakage.</strong> Easy to accidentally use future data in baselines or trade before the overpass is knowable. Mitigation: causal baselines + explicit overpass+latency alignment + a guard test (REQ-041, AC-006).</li>
+          <li><strong>Meteo false positives.</strong> Stagnation spikes mimic production events. Mitigation: the strengthened ventilation/stagnation control (REQ-005) and event-must-survive-meteo rule.</li>
+          <li><strong>Cloud-gapped events.</strong> Real curtailments hidden by cloud become reported missed detections, lowering recall honestly — not silently absorbed (EDGE-005).</li>
+          <li><strong>Few events on the partial series.</strong> Low statistical power; the full TROPOMI fetch (NOX-003.1 T10) materially helps. Mitigation: ERR-003 refuses an underpowered study; report power.</li>
+          <li><strong>Ferrous-data reproducibility.</strong> No clean free SHFE/DCE API. <strong>Rejected:</strong> a paywalled dependency. Mitigation: lead with free miners+ETF; ferrous as documented snapshot or deferred (Q1).</li>
+          <li><strong>Market edge realism.</strong> The operating rate is already published weekly; the edge is timeliness/gap-filling, not resolution. The study reports lead-vs-publication honestly; a null lead is a valid outcome.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: a self-contained new package + new CLI subcommands + new config; no existing behaviour
+        changes. Rollback = revert the feature branch and delete the gitignored event/price artifacts. A
+        problematic new dependency is removed and its subcommand disabled, leaving NOX-001/002/003 intact.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

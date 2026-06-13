@@ -48,3 +48,54 @@ def planted_seasonal_series():
     season = 5.0 * np.sin(2 * np.pi * np.arange(n) / 52.0)
     series = pd.Series(trend + season, index=idx, name="no2_corrected")
     return series, pd.Series(trend, index=idx, name="trend")
+
+
+@pytest.fixture
+def planted_decomposition():
+    """Planted intensity decomposition (NOX-003.1 AT101/AT102).
+
+    Mirrors the real decoupling mechanism: a dominant, smooth, *declining* emission-intensity trend
+    ``s_true`` (retrofit) while *activity* trends mildly upward with a faster oscillation. The signal
+    keeps the declining trend plus the activity oscillation, so:
+
+      - in **levels** the signal falls while activity rises -> corr(signal, activity) < 0;
+      - after removing the smooth trend the **residual** retains the oscillation -> corr(residual,
+        activity) > 0.
+
+    Returns (signal, benchmark, true_trend, true_activity_osc). ``benchmark`` is the activity (the
+    stand-in for the CREA BF rate). The true trend is linear, so CV should select a low df (~2).
+    """
+    n = 120
+    idx = pd.date_range("2020-01-05", periods=n, freq="W")
+    t = np.linspace(0.0, 1.0, n)
+    rng = np.random.default_rng(7)
+    s_true = 100.0 - 55.0 * t  # dominant, smooth, declining intensity (retrofit)
+    a_trend = 20.0 * t  # mild upward activity trend
+    a_osc = 6.0 * np.sin(2 * np.pi * t * 12.0)  # faster activity oscillation (recoverable)
+    activity = a_trend + a_osc
+    signal = s_true + a_osc + rng.normal(0, 0.5, n)
+
+    signal_s = pd.Series(signal, index=idx, name="no2_corrected")
+    benchmark = pd.Series(activity, index=idx, name="value")
+    true_trend = pd.Series(s_true, index=idx, name="trend")
+    true_osc = pd.Series(a_osc, index=idx, name="activity_osc")
+    return signal_s, benchmark, true_trend, true_osc
+
+
+@pytest.fixture
+def planted_null_decomposition():
+    """A trended signal and an INDEPENDENT benchmark (NOX-003.1 AT103).
+
+    No smoothing choice should manufacture a residual correlation, because the benchmark is unrelated
+    to the signal's activity term. Returns (signal, benchmark).
+    """
+    n = 120
+    idx = pd.date_range("2020-01-05", periods=n, freq="W")
+    t = np.linspace(0.0, 1.0, n)
+    rng = np.random.default_rng(11)
+    signal = 100.0 - 40.0 * t + 5.0 * np.sin(2 * np.pi * t * 9.0) + rng.normal(0, 0.5, n)
+    benchmark = rng.normal(50.0, 5.0, n)  # independent of the signal
+    return (
+        pd.Series(signal, index=idx, name="no2_corrected"),
+        pd.Series(benchmark, index=idx, name="value"),
+    )

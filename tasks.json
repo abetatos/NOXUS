@@ -100,7 +100,7 @@
       "id": "NOX-003",
       "title": "Steel-sector NO2 activity signal + validation vs CREA (relative-index attribution, v1)",
       "slug": "steel-activity-attribution",
-      "description": "Derive a steel-sector activity signal for Tangshan from the gridded NO2 cube (NOX-002b) and validate it against the CREA blast-furnace operating-rate benchmark (NOX-001). v1 uses the RELATIVE-INDEX / cluster paradigm (Kim 2023), NOT flux divergence (Beirle, deferred to NOX-004). Pipeline: sample cells on a footprint around the steel facilities (data/derived/tangshan_steel_facilities.csv) rather than a flat AOI mean; subtract/normalize a regional background; apply meteorological normalization by ingesting ERA5 wind/PBL and regressing it out (Mao 2025 / Li 2024 approach) -- decided 2026-06-13 to mitigate the dominant weekly-ventilation confounder; deseasonalize (YoY/double-differencing or anchor normalization); emit a relative activity index; validate vs CREA with Pearson r + p-values and lead/lag tests; this revives the validation/correlation module deferred from NOX-001. REQUIREMENTS to treat explicitly: heating/non-heating confounder (steel NO2 share 42.5%->29.1%, SciRep 2024), policy/curtailment confounder (Li 2024), empirical sign verification for Tangshan (Montgomery 2018), attributable-fraction cap (~30-43%), relative (not absolute) signal due to TROPOMI low bias (-23..-33%). Success bar: r ~ 0.5-0.75 on deseasonalized series; honest NULL is an acceptable outcome (Morris&Zhang 2019). NO2-derived outputs gitignored.",
+      "description": "Derive a steel-sector activity signal for Tangshan from the gridded NO2 cube (NOX-002b) and validate it against the CREA blast-furnace operating-rate benchmark (NOX-001). v1 uses the RELATIVE-INDEX / cluster paradigm (Kim 2023), NOT flux divergence (Beirle, deferred to NOX-005). Pipeline: sample cells on a footprint around the steel facilities (data/derived/tangshan_steel_facilities.csv) rather than a flat AOI mean; subtract/normalize a regional background; apply meteorological normalization by ingesting ERA5 wind/PBL and regressing it out (Mao 2025 / Li 2024 approach) -- decided 2026-06-13 to mitigate the dominant weekly-ventilation confounder; deseasonalize (YoY/double-differencing or anchor normalization); emit a relative activity index; validate vs CREA with Pearson r + p-values and lead/lag tests; this revives the validation/correlation module deferred from NOX-001. REQUIREMENTS to treat explicitly: heating/non-heating confounder (steel NO2 share 42.5%->29.1%, SciRep 2024), policy/curtailment confounder (Li 2024), empirical sign verification for Tangshan (Montgomery 2018), attributable-fraction cap (~30-43%), relative (not absolute) signal due to TROPOMI low bias (-23..-33%). Success bar: r ~ 0.5-0.75 on deseasonalized series; honest NULL is an acceptable outcome (Morris&Zhang 2019). NO2-derived outputs gitignored.",
       "sdd": true,
       "status": "done",
       "spec_path": "specs/steel-activity-attribution/",
@@ -124,11 +124,75 @@
         "literature/references.bib",
         "docs/preliminary-results.html"
       ],
-      "follow_ups": "Optional v2 / follow-ups (not blocking done): model the retrofit trend explicitly (Li 2024 activity/policy/meteo decomposition); flux-divergence point-source attribution (NOX-004); public curtailment calendar (Q6a); re-run the full chain after the complete TROPOMI fetch and tune footprint/coverage thresholds.",
+      "follow_ups": "Optional v2 / follow-ups (not blocking done): model the retrofit trend explicitly (Li 2024 activity/policy/meteo decomposition); flux-divergence point-source attribution (NOX-005); public curtailment calendar (Q6a); re-run the full chain after the complete TROPOMI fetch and tune footprint/coverage thresholds.",
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-003.1",
+      "title": "Steel emission-intensity (decoupling) model + full-series re-run",
+      "slug": "steel-intensity-model",
+      "description": "Additive increment on NOX-003. NOX-003 produced a two-layer result: footprint NO2 correlates NEGATIVELY with the CREA blast-furnace operating rate in levels (monthly r~-0.35) and only weakly positive after blind yoy detrending (r~0.19, below the 0.5-0.75 bar). The negative-levels relationship is the signature of DECOUPLING (emission intensity / NOx-per-tonne falls secularly faster than activity rises; retrofits/policy, Li 2024). Blind difference filters under-remove (yoy) or erase (double-diff) that trend. This task models emission intensity EXPLICITLY: fit a smoothness-controlled secular trend s(t) on the meteo-normalised footprint signal and define the activity proxy as the residual (Li 2024 activity/intensity/meteo decomposition). Smoothness is selected by out-of-sample / blocked time-series cross-validation on the NO2 series ALONE -- never against the benchmark (anti-p-hacking, NFR-102) -- and a smoothness-sensitivity sweep is reported so any signal is shown robust, not an artefact of one smoothing choice. The secular trend is emitted as a reportable diagnostic (the decoupling), not discarded; the report states both the negative levels relationship and the residual relationship with CIs. Second half: the DEFERRED full-series re-run -- once the complete TROPOMI fetch + rebuilt cube exist, re-run the chain on the longer series and tune footprint radius + coverage thresholds on the complete coverage distribution, resolving NOX-003 Q1/Q5 and NOX-002b Q2. ADDITIVE ONLY: all existing deseason methods (yoy/stl/yoy-double-diff/none) and CLI behaviour are retained for replicability; intensity-model is a new selectable method. Relative-index discipline, attributable-fraction cap, honest-null and flux-divergence-deferred (NOX-005) all carry over unchanged. The full-series result is the go/no-go gate for NOX-005.",
+      "sdd": true,
+      "status": "done",
+      "depends_on": ["NOX-003"],
+      "spec_path": "specs/steel-intensity-model/",
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/steel-intensity-model/review.html",
+        "note": "Approve T1-T9 (core method, dual-sign decoupling report, gates, figures). 107 tests, ruff clean. Anti-p-hacking verified: fit_intensity_trend takes no benchmark arg, CV scores on NO2 alone, planted-null sweep flat across df. Real partial-cube result: levels r=-0.35 (decoupling confirmed), intensity-model residual monthly r~0.14 (peak 0.19), comparable to yoy, below the 0.5-0.75 bar -> honest near-null persists; methodological gain is removing the difference-filter degree of freedom. T10 (full-series re-run + coverage tuning) is DATA-GATED on the complete TROPOMI fetch (cube partial); the cube-completeness gate (ERR-103) and radius sweep are in place. T11 docs partly done (preliminary-results.html, decision log, history, project-map); methods note optional."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "docs/preliminary-results.html",
+        "decisions/architecture-decisions.md",
+        "history.html",
+        ".claude/context/project-map.md"
+      ],
+      "follow_ups": "Data-gated / non-blocking: (T10) full-series re-run + footprint-radius/coverage-threshold tuning after the complete TROPOMI fetch + 'noxus grid' rebuild (closes NOX-003 Q1/Q5, NOX-002b Q2) -> the full-series number is the go/no-go gate for NOX-005; (T11) optional standalone methods note on the intensity model; change-point/segmented trend for step-change retrofits (EDGE-103); curtailment calendar (Q6a).",
+      "scope": [
+        "noxus/signal/**",
+        "noxus/validation/report.py",
+        "noxus/config/run.py",
+        "noxus/cli/main.py",
+        "analysis/**",
+        "docs/preliminary-results.html",
+        "tests/**"
+      ],
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
       "created": "2026-06-13"
     },
     {
       "id": "NOX-004",
+      "title": "Steel NO2 event catalyst (production-event detection -> market lead)",
+      "slug": "steel-event-catalyst",
+      "description": "PARADIGM SHIFT (developer-directed 2026-06-13): stop using the cluster NO2 as a continuous tracker of the BF operating rate (NOX-003/003.1 showed it is a weak below-bar tracker) and use it as a CATALYST / EVENT MARKER. Detect discrete production events -- sharp surges/drops in cluster NO2 (curtailment start/end, sudden shutdowns/restarts) -- on the NOX-003.1 intensity-detrended + meteo-normalised residual, and test whether they (a) LEAD the official production print and (b) precede moves in steel-exposed markets. Why it fits: a catalyst lives in the tails (large deviations), so a low overall r is irrelevant; Tangshan events are discrete/sharp; and the slow decoupling trend that killed the continuous correlation does not create sudden jumps (removed once via the NOX-003.1 residual). Pipeline: event detection (robust anomaly + change-point, coverage-screened, STRENGTHENED meteo control = ventilation index + stagnation flag so a still-air spike is not an event -- the cheap in-framework lever for 'better weather correlation', NOT flux-divergence which is deferred NOX-005) -> ground-truth production events (CREA BF-rate jumps COMBINED WITH a public curtailment calendar) -> event-study match (precision/recall/lead time, not Pearson r) -> market event-study (cumulative abnormal returns around events) for THREE instrument families: Chinese ferrous futures (SHFE rebar/DCE iron ore/coking coal), global miners (BHP/RIO/VALE), and a China steel ETF/equities -> catalyst report. DISCIPLINE: strict no-look-ahead (causal baselines; trade at next session after overpass+latency), multiple-testing transparency (fix defaults before viewing returns), public/free data only (Chinese ferrous futures lack a clean free API -> Q1: lead with miners+ETF, ferrous as best-effort exchange-settlement snapshot or deferred), honest NULL is a valid outcome (Morris&Zhang 2019). NO2-derived events + market price snapshots gitignored. Statistical power benefits from the full TROPOMI fetch (NOX-003.1 T10).",
+      "sdd": true,
+      "status": "human_approved",
+      "depends_on": ["NOX-003.1", "NOX-001"],
+      "spec_path": "specs/steel-event-catalyst/",
+      "scope": [
+        "noxus/catalyst/**",
+        "noxus/config/run.py",
+        "noxus/cli/main.py",
+        "tests/catalyst/**",
+        ".gitignore",
+        "pyproject.toml"
+      ],
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-005",
       "title": "Flux-divergence point-source attribution (Beirle) -- deferred phase",
       "slug": "flux-divergence-attribution",
       "description": "DEFERRED future phase (decided 2026-06-13, phased-hybrid). Point-source NOx attribution via NO2 flux divergence (Beirle 2021/2023): flux = TVCD x ERA5 wind, divergence isolates the local source term, with chemical-loss and plume-height corrections (PAL product, v2). Requires a RAW L2 swath acquisition path (NOX-002a delivered the openEO gridded product, not raw swath needed for fine oversampling) plus ERA5 winds. Known to resolve poorly in high-background / complex-wind regions like industrial NE China -- expected to be hard at Tangshan; that risk is the reason it is a separate phase after the relative-index v1 (NOX-003) establishes whether any signal exists.",

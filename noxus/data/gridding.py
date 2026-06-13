@@ -29,6 +29,59 @@ class GriddingError(RuntimeError):
     """Gridding could not complete (no input, or irreconcilable grids)."""
 
 
+class IncompleteCubeError(RuntimeError):
+    """The cube is too sparse/short for the full-series re-run (NOX-003.1 ERR-103)."""
+
+
+def cube_completeness(cube: xr.Dataset, *, expected_start, expected_end, freq: str = "W") -> float:
+    """Fraction of expected periods that carry any valid coverage (NOX-003.1 REQ-120/121).
+
+    Compares the count of cube periods with finite ``coverage`` against the number of ``freq`` periods
+    spanning ``[expected_start, expected_end]``. 1.0 means a period exists for every expected slot;
+    a partial fetch (sparse weeks) scores lower. Used to gate the full-series re-run.
+    """
+    expected = pd.period_range(pd.Timestamp(expected_start), pd.Timestamp(expected_end), freq=freq)
+    if len(expected) == 0:
+        return 0.0
+    if COVERAGE in cube.data_vars:
+        cov = cube[COVERAGE]
+        dims = [d for d in cov.dims if d != "time"]
+        per_period = cov.notnull().any(dim=dims) if dims else cov.notnull()
+        n_valid = int(per_period.sum())
+    else:
+        n_valid = int(cube.sizes.get("time", 0))
+    return min(n_valid / len(expected), 1.0)
+
+
+def assert_cube_complete(
+    cube: xr.Dataset,
+    *,
+    expected_start,
+    expected_end,
+    freq: str = "W",
+    min_fraction: float = 0.9,
+    require: bool = True,
+) -> float:
+    """Refuse a partial cube for the full-series re-run when ``require`` is set (ERR-103).
+
+    Returns the completeness fraction. When ``require`` and the fraction is below ``min_fraction``,
+    raises :class:`IncompleteCubeError` naming the command that completes the fetch — so a partial run
+    is never silently reported as a full-series result (NOX-003.1 AC-106). With ``require=False`` it is
+    a pure measurement (the partial run proceeds, labelled partial).
+    """
+    fraction = cube_completeness(
+        cube, expected_start=expected_start, expected_end=expected_end, freq=freq
+    )
+    if require and fraction < min_fraction:
+        raise IncompleteCubeError(
+            f"Cube covers only {fraction:.0%} of expected {freq} periods "
+            f"(< {min_fraction:.0%}); the TROPOMI fetch is incomplete. Run 'noxus fetch' to finish "
+            "acquisition then 'noxus grid' to rebuild before the full-series re-run (ERR-103). "
+            "Use require=False to run on the partial series (labelled partial)."
+        )
+    return fraction
+
+
 def load_overpass_cube(raw_dir: Path | str) -> xr.Dataset:
     """Stack the per-overpass NetCDFs (from the manifest) into a time cube on a common grid (REQ-001)."""
     raw_dir = Path(raw_dir)

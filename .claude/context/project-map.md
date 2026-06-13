@@ -22,7 +22,7 @@ noxus/                 # Python package
   config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/ValidationConfig
   data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py + era5.py (CDS ingest) — implemented
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
-  signal/              # index.py: meteo regress-out + deseason + relative activity index — implemented
+  signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (explicit emission-intensity/decoupling model, NOX-003.1) — implemented
   validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag vs the benchmark — implemented
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
 analysis/              # preliminary_signal.py: reproducible preliminary run → docs/figures/preliminary/

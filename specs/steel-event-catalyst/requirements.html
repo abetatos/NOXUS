@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Steel NO₂ event catalyst (production-event detection → market lead)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-003</code>, <code>NOX-003.1</code> (residual), <code>NOX-001</code> (benchmark)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p><strong>Paradigm shift (developer-directed 2026-06-13).</strong> NOX-003/003.1 showed the satellite
+        NO₂ over the Tangshan steel cluster is a <em>weak continuous tracker</em> of the blast-furnace operating
+        rate (monthly r ≈ 0.14–0.19, below bar) — its variance is dominated by the slow emission-intensity
+        decline, meteorology and non-steel background. This task <strong>stops asking for a time-series
+        correlation</strong> and instead uses the signal as a <strong>catalyst / event marker</strong>: detect
+        discrete <em>production events</em> — sharp surges/drops in cluster NO₂ (curtailment start/end, sudden
+        shutdowns, restarts) — and test whether they (a) <strong>lead the official production print</strong> and
+        (b) <strong>precede moves in steel-exposed markets</strong>.</p>
+        <p>Why this fits the signal: a catalyst lives in the <strong>tails</strong> (large deviations), not the
+        bulk, so a low overall r is irrelevant; Tangshan's events are discrete and sharp (policy-driven
+        curtailments produce step changes large versus noise); and the slow decoupling trend that killed the
+        continuous correlation does <strong>not</strong> create sudden jumps, so it is not a confounder for event
+        detection (it is removed once, via the NOX-003.1 residual).</p>
+        <p>Pipeline: <em>NOX-003.1 intensity-detrended + meteo-normalised footprint residual → event detection
+        (anomaly + change-point, coverage-screened) → ground-truth production events (CREA BF-rate jumps ×
+        public curtailment calendar) → event-study lead/lag &amp; precision/recall vs production → market
+        event-study (abnormal returns around events) for Chinese ferrous futures, global miners, and a China
+        steel ETF → catalyst report</em>.</p>
+        <p><strong>Honesty (carried over):</strong> the headline metrics are <strong>precision / recall / lead
+        time / cumulative abnormal return with CIs</strong>, never a cherry-picked event; a rigorous NULL (NO₂
+        events neither lead production nor move the asset beyond chance) is a valid, designed-for outcome
+        (Morris &amp; Zhang 2019). Strict <strong>no-look-ahead</strong> discipline (causal detection; trade at
+        the next session after the overpass+latency) and multiple-testing transparency apply throughout.</p>
+        <p><strong>Data constraint (open question Q1):</strong> the project requires public/free, reproducible
+        data. Global miners (BHP/RIO/VALE) and a steel ETF are freely available; <strong>Chinese ferrous
+        futures (SHFE rebar, DCE iron ore / coking coal) lack a clean free API</strong> — their daily
+        settlements are exchange-published but ingestion is best-effort/snapshot. v1 leads with the free
+        instruments; ferrous-futures access is resolved at approval.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-detect">NO₂ event detection</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the catalyst pipeline runs, the system shall load the <strong>intensity-detrended, meteo-normalised footprint residual</strong> from NOX-003.1 (<code>steel_intensity_decomposition.parquet</code> → <code>residual_activity</code>, or recompute it via the index pipeline) together with the per-period <code>valid_coverage</code>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When detecting events, the system shall flag <strong>NO₂ production events</strong> as statistically significant deviations of the residual using a configurable detector set — a <strong>robust anomaly</strong> score (median/MAD z, default |z| ≥ 2.0) and a <strong>change-point / level-shift</strong> detector (e.g. CUSUM or PELT) — recording for each event: period/date, <strong>direction</strong> (<code>surge</code> | <code>drop</code>), magnitude (signed residual + z), and which detector fired.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>While detecting, the system shall <strong>coverage-screen</strong> each candidate event: a period below the inherited minimum valid-coverage is <strong>discarded</strong> (a cloud-driven gap/drop is not a production event) and never interpolated (REQ-004 of NOX-002b).</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>When detecting, the system shall operate on the <strong>meteorology-normalised</strong> series so a ventilation-driven spike (stagnant air) is not counted as a production event, and shall record that the meteo control was applied (it is <em>more</em> critical for short-window events than for monthly means).</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>When normalising meteorology for event detection, the system shall <strong>strengthen the meteo control beyond NOX-003's wind+PBL regress-out</strong> with transport/stagnation-aware covariates derived from the existing ERA5 snapshot — a <strong>ventilation index</strong> (≈ 10 m wind speed × boundary-layer height) and an <strong>atmospheric-stagnation flag</strong> (low wind × shallow PBL) — and shall, for any candidate event, verify it <strong>survives</strong> this control (a deviation explained by a stagnation day is rejected). <em>Rationale (developer-directed 2026-06-13):</em> the cheap, in-framework lever for "better weather correlation" on short windows is a stronger meteo normalisation, not the full flux-divergence method (deferred, NOX-005); a still-air week, not a production change, is the dominant false-positive source for an event marker.</span></div>
+
+        <h3 id="fr-truth">Ground-truth production events</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When labelling, the system shall derive <strong>operating-rate events</strong> from the CREA blast-furnace operating-rate benchmark (NOX-001) as large weekly changes (|Δ| or rolling robust-z above a configurable threshold), direction-typed (<code>up</code> | <code>down</code>).</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When labelling, the system shall ingest a best-effort <strong>public curtailment calendar</strong> (MEE / CREA reporting: heating-season cuts, blue-sky/summit curtailments, sudden environmental shutdowns) as discrete production-event intervals (start, end, direction), documenting the source; absence is handled explicitly (assumption A4 / NOX-003 Q6a).</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>When labelling, the system shall <strong>combine</strong> the two into a unified production-event set (a benchmark jump and/or a calendar episode) and tag each with its cause where known (policy vs market), per the developer decision to use both sources.</span></div>
+
+        <h3 id="fr-study-prod">Event study vs production</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When evaluating, the system shall <strong>match</strong> NO₂ events to production events within a configurable temporal window and compute, as the headline metrics, <strong>precision</strong> (matched NO₂ events / all NO₂ events), <strong>recall</strong> (matched production events / all production events), the <strong>false-positive rate</strong>, and the signed <strong>lead time</strong> (NO₂ event date − production event date) with a confidence interval / sign test — <strong>not</strong> a Pearson r.</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When reporting, the system shall state explicitly whether NO₂ events <strong>lead the official BF-rate print</strong> (positive median lead beyond the publication latency) — the timeliness edge — and quantify it, accepting a non-leading / null result as reportable.</span></div>
+
+        <h3 id="fr-market">Market linkage</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When the market study runs, the system shall ingest <strong>daily prices</strong> for the configured instrument families from public/free sources and persist dated snapshots (reproducible, no live fetch at analysis): <strong>global miners</strong> (BHP, RIO, VALE) and a <strong>China steel / materials ETF</strong> via a free API; <strong>Chinese ferrous futures</strong> (SHFE rebar, DCE iron ore, coking coal) via the exchange-published daily settlement where a free path exists, else a documented best-effort snapshot (Q1).</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>When studying market impact, the system shall compute returns and <strong>abnormal returns</strong> (vs a market/sector benchmark via a market model or simple de-meaning) over a configurable window [−k, +k] trading days around each NO₂ event, emitting per-event and aggregated <strong>cumulative abnormal return (CAR)</strong>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-032</span><span>When reporting market impact, the system shall report catalyst metrics: <strong>directional hit rate</strong> (did the asset move the expected way after the event), mean/median abnormal return with a CI, and the lead versus the official print — never a single event.</span></div>
+        <div class="req-row"><span class="req-id">REQ-033</span><span>When studying, the system shall <strong>separate production-confirmed</strong> NO₂ events from unconfirmed ones; the tradeable hypothesis is on confirmed events (or on NO₂ as an early flag of soon-to-be-confirmed events), and the report shall distinguish the two.</span></div>
+
+        <h3 id="fr-report">Reporting, no-look-ahead, multiplicity</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When the pipeline completes, the system shall emit a machine-readable event table + a plain-language <strong>catalyst report</strong> that states the <strong>NULL</strong> explicitly when present (NO₂ events neither lead production nor move the asset beyond chance) as a valid outcome, with precision/recall/lead/CAR reported with confidence intervals.</span></div>
+        <div class="req-row"><span class="req-id">REQ-041</span><span>The system shall enforce <strong>no look-ahead</strong>: event-detection baselines/thresholds at time <em>t</em> use only data up to <em>t</em> (causal), and the market study aligns each event to the <strong>next tradeable session after the overpass + processing latency</strong>, so no future information enters the signal.</span></div>
+        <div class="req-row"><span class="req-id">REQ-042</span><span>The system shall apply <strong>multiple-testing discipline</strong>: record the number of events, windows, thresholds and instruments tested and adjust or flag the multiplicity, so a positive CAR is not a product of search (no p-hacking over knobs).</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-050</span><span>When the user runs the catalyst via the <code>noxus</code> CLI, the system shall expose documented subcommands (e.g. <code>detect-events</code>, <code>ingest-market</code>, <code>catalyst</code>) driven by a <code>CatalystConfig</code> (detector thresholds, match window, event-study window, instruments, latency, paths); existing NOX-001/002/003 subcommands are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Every result reproduces from committed NO₂ residual + benchmark + dated market snapshots + recorded config; no live fetch at analysis time.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free data only.</strong> Market data from free sources; the Chinese-ferrous-futures tension is resolved at approval (Q1) — never a paywalled dependency without explicit developer sign-off.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>No look-ahead / causal.</strong> Detection and trade-alignment use only information available at the decision time, including the TROPOMI processing latency.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Honest reporting.</strong> Precision/recall/lead/CAR with CIs and multiplicity; the null is first-class; no cherry-picked event or instrument.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>No-publish.</strong> NO₂-derived event series are gitignored; market snapshots are third-party data (gitignored unless licence permits); the small stats summary may be committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>Determinism + stack conformance.</strong> Fixed seeds; Python ≥3.12; passes <code>uv run pytest</code> and <code>uv run ruff check .</code>; any new dependency (market data, change-point) needs developer approval (Q2/Q3).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Two NO₂ events fall inside one match window → both are matched to the nearest production event without double-counting; reported.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>A heating-season <em>blanket</em> curtailment (long interval) vs a spot event → interval episodes are matched on their start/end edges, not every period inside, to avoid inflating recall.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>An NO₂ event window straddles market holidays → the study uses the next available trading sessions; the window is in trading days, not calendar days.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>An instrument lacks history for an early event → that event is dropped for that instrument (reported), not back-filled.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>The event period is cloud-gapped (low coverage) → not an event (REQ-003); a true curtailment hidden by cloud becomes a (reported) missed detection, not a false negative silently absorbed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>No NO₂ events clear the threshold on the (short, partial) series → the pipeline reports "insufficient events for a stable study" rather than emitting unstable rates.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the NOX-003.1 residual or the NOX-001 benchmark is missing, the system fails with an actionable message naming the producing command.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If market data for a requested instrument cannot be fetched, the system <strong>skips that instrument with a recorded note</strong> (and continues with the others) rather than failing silently or fabricating prices.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If fewer than a configured minimum number of (confirmed) events exist after screening, the system refuses the statistical study and reports insufficient events (cf. EDGE-006).</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>On a <strong>planted-event</strong> synthetic residual (known step surges/drops at known dates) the detector recovers the event dates and directions within tolerance; precision/recall against the planted truth are computed correctly.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>On a <strong>planted-null</strong> residual (no events, pure noise) the false-positive rate is low (≤ the configured |z| tail), proving the detector does not invent events.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>Coverage-screened (cloud-gap) and meteo-spike synthetic periods are <strong>not</strong> flagged as events (REQ-003/004).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>Production-event labelling recovers planted BF-rate jumps and calendar intervals; matching computes the correct lead time on a planted lead.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>The market event-study recovers a planted cumulative abnormal return around events on synthetic returns; the directional hit rate and CI are correct; a planted-null (returns independent of events) yields a CAR indistinguishable from zero.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span><strong>No-look-ahead guard</strong>: a test proves detection at time <em>t</em> is unchanged by future data, and the market alignment never uses a session before the overpass+latency.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span>The ferrous-data-absent path degrades gracefully (ERR-002): the study completes on the available instruments with a recorded skip.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span>The catalyst report states the conclusion in plain language including the null, with precision/recall/lead/CAR + CIs and the multiplicity count; <code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, parquet/JSON artifacts, and static event-study plots.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. Outputs: event-timeline figure, event-study CAR plot per instrument, precision/recall-vs-threshold curve.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NOX-003.1 residual</strong> — <code>data/derived/no2/steel_intensity_decomposition.parquet</code> (gitignored) — the detection input.</li>
+          <li><strong>NOX-001 benchmark</strong> — CREA BF operating-rate parquet — production-event ground truth.</li>
+          <li><strong>Curtailment calendar</strong> — public MEE/CREA episodes (source/format under Q4; cf. NOX-003 Q6a).</li>
+          <li><strong>Market data</strong> — free daily prices: miners BHP/RIO/VALE + a steel ETF (e.g. <code>yfinance</code>/<code>stooq</code>, new dep, Q2); Chinese ferrous SHFE/DCE settlement (free path under Q1).</li>
+          <li><strong>Change-point library</strong> — e.g. <code>ruptures</code>, or an in-house CUSUM (no new dep), under Q3.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: project map (new <code>catalyst/</code> package + CLI), <code>docs/data-access.md</code>
+        (market-data sources + the ferrous tension), a methods note on event detection + event study, a result
+        note (<code>docs/</code>), <code>.gitignore</code> (market snapshots + NO₂-derived events), possibly
+        <code>references.bib</code> (event-study methodology) and <code>decisions/</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-002/003/004/005</span></td><td>AT1, AT3</td><td>Detection; coverage + meteo (ventilation/stagnation) screens.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT4</td><td>Ground-truth labelling + combine.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021</span></td><td>AT4</td><td>Precision/recall/lead vs production.</td></tr>
+            <tr><td><span class="req-id">REQ-030..033</span></td><td>AT5, AT7</td><td>Market study; CAR; graceful skip.</td></tr>
+            <tr><td><span class="req-id">REQ-040/041/042</span></td><td>AT6, AT8</td><td>Null report; look-ahead guard; multiplicity.</td></tr>
+            <tr><td><span class="req-id">REQ-050</span></td><td>AT-REG-1</td><td>CLI wired; existing commands unchanged.</td></tr>
+            <tr><td><span class="req-id">ERR-001..003</span></td><td>AT-ERR-1</td><td>Missing inputs; instrument skip; too few events.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
