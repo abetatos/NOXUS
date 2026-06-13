@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "state_machine": [
+    "pending",
+    "spec_draft",
+    "spec_ready",
+    "human_approved",
+    "in_progress",
+    "review",
+    "done",
+    "rejected",
+    "blocked"
+  ],
+  "tasks": [
+    {
+      "id": "TEMPLATE-001",
+      "title": "Example SDD task",
+      "slug": "example-sdd-task",
+      "description": "Replace this example with a real task.",
+      "source": null,
+      "sdd": true,
+      "status": "pending",
+      "spec_path": "specs/example-sdd-task",
+      "scope": [],
+      "approval": {
+        "required": true,
+        "approved_by": null,
+        "approved_at": null,
+        "notes": null
+      },
+      "documentation_required": null,
+      "documentation_status": "pending",
+      "documentation_targets": [],
+      "links": {
+        "issue": null,
+        "pr": null,
+        "branch": null
+      },
+      "created_at": "YYYY-MM-DD",
+      "updated_at": "YYYY-MM-DD"
+    }
+  ]
+}
