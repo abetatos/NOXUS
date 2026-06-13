@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+.env
+.envrc
+
+# uv
+#   The lockfile IS committed on purpose for reproducibility — do not ignore uv.lock.
+
+# Test / coverage / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Editors
+.vscode/
+.idea/
+
+# NOXUS — raw Earth-observation downloads are large and reproducible; do NOT commit them.
+# Derived series (parquet) under data/derived/ ARE meant to be committed.
+data/raw/
+*.nc
+*.tif
+*.tiff

@@ -1,0 +1,13 @@
+# Line-ending policy for the repo (kills the Windows "LF will be replaced by CRLF" warnings).
+# All text files are stored AND checked out as LF, independent of each machine's git config.
+* text=auto eol=lf
+
+# Binary files: never apply text/eol conversion.
+*.parquet binary
+*.nc      binary
+*.tif     binary
+*.tiff    binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.pdf     binary
