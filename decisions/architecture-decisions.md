@@ -28,6 +28,15 @@ Entry format:
 
 ---
 
+## 2026-06-13 — The negative levels NO₂↔BF-rate correlation is spurious; never report it as a finding
+
+- Status: accepted
+- Context: The intensity-model decomposition tempted a "decoupling" headline: footprint NO₂ levels correlate −0.218 with the CREA BF operating rate, and the fitted secular trend s(t) correlates −0.728 (naive p≈1e-63). A methodological audit (2026-06-13) showed this is a textbook spurious-regression artifact: both series are non-stationary (ADF p≈0.13–0.14, unit root) and not cointegrated (Engle–Granger p=0.058); lag-1 autocorrelation is 0.99/0.92 so the effective sample size is ~18, not 377 (autocorr-corrected p≈0.001 with a huge CI); and first-differencing BOTH sides collapses the relationship to r=−0.03 (p=0.55).
+- Decision: Do **not** report the negative levels/trend correlation as a statistical finding. The decoupling phenomenon may be stated only **qualitatively**, anchored in external literature (Li 2024 emission-intensity decline), explicitly flagged as *consistent with* — not *established by* — these data. The single defensible quantitative result remains the **NULL on the activity proxy**, which is robust because it is the part that survives detrending (week-over-week symmetric r=+0.006; yoy-symmetric r=+0.11 marginal).
+- Alternatives rejected: promoting r=−0.73 as a "decoupling" headline (spurious; reviewer-fatal). See rejected-options.md.
+- Consequences: validation reporting must lead with the robust null, not the levels correlation; any levels relationship shown must carry the non-stationarity/non-cointegration caveat. The intensity-model's real contribution is framed as removing the difference-filter degree of freedom (flat smoothness_sweep), not as detecting decoupling.
+- Source: methodology audit 2026-06-13 (post NOX-003.1 / NOX-004); reproduced on data/derived/no2/steel_intensity_decomposition.parquet vs benchmark_tangshan_bf_operating_rate.parquet.
+
 ## 2026-06-13 — NO₂ at native ~5 km resolution; gridding = temporal compositing, not swath oversampling
 
 - Status: accepted
@@ -117,3 +126,12 @@ Entry format:
 - Alternatives rejected: (a) continuing to chase a continuous correlation (weak, below bar); (b) flux-divergence to clean events (NOX-005, expensive, not needed for step-change events); (c) tuning detector/window/instrument to maximise CAR (p-hacking); (d) a paywalled ferrous-futures feed.
 - Consequences: first real run on the PARTIAL cube is an honest NULL -- 25 NO2 events detected but only 4/47 production events matched (precision 0.16, recall 0.09, median lead -2 d), market CARs all straddle zero. The machinery works; the event-marker is weak on partial/noisy data. The full TROPOMI fetch (NOX-003.1 T10) + threshold tuning is the real test. Implemented in noxus/catalyst/; report at data/derived/catalyst_summary.txt.
 - Source: NOX-004 (specs/steel-event-catalyst); developer reframe + scoping answers 2026-06-13.
+
+## 2026-06-13 — Daily Prophet decomposition: implemented; harmonic-K1 (weekly) stays the method of record (NOX-006)
+
+- Status: accepted
+- Context: To beat the ~40% steel mean-share SNR ceiling without flux divergence (NOX-005), the one temporal lever is the day-of-week cycle (steel baseload vs traffic weekly cycle), visible only at daily resolution. Built a daily NO2 footprint (re-aggregate per-overpass at freq=D; 1984/2720 valid days, 73%, weekdays balanced) + a Prophet decomposition (trend + yearly + weekly Fourier, deterministic MAP, lazy-imported, harmonic fallback).
+- Decision: Keep the capability (deseason_method='prophet' + 'harmonic'; daily path) but make HARMONIC-K1 (annual Fourier on the intensity residual, weekly cadence) the METHOD OF RECORD. Empirical result on the real (partial) data: (a) the weekly component is FLAT — variance removed 0.5%, weekday profile ~0 -> steel is baseload, but precisely therefore there is NO weekly cycle to separate (also limited by TROPOMI's single ~13:30 overpass, which can't resolve a traffic commute cycle); (b) the daily-Prophet residual couples to BF at best-regime r=0.65, BELOW harmonic-K1 weekly (0.78) and intensity (0.73) — daily adds per-point noise without adding weekly signal; (c) yearly-only ~= yearly+weekly (0.648); (d) no usable quarterly/four-month cycle — the BF rate's sub-annual power is ~semiannual (heating-season curtailment on/off, already an annual K=2 harmonic), not aligned with the NO2 residual's ~2-3.6-month wiggles; adding quarterly/four-month Prophet terms removes ~0.5% variance and does not improve coupling.
+- Alternatives rejected: daily-Prophet as the method of record (worse coupling + noisier); a weekly source-separation claim (no weekly cycle in the data); a quarterly/four-month seasonality (no usable shared power).
+- Consequences: Prophet is available + tested (deterministic, lazy-imported) for future use (e.g. a geostationary/multi-overpass sensor like GEMS could revive the weekly lever), but the pipeline default + reporting stand on harmonic-K1 / intensity. Honest null on the marginal value; the full TROPOMI fetch + the event/regime framing remain the path. Implemented in noxus/signal/prophet_deseason.py; probe analysis/daily_prophet_probe.py.
+- Source: NOX-006 (specs/daily-prophet-deseason); real partial-cube run 2026-06-13.

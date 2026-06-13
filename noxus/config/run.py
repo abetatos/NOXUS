@@ -168,6 +168,24 @@ class SignalConfig:
     # Intensity decomposition diagnostic (signal, s(t) trend, activity residual); NOX-003.1, REQ-104.
     decomposition_name: str = "steel_intensity_decomposition.parquet"
 
+    # --- Prophet / harmonic deseasonalisation (NOX-006) ---------------------------------------
+    # Active when deseason_method == "prophet" (trend + yearly + weekly Fourier) or "harmonic"
+    # (annual Fourier on the intensity residual, dependency-free fallback). Prophet is lazy-imported.
+    prophet_growth: str = "linear"
+    prophet_changepoint_prior: float = 0.05  # trend flexibility (higher -> wigglier; Q1)
+    prophet_yearly_order: int = (
+        4  # annual Fourier order (reduced from Prophet's 10; K>=3 overfits, Q2)
+    )
+    prophet_weekly_order: int = (
+        3  # weekly (day-of-week) Fourier order — the source-separation handle
+    )
+    prophet_min_valid: int = 120  # refuse the fit below this many valid days (ERR-003)
+    harmonic_order: int = 1  # annual harmonics removed in the "harmonic" fallback (K=1 sweet spot)
+    # Daily NO2 products (NOX-006; gitignored, NO2-derived).
+    cube_daily_name: str = "no2_cube_d.nc"
+    footprint_daily_name: str = "steel_footprint_daily.parquet"
+    prophet_decomposition_name: str = "steel_prophet_decomposition.parquet"
+
 
 @dataclass(frozen=True)
 class ValidationConfig:

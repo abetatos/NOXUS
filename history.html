@@ -97,6 +97,26 @@
       <div class="entry-header">
         <span class="entry-date">2026-06-13</span>
         <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-006 — Daily NO₂ aggregation + Prophet decomposition</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — implemented + self-reviewed; 133 tests, ruff clean; real daily run on the partial cube.</dd>
+        <dt>Spec</dt>              <dd><code>specs/daily-prophet-deseason/</code></dd>
+        <dt>Summary</dt>          <dd>Daily NO₂ footprint (re-aggregate per-overpass at <code>freq=D</code>, coverage-screened; 1984/2720 valid days = 73%, weekdays balanced) + a Prophet decomposition (trend + yearly + weekly Fourier, deterministic MAP, lazy-imported) to test the day-of-week source-separation lever (steel baseload vs traffic cycle). Adds <code>deseason_method="prophet"</code> + <code>"harmonic"</code>; harmonic is the dependency-free fallback; causal rolling-refit for any lead claim.</dd>
+        <dt>Finding</dt>           <dd><strong>Honest null on the marginal value.</strong> Weekly component FLAT (variance 0.5%, weekday profile ~0) → steel is baseload, but therefore no weekly cycle to separate (also limited by the single ~13:30 overpass). Daily-Prophet residual couples to BF at best-regime r=0.65 — BELOW harmonic-K1 weekly (0.78) and intensity (0.73); yearly-only ≈ yearly+weekly. No usable quarterly/four-month cycle (BF sub-annual power is ~semiannual = heating-season curtailment on/off, an annual harmonic). <strong>harmonic-K1 stays the method of record.</strong></dd>
+        <dt>Decisions</dt>        <dd>Daily-Prophet kept + tested but harmonic-K1 is the method of record; recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/signal/prophet_deseason.py</code> (Prophet + harmonic + weekday diagnostic + causal refit); <code>noxus/signal/index.py</code> (prophet/harmonic branches); <code>noxus/config/run.py</code> (Prophet/daily params); <code>analysis/daily_prophet_probe.py</code> (+figures); <code>tests/signal/test_prophet_deseason.py</code> + <code>test_harmonic_fallback.py</code>; <code>pyproject.toml</code>/<code>uv.lock</code> (+prophet). Daily NO₂-derived gitignored.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 133 passed; <code>uv run ruff check .</code> → clean. Live daily Prophet run + periodogram executed.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> — see <code>specs/daily-prophet-deseason/review.html</code>.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13.</dd>
+        <dt>Follow-ups</dt>        <dd>Revive the weekly source-separation lever only with a multi-overpass/geostationary sensor (GEMS); otherwise the full TROPOMI fetch + event/regime framing remain the path.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
         <span class="entry-title">NOX-004 — Steel NO₂ event catalyst (production-event detection → market lead)</span>
       </div>
       <dl class="entry-fields">

@@ -58,7 +58,8 @@
     <a href="#economy">4 · Economy</a> ·
     <a href="#seasonal">5 · Seasonal</a> ·
     <a href="#prophet">6 · Better seasonality?</a> ·
-    <a href="#takeaways">7 · Takeaways</a></p>
+    <a href="#daily">7 · Daily &amp; the weekly lever</a> ·
+    <a href="#takeaways">8 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -201,7 +202,33 @@
     is not the binding limit for a <em>change</em> detector; it bounds a <em>level</em> estimator.</p>
   </div>
 
-  <h2 id="takeaways">7 · Takeaways &amp; next probes</h2>
+  <h2 id="daily">7 · The daily cube &amp; the weekly source-separation lever (NOX-006)</h2>
+  <p>The only way to beat the ~40% mean-share ceiling without flux divergence is to raise steel's
+  <em>variance</em> share — and the natural handle is the <strong>day-of-week cycle</strong>: steel is
+  baseload (runs 24/7, flat across the week) while traffic/other sources carry a weekly cycle, so removing
+  a weekly seasonal term would isolate the industrial component. That cycle is invisible in the weekly
+  composite, so we built a <strong>daily</strong> footprint (1,984 valid days / 73% after cloud screening,
+  weekdays balanced) and a <strong>Prophet</strong> decomposition (trend + yearly + weekly).</p>
+  <p><strong>Result: an honest null on the lever.</strong> The weekly component is <strong>flat</strong>
+  (variance 0.5% of signal; weekday effects ≈0) — confirming steel is baseload, but precisely therefore
+  <em>there is no weekly cycle to remove</em> (and TROPOMI's single ~13:30 overpass can't resolve a traffic
+  commute cycle anyway). The daily-Prophet residual couples to the BF rate at best-regime
+  <strong>r≈0.65</strong> — <em>below</em> the weekly harmonic-K1 (0.78) and intensity (0.73): daily adds
+  per-point noise without adding weekly signal. Yearly-only ≈ yearly+weekly; and no usable
+  quarterly/four-month cycle exists — the BF rate's sub-annual power sits at ~semiannual (the heating-season
+  curtailment on/off, already an annual harmonic), not aligned with the NO₂ residual's ~2–3.6-month wiggles.</p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/expl_prophet_decomposition.png" alt="prophet decomposition">
+      <figcaption>Prophet daily decomposition: trend + yearly + (flat) weekly + activity residual.</figcaption></figure>
+    <figure><img src="figures/exploration/expl_prophet_weekday.png" alt="weekday profile">
+      <figcaption>Day-of-week component — essentially flat (0.5% of variance): steel baseload, no weekly
+      traffic cycle to separate at the overpass time.</figcaption></figure>
+  </div>
+  <p style="color:var(--muted);font-size:14px">The Prophet/daily capability is kept and tested (it could
+  revive the weekly lever with a multi-overpass geostationary sensor like GEMS), but <strong>harmonic-K1
+  (weekly) remains the method of record</strong>.</p>
+
+  <h2 id="takeaways">8 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>

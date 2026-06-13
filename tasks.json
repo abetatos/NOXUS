@@ -134,7 +134,9 @@
       "description": "Additive increment on NOX-003. NOX-003 produced a two-layer result: footprint NO2 correlates NEGATIVELY with the CREA blast-furnace operating rate in levels (monthly r~-0.35) and only weakly positive after blind yoy detrending (r~0.19, below the 0.5-0.75 bar). The negative-levels relationship is the signature of DECOUPLING (emission intensity / NOx-per-tonne falls secularly faster than activity rises; retrofits/policy, Li 2024). Blind difference filters under-remove (yoy) or erase (double-diff) that trend. This task models emission intensity EXPLICITLY: fit a smoothness-controlled secular trend s(t) on the meteo-normalised footprint signal and define the activity proxy as the residual (Li 2024 activity/intensity/meteo decomposition). Smoothness is selected by out-of-sample / blocked time-series cross-validation on the NO2 series ALONE -- never against the benchmark (anti-p-hacking, NFR-102) -- and a smoothness-sensitivity sweep is reported so any signal is shown robust, not an artefact of one smoothing choice. The secular trend is emitted as a reportable diagnostic (the decoupling), not discarded; the report states both the negative levels relationship and the residual relationship with CIs. Second half: the DEFERRED full-series re-run -- once the complete TROPOMI fetch + rebuilt cube exist, re-run the chain on the longer series and tune footprint radius + coverage thresholds on the complete coverage distribution, resolving NOX-003 Q1/Q5 and NOX-002b Q2. ADDITIVE ONLY: all existing deseason methods (yoy/stl/yoy-double-diff/none) and CLI behaviour are retained for replicability; intensity-model is a new selectable method. Relative-index discipline, attributable-fraction cap, honest-null and flux-divergence-deferred (NOX-005) all carry over unchanged. The full-series result is the go/no-go gate for NOX-005.",
       "sdd": true,
       "status": "done",
-      "depends_on": ["NOX-003"],
+      "depends_on": [
+        "NOX-003"
+      ],
       "spec_path": "specs/steel-intensity-model/",
       "review": {
         "decision": "approved",
@@ -174,7 +176,10 @@
       "description": "PARADIGM SHIFT (developer-directed 2026-06-13): stop using the cluster NO2 as a continuous tracker of the BF operating rate (NOX-003/003.1 showed it is a weak below-bar tracker) and use it as a CATALYST / EVENT MARKER. Detect discrete production events -- sharp surges/drops in cluster NO2 (curtailment start/end, sudden shutdowns/restarts) -- on the NOX-003.1 intensity-detrended + meteo-normalised residual, and test whether they (a) LEAD the official production print and (b) precede moves in steel-exposed markets. Why it fits: a catalyst lives in the tails (large deviations), so a low overall r is irrelevant; Tangshan events are discrete/sharp; and the slow decoupling trend that killed the continuous correlation does not create sudden jumps (removed once via the NOX-003.1 residual). Pipeline: event detection (robust anomaly + change-point, coverage-screened, STRENGTHENED meteo control = ventilation index + stagnation flag so a still-air spike is not an event -- the cheap in-framework lever for 'better weather correlation', NOT flux-divergence which is deferred NOX-005) -> ground-truth production events (CREA BF-rate jumps COMBINED WITH a public curtailment calendar) -> event-study match (precision/recall/lead time, not Pearson r) -> market event-study (cumulative abnormal returns around events) for THREE instrument families: Chinese ferrous futures (SHFE rebar/DCE iron ore/coking coal), global miners (BHP/RIO/VALE), and a China steel ETF/equities -> catalyst report. DISCIPLINE: strict no-look-ahead (causal baselines; trade at next session after overpass+latency), multiple-testing transparency (fix defaults before viewing returns), public/free data only (Chinese ferrous futures lack a clean free API -> Q1: lead with miners+ETF, ferrous as best-effort exchange-settlement snapshot or deferred), honest NULL is a valid outcome (Morris&Zhang 2019). NO2-derived events + market price snapshots gitignored. Statistical power benefits from the full TROPOMI fetch (NOX-003.1 T10).",
       "sdd": true,
       "status": "done",
-      "depends_on": ["NOX-003.1", "NOX-001"],
+      "depends_on": [
+        "NOX-003.1",
+        "NOX-001"
+      ],
       "spec_path": "specs/steel-event-catalyst/",
       "scope": [
         "noxus/catalyst/**",
@@ -228,8 +233,12 @@
       "slug": "daily-prophet-deseason",
       "description": "Build a DAILY NO2 footprint series (re-aggregate the per-overpass store at freq=D, coverage-screened, never interpolated) and apply a PROPHET decomposition (piecewise-linear trend + yearly + weekly Fourier seasonality) to (a) remove the secular emission-intensity decline AND calendar seasonality in one model, and (b) exploit the day-of-week cycle for SOURCE SEPARATION: steel is baseload (flat across the week) while traffic/other carry a weekly cycle, so removing the weekly term raises steel's variance share -- the one temporal lever (short of flux divergence NOX-005) that can beat the ~40% mean-share SNR ceiling. Motivated by the deep exploration (docs/exploration-results.html): harmonic Fourier lifts best-regime r to 0.78 but the 40% MEAN share caps a level estimator; the weekly cycle is only visible at daily resolution. FEASIBILITY VERIFIED 2026-06-13: 2617 overpasses (2019->present, ~1/day); daily footprint = 1984 valid days (73%) after cloud screening, balanced across weekdays (Mon 290..Sun 270); prophet 1.3.0 installed. Pipeline: daily cube/footprint -> Prophet (deterministic MAP, uncertainty_samples=0, observed-only residual) -> weekday source-separation diagnostic -> compare residual vs BF (full/regime/lead-lag) alongside yoy/STL/intensity/harmonic -> re-run NOX-004 catalyst on the cleaner residual. DISCIPLINE: in-sample fit is diagnostic only; any lead/market claim uses a CAUSAL rolling refit (no look-ahead); prophet lazy-imported with the harmonic method as the dependency-free fallback; honest NULL acceptable; SNR ceiling recorded; daily NO2-derived gitignored.",
       "sdd": true,
-      "status": "spec_ready",
-      "depends_on": ["NOX-002b", "NOX-003.1", "NOX-004"],
+      "status": "done",
+      "depends_on": [
+        "NOX-002b",
+        "NOX-003.1",
+        "NOX-004"
+      ],
       "spec_path": "specs/daily-prophet-deseason/",
       "scope": [
         "noxus/signal/**",
@@ -242,9 +251,27 @@
         "pyproject.toml"
       ],
       "approval": {
-        "human_approved": true
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
       },
-      "created": "2026-06-13"
+      "created": "2026-06-13",
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/daily-prophet-deseason/review.html",
+        "note": "Daily NO2 footprint (re-aggregate at freq=D; 1984/2720 valid, 73%, weekdays balanced) + Prophet decomposition (trend+yearly+weekly, deterministic MAP, lazy-imported, harmonic fallback). 133 tests, ruff clean. HONEST NULL on the marginal value: weekly component FLAT (0.5% variance, weekday profile ~0) -> steel baseload, no weekly cycle to separate (also limited by the single ~13:30 overpass); daily-Prophet residual best-regime r=0.65 < harmonic-K1 weekly 0.78 and intensity 0.73; yearly-only ~= yearly+weekly; no usable quarterly/four-month cycle (BF sub-annual power ~semiannual = heating-season curtailment, an annual harmonic). harmonic-K1 stays the method of record. Partial/non-blocking: causal-guard test (AC-006) + catalyst re-run on the Prophet residual deferred (no lead/market claim is made from a null).",
+        "real_result": "docs/figures/exploration/daily_prophet_findings.txt"
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        ".claude/context/project-map.md",
+        "decisions/architecture-decisions.md",
+        "history.html",
+        "docs/exploration-results.html"
+      ],
+      "follow_ups": "Non-blocking: revive the weekly source-separation lever only with a multi-overpass/geostationary sensor (e.g. GEMS) that resolves the diurnal/weekday cycle; otherwise the full TROPOMI fetch + the event/regime framing remain the path. Causal rolling-refit + catalyst re-run on the Prophet residual deferred (null marginal value -> no predictive claim made)."
     }
   ]
 }

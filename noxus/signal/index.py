@@ -167,13 +167,31 @@ def deseasonalize(
             "intensity_estimator": fit.estimator,
             "intensity_cv_score": fit.cv_score,
         }
+    elif method == "prophet":
+        from noxus.signal.prophet_deseason import prophet_deseason
+
+        fit = prophet_deseason(s, **_prophet_kwargs(cfg))
+        deseasoned = fit.residual.reindex(s.index)
+        applied = "prophet"
+        intensity_attrs = {
+            "prophet_weekly_amplitude": fit.weekly_amplitude,
+            "prophet_variance_removed": fit.variance_removed,
+            "prophet_params": fit.params,
+        }
+    elif method == "harmonic":
+        from noxus.signal.prophet_deseason import harmonic_deseason
+
+        k = cfg.harmonic_order if cfg is not None else 1
+        deseasoned = harmonic_deseason(s, k=k).reindex(s.index)
+        applied = "harmonic"
+        intensity_attrs = {"harmonic_order": k}
     elif method == "none":
         deseasoned = s.copy()
         applied = "none"
     else:
         raise ValueError(
             f"Unknown deseasonalisation method {method!r} "
-            "(use 'yoy'/'stl'/'yoy-double-diff'/'intensity-model'/'none')."
+            "(use 'yoy'/'stl'/'yoy-double-diff'/'intensity-model'/'prophet'/'harmonic'/'none')."
         )
 
     terms: list[str] = []
@@ -205,6 +223,19 @@ def _intensity_kwargs(cfg) -> dict:
         "cv_folds": cfg.intensity_cv_folds,
         "criterion": cfg.intensity_criterion,
         "min_length": cfg.intensity_min_length,
+    }
+
+
+def _prophet_kwargs(cfg) -> dict:
+    """Pull Prophet parameters from ``cfg`` (a ``SignalConfig``), or fall back to defaults (NOX-006)."""
+    if cfg is None:
+        return {}
+    return {
+        "growth": cfg.prophet_growth,
+        "changepoint_prior": cfg.prophet_changepoint_prior,
+        "yearly_order": cfg.prophet_yearly_order,
+        "weekly_order": cfg.prophet_weekly_order,
+        "min_valid_days": cfg.prophet_min_valid,
     }
 
 

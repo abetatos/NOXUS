@@ -25,34 +25,34 @@
         (<code>done</code>/<code>in-progress</code>/<code>blocked</code>). Do not start until
         <code>human_approved</code>. Additive — weekly paths and defaults stay intact.</p>
         <ol class="task-timeline">
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
             <strong>Daily config (REQ-040).</strong></div>
             <div class="task-item-body">In <code>noxus/config/run.py</code>: daily-path knobs + Prophet params (changepoint prior, yearly/weekly Fourier orders, min valid days, paths). Existing config unchanged.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
             <strong>Daily footprint series (REQ-001/002).</strong></div>
             <div class="task-item-body">Wire <code>grid --freq D</code> + footprint at daily; emit <code>steel_footprint_daily.parquet</code> with coverage + per-weekday valid counts. (Feasibility already proven: 1,984/2,720 valid, weekdays balanced.)</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
             <strong>Tests: planted daily decomposition fixtures (AT2–AT4).</strong></div>
             <div class="task-item-body">Synthetic <code>trend + yearly + weekly + activity + noise</code> daily series with cloud gaps; a flat-weekly variant; fixed seeds.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
             <strong>Prophet wrapper (REQ-010/011/012).</strong></div>
             <div class="task-item-body">New <code>noxus/signal/prophet_deseason.py</code>: lazy import; MAP/deterministic (<code>uncertainty_samples=0</code>); fit trend+yearly+weekly; emit components + observed-only residual + provenance. Short series → ERR-003; missing prophet → ERR-002 (AT2/AT3/AT7).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
             <strong>Weekday source-separation diagnostic (REQ-020/021).</strong></div>
             <div class="task-item-body"><code>weekday_profile</code> + variance-removed by component; interpret flat vs strong weekly; test whether the Prophet residual couples to BF better than the harmonic residual (AT4).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
             <strong>Causal rolling refit (REQ-032).</strong></div>
             <div class="task-item-body"><code>prophet_deseason_causal</code> (refit on data up to t); guard test that the residual at t is unchanged by future days (AT6).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
             <strong>Wire <code>deseason_method="prophet"</code> + catalyst re-run (REQ-031).</strong></div>
             <div class="task-item-body">Branch in <code>noxus/signal/index.py</code> (harmonic fallback); emit <code>steel_prophet_decomposition.parquet</code>; point the NOX-004 catalyst at it (AT5).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
             <strong>Comparison + figures (REQ-030).</strong></div>
             <div class="task-item-body">Extend <code>analysis/seasonality_probe.py</code> with the daily-Prophet residual; emit decomposition + weekday + updated compare figures; add a daily-Prophet section to <code>docs/exploration-results.html</code>.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
             <strong>gitignore + validation (NFR-006/007, AC-008).</strong></div>
             <div class="task-item-body">Gitignore daily NO₂-derived; <code>uv run pytest</code> + <code>ruff</code> green; prophet lazy-import + fallback confirmed.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T10</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
             <strong>Real run + docs + decisions + history.</strong></div>
             <div class="task-item-body">Run daily-Prophet on the real (partial) data; record whether it improves coupling/catalyst (honest, incl. null + SNR caveat); update project map, data-access, decision log, history.</div></li>
         </ol>
