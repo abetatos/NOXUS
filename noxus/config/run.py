@@ -189,3 +189,54 @@ class ValidationConfig:
     out_dir: Path = Path("data/derived")
     results_name: str = "steel_validation_results.json"
     summary_name: str = "steel_validation_summary.txt"
+
+
+# Default market instruments (NOX-004). Free/reproducible via yfinance: global miners + a steel ETF.
+# Chinese ferrous futures (SHFE rebar / DCE iron ore / coking coal) lack a clean free API (Q1) and are
+# left out of the default set — added behind a best-effort exchange-settlement snapshot when available.
+DEFAULT_MARKET_INSTRUMENTS = ("BHP", "RIO", "VALE", "SLX")
+MARKET_BENCHMARK = "ACWI"  # broad global-equity benchmark for abnormal-return computation
+
+
+@dataclass(frozen=True)
+class CatalystConfig:
+    """Configuration for the NO2 event catalyst (NOX-004).
+
+    Drives event detection → production-event matching → market event-study so every artifact is
+    reproducible from a recorded config (REQ-050). Detector + study defaults are fixed here so they are
+    chosen BEFORE looking at market returns (anti-overfitting / multiple-testing discipline, REQ-042).
+    """
+
+    # --- Event detection (REQ-002..005) -------------------------------------------------------
+    freq: str = "W"  # the residual cadence (weekly cube)
+    detector: str = "zscore"  # "zscore" (robust MAD-z) | "cusum" | "both"
+    z_thresh: float = 2.0  # |robust z| above which a residual deviation is an event
+    detect_min_periods: int = 12  # causal expanding baseline needs >= this many past points
+    min_coverage: float = 0.25  # event period coverage floor (inherited NOX-002b)
+    # Strengthened meteo control: reject an event explained by a same-sign ventilation anomaly.
+    meteo_screen: bool = True
+    ventilation_z: float = 1.5  # |ventilation-index z| above which weather is the likely cause
+
+    # --- Ground-truth production events (REQ-010..012) ----------------------------------------
+    bf_event_z: float = 1.5  # |robust z| of the weekly BF-rate change that marks a production event
+    curtailment_calendar: Path | None = None  # public MEE/CREA calendar (Q4); None => BF jumps only
+
+    # --- Matching + event study (REQ-020..033, 041, 042) -------------------------------------
+    match_window: int = 2  # periods within which an NO2 event matches a production event
+    study_window: int = 5  # +/- trading days for the market cumulative-abnormal-return window
+    overpass_latency_days: int = (
+        2  # overpass + processing latency before the first tradeable session
+    )
+    min_events: int = 5  # refuse the study below this many (confirmed) events (ERR-003)
+    instruments: tuple[str, ...] = DEFAULT_MARKET_INSTRUMENTS
+    market_benchmark: str = MARKET_BENCHMARK
+
+    # --- Paths --------------------------------------------------------------------------------
+    decomposition_path: Path = Path("data/derived/no2/steel_intensity_decomposition.parquet")
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    market_snapshot_dir: Path = Path("data/raw/market")
+    events_out: Path = Path("data/derived/no2/steel_no2_events.parquet")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "catalyst_results.json"
+    summary_name: str = "catalyst_summary.txt"

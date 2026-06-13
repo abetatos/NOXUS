@@ -1,0 +1,75 @@
+{
+  "n_no2_events": 25,
+  "n_surge": 15,
+  "n_drop": 10,
+  "production": {
+    "n_production_events": 47,
+    "n_matched": 4,
+    "precision": 0.16,
+    "recall": 0.0851063829787234,
+    "false_discovery_rate": 0.84,
+    "median_lead_days": -2.0,
+    "lead_ci_days": [
+      -2.0,
+      8.5
+    ],
+    "lead_positive_frac": 0.25
+  },
+  "market": {
+    "by_instrument": [
+      {
+        "instrument": "BHP",
+        "n_events": 25,
+        "car_mean": 0.0014069774045403704,
+        "car_ci_low": -0.013856720592926223,
+        "car_ci_high": 0.014417548729645902,
+        "hit_rate": 0.44
+      },
+      {
+        "instrument": "RIO",
+        "n_events": 25,
+        "car_mean": 0.004542147093733293,
+        "car_ci_low": -0.00709088165106138,
+        "car_ci_high": 0.015443784816421101,
+        "hit_rate": 0.44
+      },
+      {
+        "instrument": "SLX",
+        "n_events": 25,
+        "car_mean": -0.008761721123733145,
+        "car_ci_low": -0.023053671792383802,
+        "car_ci_high": 0.004749481353533173,
+        "hit_rate": 0.44
+      },
+      {
+        "instrument": "VALE",
+        "n_events": 25,
+        "car_mean": -0.0021087484045661186,
+        "car_ci_low": -0.02383173134486554,
+        "car_ci_high": 0.01803882520648123,
+        "hit_rate": 0.44
+      }
+    ],
+    "n_events_tested": 25,
+    "n_instruments": 4,
+    "verdict": "market_null"
+  },
+  "conclusion": "null",
+  "multiplicity_n_tests": 100,
+  "config_echo": {
+    "detector": "zscore",
+    "z_thresh": 2.0,
+    "match_window": 2,
+    "study_window": 5,
+    "overpass_latency_days": 2,
+    "instruments": [
+      "BHP",
+      "RIO",
+      "VALE",
+      "SLX"
+    ],
+    "market_benchmark": "ACWI",
+    "meteo_screen": true,
+    "freq": "W"
+  }
+}

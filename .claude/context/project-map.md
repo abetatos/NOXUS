@@ -24,6 +24,7 @@ noxus/                 # Python package
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
   signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (explicit emission-intensity/decoupling model, NOX-003.1) — implemented
   validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag vs the benchmark — implemented
+  catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004) — implemented
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
 analysis/              # preliminary_signal.py: reproducible preliminary run → docs/figures/preliminary/
 docs/                  # design notes, preprint motivation, data-access.md, preliminary-results.html (+ figures/)
@@ -47,6 +48,9 @@ data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_oper
 | `uv run noxus attribute [--radius KM]` | Footprint sampling + regional-background subtraction → background-corrected footprint signal |
 | `uv run noxus index [--no-meteo]` | ERA5 meteo regress-out + deseason + relative activity index (deseason method is config-only) |
 | `uv run noxus validate [--max-lag N]` | Align + sign + r/p + lead-lag vs the benchmark → report (reports the null) |
+| `uv run noxus detect-events [--z-thresh Z]` | Detect coverage/meteo-screened NO2 production events on the intensity residual (NOX-004) → `data/derived/no2/steel_no2_events.parquet` (gitignored) |
+| `uv run noxus ingest-market [--start --end]` | Fetch free daily prices (miners + steel ETF + benchmark, yfinance) → dated `data/raw/market/*.parquet` snapshot (gitignored) |
+| `uv run noxus catalyst [--window --latency]` | Match events vs production (CREA jumps + curtailment calendar) + market event-study (CAR) → catalyst report incl. null (NOX-004) |
 
 ## Key entrypoints
 

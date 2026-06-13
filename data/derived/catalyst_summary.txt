@@ -1,0 +1,20 @@
+Steel NO2 event catalyst — production-event detection & market lead
+==============================================================================
+NULL: NO2 events do not reliably correspond to production events after screening. A valid, designed-for outcome (Morris & Zhang 2019), not a pipeline failure.
+
+NO2 events: 25 (15 surge / 10 drop).
+Production link: matched 4/47 production events; precision=0.16, recall=0.09, FDR=0.84.
+Lead time (NO2 − production): median -2.0 d (95% CI -2.0..8.5; 25% of matches lead).
+
+Market event-study (market_null): forward cumulative abnormal returns
+  BHP    n= 25  CAR=+0.0014 (95% CI -0.0139..+0.0144)  hit-rate=0.44
+  RIO    n= 25  CAR=+0.0045 (95% CI -0.0071..+0.0154)  hit-rate=0.44
+  SLX    n= 25  CAR=-0.0088 (95% CI -0.0231..+0.0047)  hit-rate=0.44
+  VALE   n= 25  CAR=-0.0021 (95% CI -0.0238..+0.0180)  hit-rate=0.44
+
+Multiplicity: 100 event×instrument tests (defaults fixed before viewing returns; CARs are not multiplicity-adjusted — treat as exploratory).
+No look-ahead: detection baselines are causal; the first tradeable session is overpass + 2 day(s).
+
+Config echo:
+  detector=zscore z_thresh=2.0 match_window=2 study_window=5
+  instruments=['BHP', 'RIO', 'VALE', 'SLX'] benchmark=ACWI

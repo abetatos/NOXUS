@@ -173,7 +173,7 @@
       "slug": "steel-event-catalyst",
       "description": "PARADIGM SHIFT (developer-directed 2026-06-13): stop using the cluster NO2 as a continuous tracker of the BF operating rate (NOX-003/003.1 showed it is a weak below-bar tracker) and use it as a CATALYST / EVENT MARKER. Detect discrete production events -- sharp surges/drops in cluster NO2 (curtailment start/end, sudden shutdowns/restarts) -- on the NOX-003.1 intensity-detrended + meteo-normalised residual, and test whether they (a) LEAD the official production print and (b) precede moves in steel-exposed markets. Why it fits: a catalyst lives in the tails (large deviations), so a low overall r is irrelevant; Tangshan events are discrete/sharp; and the slow decoupling trend that killed the continuous correlation does not create sudden jumps (removed once via the NOX-003.1 residual). Pipeline: event detection (robust anomaly + change-point, coverage-screened, STRENGTHENED meteo control = ventilation index + stagnation flag so a still-air spike is not an event -- the cheap in-framework lever for 'better weather correlation', NOT flux-divergence which is deferred NOX-005) -> ground-truth production events (CREA BF-rate jumps COMBINED WITH a public curtailment calendar) -> event-study match (precision/recall/lead time, not Pearson r) -> market event-study (cumulative abnormal returns around events) for THREE instrument families: Chinese ferrous futures (SHFE rebar/DCE iron ore/coking coal), global miners (BHP/RIO/VALE), and a China steel ETF/equities -> catalyst report. DISCIPLINE: strict no-look-ahead (causal baselines; trade at next session after overpass+latency), multiple-testing transparency (fix defaults before viewing returns), public/free data only (Chinese ferrous futures lack a clean free API -> Q1: lead with miners+ETF, ferrous as best-effort exchange-settlement snapshot or deferred), honest NULL is a valid outcome (Morris&Zhang 2019). NO2-derived events + market price snapshots gitignored. Statistical power benefits from the full TROPOMI fetch (NOX-003.1 T10).",
       "sdd": true,
-      "status": "human_approved",
+      "status": "done",
       "depends_on": ["NOX-003.1", "NOX-001"],
       "spec_path": "specs/steel-event-catalyst/",
       "scope": [
@@ -189,6 +189,23 @@
         "approved_by": "abetatos",
         "approved_at": "2026-06-13"
       },
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/steel-event-catalyst/review.html",
+        "note": "Full catalyst implemented (events/groundtruth/market/study/report + CLI). 124 tests, ruff clean. Deep-review focus holds: NO-LOOK-AHEAD (causal expanding median/MAD; guard test; trade at overpass+latency) and MULTIPLE-TESTING (defaults fixed pre-returns; n_tests recorded) verified; ventilation/stagnation meteo screen rejects weather spikes; coverage screen; confirmed-vs-unconfirmed split; public/free yfinance only (ferrous deferred Q1); NO2 events + price snapshots gitignored. Real partial-cube run (live yfinance): HONEST NULL -- 25 NO2 events, 4/47 production matched (precision 0.16, recall 0.09, median lead -2 d), market CARs straddle zero. Machinery correct; event-marker weak on partial data -> full-fetch re-run + tuning is the decisive test.",
+        "real_result": "data/derived/catalyst_summary.txt"
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        ".claude/context/project-map.md",
+        "docs/data-access.md",
+        "decisions/architecture-decisions.md",
+        "history.html",
+        ".gitignore"
+      ],
+      "follow_ups": "Non-blocking: re-run after the full TROPOMI fetch (NOX-003.1 T10) + tune z-threshold/match-window/study-window on the longer series; assemble the public curtailment calendar (Q4); add Chinese ferrous futures via exchange daily-settlement snapshot (Q1); optional event-timeline / CAR / precision-recall figures + a docs/ result note. The full-series catalyst result also informs the NOX-005 (flux-divergence) go/no-go.",
       "created": "2026-06-13"
     },
     {

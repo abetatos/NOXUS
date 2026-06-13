@@ -26,37 +26,37 @@
         <code>human_approved</code>. Fix detector/study defaults <strong>before</strong> looking at market
         returns (anti-overfitting, REQ-042).</p>
         <ol class="task-timeline">
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
             <strong>CatalystConfig (REQ-050).</strong></div>
             <div class="task-item-body">In <code>noxus/config/run.py</code>: anomaly z-threshold, change-point method, match window, event-study window [−k,+k], overpass+processing latency, instruments, min-events, paths. Frozen dataclass.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
             <strong>Tests: planted-event / planted-null fixtures (AT1–AT3, AT5).</strong></div>
             <div class="task-item-body">Synthetic residual with known step events; pure-noise null; cloud-gap + stagnation-day periods; synthetic returns with a planted CAR. Fixed seeds.</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
             <strong>Event detection + meteo/coverage screens (REQ-002..005).</strong></div>
             <div class="task-item-body"><code>events.py</code>: robust anomaly (MAD-z) + change-point/CUSUM on the NOX-003.1 residual; coverage screen; ventilation index + stagnation flag; event must survive meteo. Causal baseline. Emit typed events (AT1/AT3).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
             <strong>Ground-truth production events (REQ-010..012).</strong></div>
             <div class="task-item-body"><code>groundtruth.py</code>: BF-rate jump events + curtailment calendar loader + combine/cause-tag. Document the calendar source (Q4) (AT4).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
             <strong>Match + lead study vs production (REQ-020/021).</strong></div>
             <div class="task-item-body"><code>study.py</code>: window match; precision/recall/FPR; signed lead time + CI; lead-vs-publication test. Edge handling EDGE-001/002 (AT4).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
             <strong>Market ingest + abnormal returns (REQ-030/031).</strong></div>
             <div class="task-item-body"><code>market.py</code>: free price ingest → dated snapshot (miners + steel ETF; ferrous per Q1); abnormal returns vs a benchmark. Network mocked in tests. Missing instrument → skip with note (ERR-002).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
             <strong>Market event-study + no-look-ahead + multiplicity (REQ-032/033/041/042).</strong></div>
             <div class="task-item-body"><code>study.py</code>: CAR over [−k,+k] trading days aligned to next session after overpass+latency; directional hit rate + CI; confirmed vs unconfirmed split; causal guard; record n_tests (AT5/AT6).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
             <strong>Report incl. null (REQ-040).</strong></div>
             <div class="task-item-body"><code>report.py</code>: <code>catalyst_results.json</code> + plain-language summary stating lead/coincident/null with precision/recall/lead/CAR + CIs + multiplicity (AT8).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
             <strong>Errors + gitignore + deps (ERR-001..003, NFR-005/006).</strong></div>
             <div class="task-item-body">Missing residual/benchmark; instrument skip; too-few-events refusal. Gitignore events + price snapshots. Add approved deps via <code>uv</code> (Q2/Q3) (AT-ERR-1).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T10</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
             <strong>Wire CLI <code>detect-events</code>/<code>ingest-market</code>/<code>catalyst</code> (REQ-050).</strong></div>
             <div class="task-item-body">Config-driven; existing subcommands unchanged (AT-REG-1).</div></li>
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T11</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T11</span>
             <strong>Run + figures + docs + decisions.</strong></div>
             <div class="task-item-body"><code>uv run pytest</code> + <code>ruff</code> green; run on the real (partial) data; event-timeline + CAR + precision/recall figures; result note; project map, data-access, decisions, history. Note power caveats (full fetch = NOX-003.1 T10).</div></li>
         </ol>

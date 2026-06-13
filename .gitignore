@@ -54,6 +54,9 @@ data/derived/no2/
 # ERA5 reanalysis snapshots (dated NetCDF subsets of the public ARCO-ERA5 store) — reproducible,
 # not committed (NOX-003 T12). Also matched by data/raw/ and *.nc above; kept explicit for clarity.
 data/raw/era5/
+# Market price snapshots (third-party daily prices via yfinance) — reproducible from a dated fetch,
+# not committed (NOX-004 NFR-005). NO2-derived event tables live under data/derived/no2/ (above).
+data/raw/market/
 # Downloaded archives (e.g. the GEM Global Iron & Steel Tracker zip) — never commit.
 *.zip
 

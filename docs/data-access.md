@@ -141,6 +141,23 @@ committed at `data/derived/tangshan_steel_facilities.csv` and defines the area o
 
 ---
 
+## Market prices — yfinance (NOX-004 catalyst)
+
+The event catalyst studies steel-exposed market instruments around NO₂ production events. Daily prices
+come from **free public sources via `yfinance`** (Yahoo Finance), written to a dated snapshot under
+`data/raw/market/` (gitignored; analysis reads only the snapshot, reproducible per NFR-001):
+
+- **Default instruments** (free, reproducible): global miners `BHP`, `RIO`, `VALE` + a steel ETF `SLX`,
+  with `ACWI` as the broad-market benchmark for abnormal returns.
+- **Chinese ferrous futures** (SHFE rebar / DCE iron ore / coking coal) — the closest instrument to
+  Tangshan output, but **no clean free API** (Yahoo does not carry them reliably). Open question Q1:
+  v1 leads with the free instruments above; ferrous can be added as a best-effort exchange daily-
+  settlement snapshot. **Never add a paywalled data dependency** without explicit developer approval.
+
+Run: `uv run noxus ingest-market [--start --end]`. No credentials needed (public endpoint).
+
+---
+
 ## Reproducibility & secrets
 
 - `.env` is gitignored and **protected** — never read, write, or log secret values; reference variable

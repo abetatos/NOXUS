@@ -97,6 +97,26 @@
       <div class="entry-header">
         <span class="entry-date">2026-06-13</span>
         <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-004 — Steel NO₂ event catalyst (production-event detection → market lead)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — full pipeline implemented + self-reviewed; 124 tests, ruff clean; real end-to-end run on the partial cube.</dd>
+        <dt>Spec</dt>              <dd><code>specs/steel-event-catalyst/</code></dd>
+        <dt>Summary</dt>          <dd>Paradigm shift: use cluster NO₂ as an event/catalyst marker, not a continuous tracker. Detect discrete production events (robust MAD-z + CUSUM, causal/no-look-ahead) on the NOX-003.1 residual; coverage + strengthened meteo screen (ventilation index + stagnation flag). Match vs production (CREA BF-rate jumps + curtailment calendar) → precision/recall/lead. Market event-study (forward CAR ±window, trade at overpass+latency) for miners (BHP/RIO/VALE) + steel ETF (SLX) vs ACWI. Headline metrics with CIs, not Pearson r; multiple-testing recorded; honest null.</dd>
+        <dt>Finding</dt>           <dd><strong>Honest NULL on the partial cube.</strong> 25 NO₂ events detected (15 surge/10 drop); only 4/47 production events matched (precision 0.16, recall 0.09, median lead −2 d); market CARs for all four instruments straddle zero (market_null). The machinery works; the event-marker is weak on partial/noisy data — the full TROPOMI fetch (NOX-003.1 T10) + threshold tuning is the real test.</dd>
+        <dt>Decisions</dt>        <dd>Catalyst (event-marker) paradigm; no-look-ahead + multiple-testing discipline; ventilation/stagnation meteo lever (not flux-divergence); yfinance for free prices; ferrous futures deferred (Q1) — recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/catalyst/{events,groundtruth,market,study,report}.py</code>; <code>noxus/config/run.py</code> (CatalystConfig); <code>noxus/cli/main.py</code> (detect-events/ingest-market/catalyst); <code>tests/catalyst/</code>; <code>.gitignore</code> (market snapshots); <code>pyproject.toml</code>/<code>uv.lock</code> (+yfinance); docs (data-access, project map). NO₂ events + price snapshots gitignored.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 124 passed; <code>uv run ruff check .</code> → clean. Live-verified: yfinance fetch + full <code>noxus catalyst</code> run produced the null report.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> — see <code>specs/steel-event-catalyst/review.html</code>.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13 (spec approved before implementation).</dd>
+        <dt>Follow-ups</dt>        <dd>Re-run after the full TROPOMI fetch + tune z-threshold/match-window; assemble the curtailment calendar (Q4); add Chinese ferrous futures via exchange-settlement snapshot (Q1); optional event-timeline/CAR figures.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
         <span class="entry-title">NOX-003.1 — Explicit emission-intensity (decoupling) model</span>
       </div>
       <dl class="entry-fields">
