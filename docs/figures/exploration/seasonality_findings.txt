@@ -1,0 +1,19 @@
+     method  n  r_lag0  best_lag  r_best  rolling_peak
+        yoy 78   0.158         6   0.243         0.709
+        stl 90  -0.083        -5  -0.358         0.662
+  intensity 90   0.132        -1   0.179         0.733
+harmonic K1 90   0.122        -1   0.167         0.783
+harmonic K2 90   0.121        -1   0.167         0.769
+harmonic K3 90   0.109         6   0.179         0.750
+harmonic K4 90   0.113         6   0.184         0.761
+
+     method   n  r_lag0  best_lag  r_best  rolling_peak
+        yoy 325   0.098        -8   0.111         0.382
+        stl 377   0.112        -5   0.151         0.334
+  intensity 377   0.065        -3   0.105         0.426
+harmonic K1 377   0.062        -3   0.101         0.400
+harmonic K2 377   0.060        -3   0.099         0.397
+harmonic K3 377   0.056        -3   0.086         0.347
+harmonic K4 377   0.056        -3   0.086         0.344
+
+SNR ceiling: with steel ~40% of the column, attainable r ~ sqrt(variance share). If the variance share equals the mean share (~0.40) the ceiling is ~0.63. The best regime rolling-peak r=0.78 implies a variance share of ~61% in that window — i.e. steel drives more of the VARIANCE than of the MEAN when it is the swing factor (curtailments), which is exactly when the marker should work.
