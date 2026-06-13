@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — TROPOMI NO₂ gridding</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — TROPOMI NO₂ gridding</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Unresolved questions. All non-blocking with defaults.</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">2</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">1</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">Resolution strategy</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Composite at native ~5 km, or pursue ~1 km oversampling (raw L2)?</dd>
+            <dt>Decision (2026-06-13, developer)</dt><dd><strong>Option A: native ~5 km</strong> — adequate for the cluster-level signal; per-plant separation is infeasible/not the goal. Fine oversampling (L2/OData/S3) deferred to a possible NOX-003 extension.</dd>
+            <dt>Related requirements</dt><dd>REQ-001, REQ-002</dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>2026-06-13</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">Coverage threshold values</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What minimum-coverage thresholds — per period (fraction of valid days) and per cell — before masking?</dd>
+            <dt>Why it matters</dt><dd>Too strict → many gaps; too loose → biased composites from few observations.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Start with a Kondragunta-style rule: a weekly period needs ≥25% valid days, and a cell needs ≥1 valid overpass in the period; tune after seeing the real coverage distribution.</dd>
+            <dt>Affected files / sections</dt><dd>composite(); GriddingConfig</dd>
+            <dt>Related requirements</dt><dd>REQ-004</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">Emit the interim AOI-mean series now?</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Include the naive AOI-mean weekly series in NOX-002b (to smoke-test validation), or wait for real attribution (NOX-003)?</dd>
+            <dt>Why it matters</dt><dd>It lets us run the validation engine end-to-end on real data now, but it is not a real predictor.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Emit it, clearly labelled "naive spatial mean, pre-attribution", as an interim convenience; the real predictor remains NOX-003.</dd>
+            <dt>Affected files / sections</dt><dd>aoi_mean_series(); REQ-010/011</dd>
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Q1 resolved above (kept inline for context).</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Fine ~1 km oversampling via raw L2 — deferred to a future NOX-003 extension.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Only non-blocking questions remain → task may be <code>spec_ready</code>.</li>
+          <li>Tune Q2 thresholds against the real coverage distribution once the fetch completes.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

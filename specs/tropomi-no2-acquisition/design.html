@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — TROPOMI NO₂ acquisition + AOI subset + QA</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-002a</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>tropomi-no2-acquisition</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A resumable acquisition loop that, per time-batch, submits an <strong>openEO</strong> job to
+        CDSE which loads the Sentinel-5P L2 NO₂ collection, filters spatially to the AOI bbox and
+        temporally to the batch, applies the QA mask server-side, and returns only the AOI window. Each
+        returned overpass is written to a per-overpass file under <code>data/raw/tropomi/</code> with a
+        provenance sidecar (collection, processor version, QA threshold, AOI, fetch time). A lightweight
+        <strong>manifest</strong> records what has been fetched so re-runs are idempotent and resumable.
+        Authentication reuses the CDSE account from <code>.env</code> (the openEO client reads OIDC
+        config from environment; interactive device-flow for dev, client-credentials for headless).</p>
+        <p>A separate <strong>verification</strong> module reads the acquired store, selects clear-sky
+        high-NO₂ days, and renders the NO₂ field over the AOI with facility points overlaid (optionally an
+        optical thumbnail). Acquisition keeps L2-per-overpass detail; gridding/compositing is deferred to
+        NOX-002b.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="170" viewBox="0 0 720 170" aria-label="Acquisition data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="10" y="60" width="140" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="80" y="80" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">CDSE openEO</text>
+            <text x="80" y="95" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">S5P L2 NO₂</text>
+            <line x1="150" y1="84" x2="188" y2="84" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="190" y="50" width="170" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="275" y="72" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">server-side subset</text>
+            <text x="275" y="88" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">AOI bbox + time + QA</text>
+            <text x="275" y="103" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(only AOI returns)</text>
+            <line x1="360" y1="84" x2="398" y2="84" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="400" y="50" width="150" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="475" y="72" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">per-overpass write</text>
+            <text x="475" y="88" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ provenance + coverage</text>
+            <text x="475" y="103" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ manifest (resumable)</text>
+            <line x1="550" y1="84" x2="588" y2="84" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="590" y="60" width="120" height="48" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="650" y="80" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#14532d">data/raw/tropomi</text>
+            <text x="650" y="95" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">AOI NO₂ store</text>
+            <text x="360" y="150" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">Verification reads the store → clear-day NO₂ render + facility overlay (separate module).</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Implements <code>noxus/data/tropomi.py</code> (currently a scaffold); adds a verification module
+        and CLI wiring (<code>noxus/cli/main.py</code> <code>fetch</code> + a verify subcommand); reads
+        <code>noxus/config/region.py</code> (AOI) and <code>data/derived/tangshan_steel_facilities.csv</code>.
+        Writes gitignored <code>data/raw/tropomi/</code>. Protected areas (<code>.env</code>) read via
+        dotenv only.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/tropomi.py</code></td><td>implement</td><td>openEO acquisition: subset/QA/persist/manifest (REQ-001..007).</td></tr>
+            <tr><td><code>noxus/data/verify_no2.py</code></td><td>new</td><td>Clear-day selection + NO₂/facility render (REQ-010..012).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>AcquisitionConfig</code> (collection, version, QA, date range, batch, paths).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>fetch</code> + <code>verify-no2</code> (REQ-020).</td></tr>
+            <tr><td><code>pyproject.toml</code></td><td>add dep</td><td><code>openeo</code> (+ plotting/optical libs if needed for verification).</td></tr>
+            <tr><td><code>tests/…</code></td><td>new</td><td>Mocked-openEO unit tests + fixtures.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>.env</code> / credentials</td><td>Read via dotenv only; never logged/committed.</td></tr>
+            <tr><td><code>data/derived/tangshan_steel_facilities.csv</code></td><td>Consumed for overlay; not modified here.</td></tr>
+            <tr><td>attribution / signal / validation modules</td><td>Out of scope (downstream).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Store layout</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/tropomi.py
+def acquire_no2(aoi: Region, start: date, end: date, cfg: AcquisitionConfig) -> AcquireReport:
+    """Resumable: batch -> openEO subset+QA -> per-overpass write + manifest. Returns counts."""
+
+def _connect_openeo(cfg) -> "openeo.Connection": ...     # OIDC from env; secrets never logged
+def _subset_job(conn, aoi, t0, t1, cfg): ...             # load_collection + filter_bbox + QA mask
+def coverage_fraction(overpass_ds) -> float: ...
+
+# noxus/data/verify_no2.py
+def select_clear_high_days(store, n=5, max_cloud=0.2) -> list[date]: ...
+def render_day(store, day, facilities_csv, out_png, optical=False) -> Path: ...
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>data/raw/tropomi/                       # gitignored
+  manifest.json                         # {overpass_id: {fetched_at, version, coverage, path}}
+  &lt;YYYY&gt;/&lt;YYYY-MM-DD&gt;_&lt;orbit&gt;.nc         # AOI-clipped overpass (NetCDF)
+# per-overpass variables kept:
+#   nitrogendioxide_tropospheric_column (mol/m^2), qa_value, cloud_fraction,
+#   averaging_kernel, latitude/longitude(+bounds), precision
+# provenance (attrs/sidecar): collection, processor_version, qa_threshold, aoi_bbox, fetched_at
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus fetch --start 2019-01-01 --end 2026-06-13          # full record (batched, resumable)
+uv run noxus fetch --start 2023-06-01 --end 2023-06-08          # small range (dev)
+uv run noxus verify-no2 --days 5 --max-cloud 0.2 --optical      # clear-day NO₂ + facility overlay
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored store <code>data/raw/tropomi/</code> (per-overpass NetCDF + JSON manifest). No
+        database. Verification writes PNGs under <code>data/derived/verification/</code> (committable
+        evidence, small).</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs checked</th><th>Version</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>CDSE openEO + <code>openeo</code> client</td><td>Confirmed 2026-06-13: same CDSE account; 10k credits/mo; S5P available; client reads OIDC from env (≥0.18)</td><td>pin via uv</td><td>Verify exact collection id + whether it harmonises OFFL/RPRO / exposes processor version (open Q1).</td></tr>
+            <tr><td>S5P L2 NO₂ algorithm versions</td><td>Known v1.x→v2.x discontinuity (~10–30% tropospheric)</td><td>OFFL + RPRO</td><td>Track version per observation (REQ-002).</td></tr>
+            <tr><td>Optical basemap (S2)</td><td>—</td><td>—</td><td>Only for verification; source TBD (open Q3).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>Credentials (<code>CDSE_*</code>) are read from <code>.env</code> via <code>python-dotenv</code>;
+        never logged, printed, or committed. Network egress limited to CDSE openEO (and optional S2 for
+        verification). No protected files written, no remote mutations.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>docs/data-access.md</code> (openEO acquisition how-to), <code>README.md</code> (Status/Data
+        sources), project map (<code>data/tropomi.py</code> implemented, new raw store). Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Mocked openEO</strong>: a fake connection returning a synthetic AOI overpass (xarray) so the subset→QA→persist→manifest path is tested without network/credentials (AT1–AT4).</li>
+          <li><strong>QA + coverage</strong>: synthetic window with known qa distribution → filter and coverage fraction correct (AT3).</li>
+          <li><strong>Resumability</strong>: run twice; second run fetches nothing new (AT4).</li>
+          <li><strong>Version tracking</strong>: synthetic overpasses tagged v1/v2 → discontinuity flagged (AT2).</li>
+          <li><strong>Verification</strong>: given a synthetic store, clear-day selection picks the low-cloud/high-NO₂ day and <code>render_day</code> writes a PNG with facility points (AT5; rendering asserted by file existence + a few plotted markers, real-data visual check is manual).</li>
+          <li><strong>Errors</strong>: auth failure, collection-not-found, job failure/resume (AT-ERR-1).</li>
+        </ul>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no browser UI). The NO₂/facility renders are inspected manually as the location/sanity check.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>openEO collection semantics.</strong> Whether the CDSE openEO S5P collection already harmonises OFFL/RPRO and exposes the processor version is unconfirmed → open Q1; design isolates the load step so this can be set without rework.</li>
+          <li><strong>Credit budget.</strong> Processing 3,734 dates may exceed 10k credits/month → batch by year/month; acquisition is resumable so it can span billing cycles.</li>
+          <li><strong>Sub-pixel facilities.</strong> Signal is cluster/sub-cluster (assumptions A1); verification sets the right expectation rather than promising per-plant detail.</li>
+          <li><strong>Rejected:</strong> full-granule download (2.2 TB), Sentinel Hub/GEE (L3 rasters, less L2 control; SH needs extra OAuth client) — see <code>decisions/architecture-decisions.md</code> (openEO decision).</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: new module behind new CLI subcommands. Rollback = revert the branch and delete
+        <code>data/raw/tropomi/</code> (gitignored) and the verification PNGs. If <code>openeo</code> is
+        problematic, remove the dep and disable the subcommands; nothing downstream exists yet.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

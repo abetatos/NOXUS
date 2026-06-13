@@ -19,20 +19,34 @@ Rules for this file:
 
 ```text
 noxus/                 # Python package
-  config/              # run configuration, study-region definitions (e.g. Tangshan bbox)
-  data/                # public TROPOMI NO2 ingestion (Sentinel-5P) + benchmark series
-  attribution/         # source attribution of the NO2 column to the cluster
-  signal/              # construction of the activity index from attributed NO2
-  validation/          # lead/lag tests against the physical-output benchmark
-  cli/                 # command-line entry point (noxus.cli.main:main)
-docs/                  # design notes and preprint motivation
+  config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/ValidationConfig
+  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py + era5.py (CDS ingest) — implemented
+  attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
+  signal/              # index.py: meteo regress-out + deseason + relative activity index — implemented
+  validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag vs the benchmark — implemented
+  cli/                 # command-line entry point; all subcommands implemented (see CLI table)
+analysis/              # preliminary_signal.py: reproducible preliminary run → docs/figures/preliminary/
+docs/                  # design notes, preprint motivation, data-access.md, preliminary-results.html (+ figures/)
 tests/                 # pytest unit tests
 specs/                 # SDD specs, one folder per feature-slug
 decisions/             # SDD decision logs + onboarding answers
 scripts/               # SDD validation / run helpers (bash)
-data/raw/              # (gitignored) large raw EO downloads — never commit
-data/derived/          # derived parquet series — meant to be committed
+data/raw/              # (gitignored) EO downloads: tropomi/ (NO2 overpasses+manifest), era5/ (.nc snapshots), benchmark/, gem/
+data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_operating_rate) — committed
 ```
+
+## CLI commands
+
+| Command | Purpose |
+|---|---|
+| `uv run noxus ingest-benchmark [--from-snapshot CSV] [--out PARQUET]` | Fetch/clean the CREA Tangshan benchmark → dated snapshot + tidy parquet |
+| `uv run noxus fetch [--start --end --buffer --qa]` | Acquire TROPOMI NO2 over the AOI via openEO (server-side subset, resumable) → `data/raw/tropomi/` |
+| `uv run noxus verify-no2 [--days --max-cloud --optical]` | Render NO2-over-AOI + facility overlay for clear high-NO2 days → `data/derived/verification/` |
+| `uv run noxus grid [--freq --min-coverage]` | Composite per-overpass NO2 → weekly cube + interim AOI-mean series → `data/derived/no2/` (gitignored) |
+| `uv run noxus ingest-era5` | Fetch the AOI/era ERA5 subset from the Copernicus CDS (per-year, server-side) → dated `data/raw/era5/*.nc` snapshot (gitignored) |
+| `uv run noxus attribute [--radius KM]` | Footprint sampling + regional-background subtraction → background-corrected footprint signal |
+| `uv run noxus index [--no-meteo]` | ERA5 meteo regress-out + deseason + relative activity index (deseason method is config-only) |
+| `uv run noxus validate [--max-lag N]` | Align + sign + r/p + lead-lag vs the benchmark → report (reports the null) |
 
 ## Key entrypoints
 
@@ -61,10 +75,12 @@ not invent one.
 - Package / environment manager: `uv` (lockfile `uv.lock` committed for reproducibility).
 - Build backend: hatchling.
 - Test framework: pytest. Lint/format: ruff (line length 100, target py312).
-- Core deps: numpy, pandas, xarray, pyarrow, httpx, pyyaml, python-dotenv, rich.
+- Core deps: numpy, pandas, xarray, pyarrow, httpx, pyyaml, python-dotenv, rich, openeo (TROPOMI
+  acquisition via CDSE), cdsapi (ERA5 via the Copernicus CDS), scipy + statsmodels (signal/validation
+  stats), matplotlib (verification render), h5netcdf+h5py (per-overpass NetCDF I/O).
 - Optional `geo` extra (heavier EO backends): netCDF4, rasterio, earthengine-api.
-- Data sources are public/free: Sentinel-5P/TROPOMI via Copernicus Data Space Ecosystem
-  (and a GEE mirror under the `geo` extra).
+- Data sources are public/free: Sentinel-5P/TROPOMI via Copernicus Data Space Ecosystem (and a GEE
+  mirror under the `geo` extra); ERA5 reanalysis via the Copernicus Climate Data Store (CDS).
 
 ## Important documentation
 
@@ -72,14 +88,16 @@ not invent one.
 |---|---|
 | Project README (motivation + usage) | `README.md` |
 | Preprint-oriented motivation | `docs/motivation.md` |
+| Data access (sources + credentials) | `docs/data-access.md` |
+| Preliminary results writeup (+ figures) | `docs/preliminary-results.html` |
 | SDD onboarding answers | `decisions/answers.md` |
 
 ## Protected areas
 
 Files or directories that require explicit approval before changes:
 
-- `.env` and any secret/credential files (CDSE / GEE). Never read, write, or log secret
-  values; reference variable names only. `.env.example` documents the variable names.
+- `.env` and any secret/credential files (CDSE / GEE / CDS `CDSAPI_KEY`). Never read, write, or log
+  secret values; reference variable names only. `.env.example` documents the variable names.
 
 Handle with care (reproducibility conventions, not hard-blocked):
 

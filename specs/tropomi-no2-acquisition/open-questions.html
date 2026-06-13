@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — TROPOMI NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002a</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Unresolved questions. All are non-blocking with a default that lets implementation proceed; the most consequential (Q1) is verified early in implementation (task T1).</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">3</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">openEO S5P collection: id, OFFL/RPRO harmonisation, processor-version exposure, L2 detail</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What is the exact CDSE openEO collection id for S5P L2 NO₂, does it harmonise OFFL/RPRO, does it expose the processor version, and does the subset return L2-level detail (incl. averaging kernel) or a pre-gridded product?</dd>
+            <dt>Findings (verified live 2026-06-13)</dt><dd>Collection id is <strong><code>SENTINEL_5P_L2</code></strong>; bands include <code>NO2</code> and <code>CLOUD_FRACTION</code> (+ <code>dataMask</code>) but <strong>no <code>qa_value</code> band and no averaging kernel</strong> — it is a <strong>gridded product</strong> with quality screening applied internally. The collection serves <strong>one band per request</strong> (NO2 and CLOUD_FRACTION fetched separately and merged). The time dimension is named <code>t</code>; openEO marks it unlimited (handled on write). The processor version is not exposed as a field → derived from date (fallback cutoff).</dd>
+            <dt>Consequences</dt><dd>(1) Client-side <code>qa_value</code> filtering is not possible; we rely on the collection's internal screening and use <code>cloud_fraction</code> for clear-day selection/coverage. (2) The <strong>averaging kernel is not available via openEO</strong> → deferred to a future L2 path (CDSE OData/S3) for fine attribution (NOX-003). REQ-004's kernel retention is downgraded to "as exposed by the collection".</dd>
+            <dt>Related requirements</dt><dd>REQ-002, REQ-004</dd>
+            <dt>Resolved by</dt><dd>live run (developer creds), tasks T1/T12</dd>
+            <dt>Resolved at</dt><dd>2026-06-13</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">Headless auth vs interactive</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Run openEO with interactive device-flow (just the account) or set up a non-interactive OIDC client (<code>CDSE_CLIENT_SECRET</code>) for unattended batch acquisition?</dd>
+            <dt>Why it matters</dt><dd>Acquiring ~3,734 overpasses may run long/unattended.</dd>
+            <dt>Decision (2026-06-13, developer)</dt><dd>Use the <strong>account credentials already in <code>.env</code></strong>: mint a CDSE token via the OIDC <strong>password grant</strong> (<code>CDSE_USERNAME</code>/<code>CDSE_PASSWORD</code>, <code>client_id=cdse-public</code>) and pass it to openEO via <code>authenticate_oidc_access_token()</code>. If that fails, <strong>fall back to <code>authenticate_oidc()</code></strong> (refresh token, else interactive device flow that opens the web). No separate OAuth client required.</dd>
+            <dt>Related requirements</dt><dd>NFR-002, ERR-001</dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>2026-06-13</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">Optical basemap source for verification</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>For the optical thumbnail (REQ-012), use Sentinel-2 via openEO/Sentinel Hub, or a static map tile?</dd>
+            <dt>Why it matters</dt><dd>It is the <strong>final check that the factory is physically there</strong> under the NO₂ enhancement.</dd>
+            <dt>Decision (2026-06-13, developer)</dt><dd>Keep the optical thumbnail as part of the <strong>final verification</strong> (confirm the plant exists where the NO₂ enhancement appears), sourced from <strong>Sentinel-2 via the same openEO connection</strong> (no new credentials). It runs at verification time, not during bulk acquisition.</dd>
+            <dt>Related requirements</dt><dd>REQ-012</dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>2026-06-13</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move here after answers.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Move here if explicitly deferred.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Only non-blocking questions remain → the task may be <code>spec_ready</code>.</li>
+          <li>Resolve Q1 early in implementation (T1) and reflect any change back into the spec.</li>
+          <li>Do not silently decide auth/data questions; update this file when answered.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — TROPOMI NO₂ gridding + compositing</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — TROPOMI NO₂ gridding + temporal compositing</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Feature slug</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A pure-local (no network) pipeline that reads the NOX-002a per-overpass NetCDFs via the
+        manifest, stacks them into a time cube on a common grid (the openEO native ~0.05°×0.035° grid by
+        default; resample only if a target grid is configured or grids differ), composites to a target
+        frequency (weekly default) by the mean over valid cells, computes a coverage layer, applies the
+        minimum-coverage threshold (mask, never interpolate), and writes a NetCDF cube + an interim
+        AOI-mean parquet series under a gitignored <code>data/derived/no2/</code>.</p>
+        <p>Because the input is already gridded, there is <strong>no swath oversampling</strong> here; the
+        work is xarray stacking + <code>resample(time).mean()</code> + coverage bookkeeping. Fine
+        (~1 km) oversampling is a separate L2 track (NOX-003), not in scope.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="150" viewBox="0 0 720 150" aria-label="Gridding data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="10" y="50" width="150" height="50" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="85" y="70" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">data/raw/tropomi</text>
+            <text x="85" y="85" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">per-overpass .nc + manifest</text>
+            <line x1="160" y1="75" x2="198" y2="75" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="200" y="42" width="180" height="66" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="290" y="63" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">stack → composite</text>
+            <text x="290" y="79" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">weekly mean over valid</text>
+            <text x="290" y="94" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ coverage + threshold</text>
+            <line x1="380" y1="75" x2="418" y2="75" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="420" y="30" width="150" height="44" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="495" y="48" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#14532d">NO₂ cube (.nc)</text>
+            <text x="495" y="63" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">time×y×x + coverage</text>
+            <rect x="420" y="84" width="150" height="44" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="495" y="102" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#14532d">AOI-mean series</text>
+            <text x="495" y="117" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">parquet (interim)</text>
+            <line x1="570" y1="52" x2="600" y2="52" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <line x1="570" y1="106" x2="600" y2="106" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="602" y="55" width="108" height="46" rx="6" fill="#fff7ed" stroke="#d97706" stroke-width="1.5"/>
+            <text x="656" y="74" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9a3412">data/derived/no2/</text>
+            <text x="656" y="89" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#9a3412">(gitignored)</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>New module <code>noxus/data/gridding.py</code>; CLI subcommand in <code>noxus/cli/main.py</code>;
+        reads <code>data/raw/tropomi/</code> (NOX-002a) and <code>noxus/config/region.py</code>; writes
+        gitignored <code>data/derived/no2/</code>. Adds a <code>.gitignore</code> rule for NO₂ outputs.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/gridding.py</code></td><td>new</td><td>Stack/composite/coverage/threshold/emit (REQ-001..005,010,011).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>GriddingConfig</code> (freq, thresholds, target grid, paths).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>grid</code> subcommand (REQ-020).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td><code>data/derived/no2/</code> (NO₂-derived, not published).</td></tr>
+            <tr><td><code>tests/…</code></td><td>new</td><td>Synthetic-store unit tests.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/tropomi.py</code> (NOX-002a)</td><td>Consumed read-only via the manifest.</td></tr>
+            <tr><td>attribution / signal / validation modules</td><td>Downstream; out of scope.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/gridding.py
+def load_overpass_cube(raw_dir: Path, target_grid: Region | None = None) -> xr.Dataset:
+    """Stack per-overpass NetCDFs (from the manifest) into a time cube on a common grid."""
+
+def composite(cube: xr.Dataset, freq: str, min_coverage: float) -> xr.Dataset:
+    """Resample to freq by mean over valid cells; add coverage; mask below min_coverage."""
+
+def aoi_mean_series(cube: xr.Dataset) -> pd.DataFrame:
+    """Spatial mean over valid cells per period -> predictor-contract columns (naive, pre-attribution)."""
+
+def build_cube(cfg: GriddingConfig) -> BuildReport:
+    """End-to-end: load -> composite -> write cube (.nc) + AOI series (parquet) under data/derived/no2/."""
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored)
+no2_cube_weekly.nc        # dims time×y×x; vars: no2 (mol/m^2), coverage (0..1)
+                          # attrs: aoi_bbox, freq, min_coverage, processor_versions, source_manifest
+no2_aoi_mean.parquet      # date, no2_attributed (NAIVE AOI spatial mean), valid_coverage
+                          #   + attrs/sidecar note: "naive spatial mean, NOT attribution (pre NOX-003)"
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus grid                          # weekly cube + AOI series from data/raw/tropomi
+uv run noxus grid --freq M --min-coverage 0.25
+uv run noxus grid --raw-dir ... --out-dir ...
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored derived store <code>data/derived/no2/</code> (NetCDF cube + parquet series). No
+        database. Note: NetCDF is already gitignored globally (<code>*.nc</code>); the parquet needs the
+        explicit <code>data/derived/no2/</code> rule.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>None new — pure local processing with existing numpy/pandas/xarray (+ h5netcdf for I/O). No
+        network.</p>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>None. Local files only; no secrets, no network, no protected files. NO₂-derived outputs
+        gitignored so downloaded-data derivatives are not published.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (gridding implemented, new derived store), <code>.gitignore</code>, optionally a
+        line in <code>docs/data-access.md</code> describing the cube/series. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Synthetic store</strong>: write a handful of per-overpass NetCDFs (known values/dates) + manifest; assert the weekly cube equals the manual weekly means and the coverage layer is correct (AT1, AT2).</li>
+          <li><strong>Threshold</strong>: a sparse week below the coverage threshold is masked; a dense week is kept; no interpolation introduced (AT2).</li>
+          <li><strong>AOI series</strong>: equals the spatial mean over valid cells per period; carries predictor columns + naive label (AT3).</li>
+          <li><strong>Errors</strong>: empty store; irreconcilable grid (AT-ERR-1).</li>
+          <li><strong>CLI</strong>: <code>grid</code> wired, config-driven (AT-REG-1).</li>
+        </ul>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). Optionally reuse <code>verify-no2</code> rendering on a composited week for eyeballing.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Native resolution only.</strong> Cube is ~5 km (TROPOMI native) — adequate for the cluster signal, not per-plant. Fine oversampling deferred (L2 path, NOX-003). Decision A (2026-06-13).</li>
+          <li><strong>Interim AOI mean is not attribution.</strong> It is a naive spatial average to unblock end-to-end validation testing; must be clearly labelled to avoid being mistaken for the real predictor.</li>
+          <li><strong>Version discontinuity.</strong> Carried through and surfaced in provenance; the validation stage must control for it (it does, via the v1→v2 awareness).</li>
+          <li><strong>Rejected:</strong> interpolating cloud gaps (violates the cloud decision); swath oversampling here (input is already gridded; needs L2).</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive new module + CLI subcommand. Rollback = revert the branch and delete
+        <code>data/derived/no2/</code> (gitignored). Nothing downstream depends on it yet.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

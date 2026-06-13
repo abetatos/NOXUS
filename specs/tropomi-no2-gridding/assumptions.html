@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — TROPOMI NO₂ gridding</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — TROPOMI NO₂ gridding</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit, reviewable assumptions behind this spec.</p></section>
+      <hr>
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table><thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody><tr><td>Low</td><td style="text-align:right">2</td></tr><tr><td>Medium</td><td style="text-align:right">2</td></tr><tr><td>High</td><td style="text-align:right">0</td></tr></tbody></table>
+        <p><strong>Blocking assumptions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">Native resolution is adequate (compositing, not oversampling)</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The openEO product is already on a regular ~0.05°×0.035° (~5 km) grid, so this task composites in time rather than oversampling swath footprints. ~5 km native is adequate for a cluster-level signal (decision A, 2026-06-13). Fine ~1 km oversampling needs raw L2 and is deferred (NOX-003).</dd>
+            <dt>Reason</dt><dd>Confirmed from the NOX-002a downloads (30×51 grid, ~0.0546°×0.0347°).</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If per-source resolution were required, this product would be insufficient → pivot to the L2 path. But that is out of the project's cluster-level scope.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-001, REQ-002</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending (developer chose A on 2026-06-13)</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Interim AOI mean is a useful, clearly-labelled stand-in</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A naive AOI spatial-mean weekly NO₂ series is worth emitting now to smoke-test the validation engine end-to-end, provided it is unmistakably labelled as pre-attribution (not the NOX-003 predictor).</dd>
+            <dt>Reason</dt><dd>Unblocks a first real NO₂→benchmark test cheaply; the mean is a valid (if crude) cluster proxy.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If mislabelled it could be mistaken for attribution; mitigated by explicit labelling + provenance.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Weekly default frequency</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Default composite frequency is weekly (matches the CREA benchmark); monthly is configurable.</dd>
+            <dt>Reason</dt><dd>Consistency with the validation target; configurable.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Re-runnable at another frequency.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-002</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">NO₂-derived outputs are gitignored</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The cube and AOI series live under <code>data/derived/no2/</code> and are gitignored (derived from downloaded NO₂; not published) — consistent with the developer's no-publish-downloaded-data decision.</dd>
+            <dt>Reason</dt><dd>They are NO₂ data products, not small reference metadata.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>If publishing is later desired, remove the ignore rule.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>NFR-002, AC-004</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="accepted-assumptions"><h2>Accepted assumptions</h2><p>Move here after acceptance.</p></section>
+      <hr>
+      <section id="rejected-or-replaced-assumptions"><h2>Rejected or replaced assumptions</h2><p>Move here when rejected/replaced.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>No blocking assumptions here; none pending blocks implementation.</li>
+          <li>Do not treat as approved until the developer accepts.</li>
+          <li>If implementation needs a new assumption, stop and update this file.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

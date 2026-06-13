@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOXUS — Literature synthesis</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --soft:#f6f7f9;
+    --ink:#1b1f24;
+    --muted:#5b6570;
+    --faint:#8a939d;
+    --line:#e3e7ec;
+    --line-2:#eef1f4;
+    --accent:#1f6feb;
+    --accent-soft:#eaf2ff;
+    --p1:#b3261e;
+    --p2:#9a6700;
+    --p3:#1a7f37;
+    --warn:#9a3412;
+    --warn-bg:#fff4ed;
+    --ok:#1a7f37;
+    --ok-bg:#eef8f0;
+    --code:#0b3d91;
+    --maxw:1000px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:.86em}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+
+  header.hero{padding:48px 0 30px;border-bottom:1px solid var(--line)}
+  .hero .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .hero h1{margin:10px 0 6px;font-size:clamp(26px,4vw,36px);line-height:1.15;font-weight:800;letter-spacing:-.01em}
+  .hero p.lead{max-width:760px;color:var(--muted);font-size:16.5px;margin:14px 0 0}
+  .hero .meta{margin-top:16px;color:var(--faint);font-size:13px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .lg{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:5px 10px;background:var(--soft)}
+  .dot{width:9px;height:9px;border-radius:2px}
+  .dot.p1{background:var(--p1)} .dot.p2{background:var(--p2)} .dot.p3{background:var(--p3)}
+
+  nav.toc{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  nav.toc .wrap{display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding-top:9px;padding-bottom:9px}
+  nav.toc a{font-size:12px;color:var(--muted);padding:4px 9px;border-radius:5px;white-space:nowrap}
+  nav.toc a:hover{color:var(--ink);background:var(--soft);text-decoration:none}
+  nav.toc .tag{font-size:11px;color:var(--faint);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:0 2px}
+
+  section{padding:36px 0 4px}
+  h2.sec{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 4px;font-weight:700}
+  .sec-head h3{font-size:22px;margin:0 0 6px;font-weight:800;letter-spacing:-.01em}
+  .sec-head p{color:var(--muted);margin:0 0 22px;max-width:760px;font-size:15px}
+
+  .card{border:1px solid var(--line);border-radius:10px;margin:0 0 20px;overflow:hidden;background:var(--bg)}
+  .card-top{display:flex;gap:13px;align-items:flex-start;padding:16px 18px 13px;border-bottom:1px solid var(--line-2)}
+  .card-num{flex:0 0 auto;width:30px;height:30px;border-radius:7px;display:grid;place-items:center;font-weight:800;font-size:14px;background:var(--soft);border:1px solid var(--line);color:var(--muted)}
+  .card-head{flex:1 1 auto;min-width:0}
+  .card-head h4{margin:0;font-size:17px;line-height:1.3;font-weight:750}
+  .card-cite{color:var(--muted);font-size:13px;margin-top:3px}
+  .badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;border:1px solid}
+  .b-p1{color:var(--p1);background:#fdeceb;border-color:#f3c9c5}
+  .b-p2{color:var(--p2);background:#fdf4e0;border-color:#f0dcab}
+  .b-p3{color:var(--p3);background:#e9f7ee;border-color:#bfe6cb}
+  .b-role{color:var(--accent);background:var(--accent-soft);border-color:#c5dcfb}
+
+  /* metric strip */
+  .metrics{display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px;background:var(--soft);border-bottom:1px solid var(--line-2)}
+  .metric{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 11px;min-width:0}
+  .metric .v{font-weight:800;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .metric .v.neg{color:var(--p1)} .metric .v.pos{color:var(--ok)}
+  .metric .l{font-size:11.5px;color:var(--muted);margin-top:1px}
+
+  .body{padding:16px 18px 18px}
+  .body h5{margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--faint)}
+  .body > h5:not(:first-child){margin-top:18px}
+  ul.lst{margin:0;padding-left:18px}
+  ul.lst li{margin:0 0 7px;font-size:14.5px}
+  ul.lst li:last-child{margin-bottom:0}
+  ul.lst li b{color:var(--ink)}
+  .num{font-weight:700;font-variant-numeric:tabular-nums}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:18px;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+  @media (max-width:720px){.split{grid-template-columns:1fr}}
+  .split .cell{padding:13px 15px}
+  .split .cell + .cell{border-left:1px solid var(--line-2)}
+  @media (max-width:720px){.split .cell + .cell{border-left:none;border-top:1px solid var(--line-2)}}
+  .cell.data{background:#fafcff}
+  .cell.prob{background:var(--warn-bg)}
+  .cell.use{background:var(--ok-bg)}
+  .cell h5{margin-top:0}
+  .cell.prob h5{color:var(--warn)}
+  .cell.use h5{color:var(--ok)}
+  .cell ul.lst li{font-size:13.7px}
+  .src{font-size:13.5px;color:var(--ink)}
+  .src div{margin-bottom:6px}
+  .src .k{font-weight:700;color:var(--muted)}
+
+  /* global blocks */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:720px){.grid2{grid-template-columns:1fr}}
+  .block{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:var(--bg)}
+  .block h4{margin:0 0 11px;font-size:16px;font-weight:750}
+  .block.warn{border-color:#f0d6c4;background:var(--warn-bg)}
+  .block.ok{border-color:#c5e6cf;background:var(--ok-bg)}
+  .block ul{margin:0;padding-left:18px}
+  .block li{margin:0 0 8px;font-size:14px}
+  .block li:last-child{margin-bottom:0}
+
+  .takeaway{border:1px solid #c5dcfb;background:var(--accent-soft);border-radius:10px;padding:18px 20px;margin:0 0 22px}
+  .takeaway h3{margin:0 0 8px;font-size:18px}
+  .takeaway p{margin:0;font-size:15px;color:#22324a}
+
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  table.tbl th,table.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  table.tbl th{background:var(--soft);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  table.tbl tr:last-child td{border-bottom:none}
+  table.tbl td.s{font-weight:700;white-space:nowrap}
+  .pill{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-size:11.5px;color:var(--muted);margin:1px 2px}
+
+  footer{margin-top:40px;border-top:1px solid var(--line);padding:22px 0 50px;color:var(--faint);font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">NOXUS · Literature review</span>
+    <h1>What each paper gives us — metrics, methods, data, problems</h1>
+    <p class="lead">A technical reading of the 16 papers in the register, through one lens: what NOXUS can <b>reuse, cite, and validate against</b> on the chain from satellite NO₂ (Sentinel-5P/TROPOMI) to a steel-sector activity signal for Tangshan (Hebei). Each entry lists hard numbers, the findings, what we can do with it, the exact datasets/code/DOIs, and the problems. Global synthesis and a reusable data-source table at the end.</p>
+    <div class="legend">
+      <span class="lg"><span class="dot p1"></span> P1 — core (thesis · method · closest precedent)</span>
+      <span class="lg"><span class="dot p2"></span> P2 — key context (methods · confounders · foundations)</span>
+      <span class="lg"><span class="dot p3"></span> P3 — supporting</span>
+    </div>
+    <div class="meta">Benchmark target = monthly crude-steel output (WSA / China NBS) and blast-furnace operating rate (CREA). TROPOMI pixel ≈ 3.5×5.6 km, ~1 overpass/day ~13:30 local.</div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <span class="tag">P1</span>
+    <a href="#p1-morris">Morris&amp;Zhang 19</a>
+    <a href="#p1-lizheng">Li&amp;Zheng 23</a>
+    <a href="#p1-mao">Mao 25</a>
+    <a href="#p1-kim">Kim 23</a>
+    <a href="#p1-beirle1">Beirle 21</a>
+    <a href="#p1-ezran">Ezran 23</a>
+    <span class="tag">P2</span>
+    <a href="#p2-beirle2">Beirle 23</a>
+    <a href="#p2-mont">Montgomery 18</a>
+    <a href="#p2-li24">Li 24</a>
+    <a href="#p2-zheng">Zheng 21</a>
+    <a href="#p2-kondra">Kondragunta 21</a>
+    <a href="#p2-steel">SciRep steel 24</a>
+    <a href="#p2-don">Donaldson 16</a>
+    <span class="tag">P3</span>
+    <a href="#p3-parubets">Parubets 25</a>
+    <a href="#p3-li25">Li 25 rev</a>
+    <a href="#p3-liao">Liao&amp;Ruan 23</a>
+    <span class="tag">∑</span>
+    <a href="#global">Synthesis</a>
+    <a href="#data">Data sources</a>
+  </div>
+</nav>
+
+<!-- ===================== P1 ===================== -->
+<section>
+  <div class="wrap">
+    <h2 class="sec">Priority 1 — Core</h2>
+    <div class="sec-head"><h3>Thesis, attribution method, closest precedents</h3>
+      <p>Where the idea comes from, the technique we reuse, and what we benchmark against.</p></div>
+
+    <!-- 1 Morris & Zhang -->
+    <article class="card" id="p1-morris">
+      <div class="card-top"><div class="card-num">1</div><div class="card-head">
+        <h4>Validating China's output data using satellite observations</h4>
+        <div class="card-cite">Morris &amp; Zhang (2019), <i>Macroeconomic Dynamics</i> 23(8), 3327–3354 · OMI NO₂, national + subnational China</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">Closest precedent in intent</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v neg">−7.8%</div><div class="l">NO₂ over Great Recession dates…</div></div>
+        <div class="metric"><div class="v pos">+22.3%</div><div class="l">…vs reported GDP (same window)</div></div>
+        <div class="metric"><div class="v pos">+5.5%</div><div class="l">…vs reported electricity</div></div>
+        <div class="metric"><div class="v">monthly</div><div class="l">reliable freq. (daily = noisy)</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Dynamic panel-data framework using OMI tropospheric NO₂ as an <b>independent activity signal</b> to externally audit reported GDP, exploiting both cross-section and time-series dimensions.</li>
+          <li>Over the Great Recession window, NO₂ implied a sharp activity drop (<b>−7.8%</b>) while reported GDP (+22.3%) and electricity (+5.5%) did not — NO₂ flags the divergence.</li>
+          <li>Subnational result is <b>heterogeneous</b>: official figures validate in some provinces, fail in others, and the failures concentrate in regions independently known to misreport.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Direct precedent for the <b>"NO₂ as audit on Chinese output"</b> thesis; we cite it as the parent and state the delta: <b>single cluster</b> (not national), <b>TROPOMI</b> (not OMI), <b>leading-indicator</b> framing (not retrospective GDP validation).</li>
+          <li>Their dynamic panel = template for our lead/lag stage; their heterogeneous result is the citation that <b>legitimizes reporting a null</b>.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> OMI tropospheric column (NASA, free, ~2005–).</div>
+            <div><span class="k">Output:</span> China NBS regional GDP, electricity generation.</div>
+            <div><span class="k">Replication:</span> datasets + code linked from SSRN <span class="mono">abstract=2920650</span>.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>OMI is coarser and older than TROPOMI; national scale hides the cluster signal we need.</li>
+            <li>Daily NO₂ "noisy"; they fall back to quarterly — frequency we want to push to monthly.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 2 Li & Zheng -->
+    <article class="card" id="p1-lizheng">
+      <div class="card-top"><div class="card-num">2</div><div class="card-head">
+        <h4>TROPOMI NO₂ shows a fast recovery of China's economy in Q1 2023</h4>
+        <div class="card-cite">Li &amp; Zheng (2023), <i>Env. Sci. Technol. Lett.</i> 10(8), 635–641 · only the Supporting Information (figures) is in the repo</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">Near-real-time activity nowcast, China</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">0.36</div><div class="l">TROPOMI coverage by area (China)</div></div>
+        <div class="metric"><div class="v">0.82</div><div class="l">coverage, population-weighted</div></div>
+        <div class="metric"><div class="v">7-day</div><div class="l">moving-average smoothing</div></div>
+        <div class="metric"><div class="v">CNY</div><div class="l">normalization anchor</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>NO₂ rebound after Chinese New Year (CNY) co-moves with the <b>manufacturing PMI</b> and <b>Shanghai port cargo throughput</b> — used as an economic-recovery nowcast.</li>
+          <li>Mean TROPOMI coverage of China is only <b>0.36 by area</b> but <b>0.82 population-weighted</b>: clouds remove most low-density area but spare the populated/industrial pixels.</li>
+          <li>Method building blocks: 7-day moving average, <b>normalization to the CNY level</b>, grid stratification by population density (terciles at 35%/70%) and by MEIC dominant sector.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Confirms the <b>sub-monthly nowcast regime</b> works in China; gives a concrete recipe for de-noising (7-day MA) and indexing (normalize to an anchor event).</li>
+          <li>The <b>0.36/0.82</b> split is a citable figure for our cloud-gap section — coverage is acceptable precisely over industrial Tangshan.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI + OMI TVCD (cross-check).</div>
+            <div><span class="k">Sectors:</span> MEIC inventory · <span class="mono">meicmodel.org.cn</span></div>
+            <div><span class="k">Population:</span> WorldPop 0.1°.</div>
+            <div><span class="k">Validation series:</span> manufacturing PMI; Shanghai Port throughput.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Main text paywalled — only SI figures available; methods must be inferred.</li>
+            <li>Validates vs PMI (sentiment) and throughput, not against physical production; we replace with crude steel.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 3 Mao -->
+    <article class="card" id="p1-mao">
+      <div class="card-top"><div class="card-num">3</div><div class="card-head">
+        <h4>Inversion of NOₓ emission changes in Ukraine during the 2022–23 war from TROPOMI</h4>
+        <div class="card-cite">Mao et al. (2025), <i>Atmos. Chem. Phys.</i> 25, 14187–14204 · daily top-down inversion, EDGAR prior</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">Closest published analog</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v neg">−34% / −24%</div><div class="l">industry NOₓ, 2022 / 2023</div></div>
+        <div class="metric"><div class="v neg">−15% / −8%</div><div class="l">total NOₓ, 2022 / 2023</div></div>
+        <div class="metric"><div class="v neg">−29% / −17%</div><div class="l">E. Ukraine (frontline)</div></div>
+        <div class="metric"><div class="v">~8–10%</div><div class="l">offset by war-emitted NOₓ</div></div>
+        <div class="metric"><div class="v">−5…+3%</div><div class="l">pre-war EDGAR stability (baseline)</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Daily anthropogenic NOₓ inverted from TROPOMI, with EDGAR v8.1 as prior: total <b>−15% (2022) / −8% (2023)</b>; <b>industry −34% / −24%</b> (largest sector drop), residential −23% / −18%.</li>
+          <li>Emission anomalies <b>spatially and temporally track military actions</b>; war activity itself emits NOₓ, offsetting ~8–10% — isolated with <b>LOESS</b> high-frequency filtering.</li>
+          <li>After removing war emissions, the inverted decline shows <b>strong agreement with bottom-up inventories and reported economic metrics</b>; pre-war baseline is stable (EDGAR −5…+3% over 2015–19), enabling clean relative attribution.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>The <b>full methodological template</b>: inventory prior → satellite-constrained inversion → confounder removal (LOESS) → validation against an economic series. We mirror this with steel curtailments as the confounder.</li>
+          <li>Proves a <b>sector-level (industry) activity shock is recoverable</b> from TROPOMI at sub-national scale — exactly our claim for steel.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI VCD.</div>
+            <div><span class="k">Prior:</span> EDGAR v8.1 (sectoral split).</div>
+            <div><span class="k">Fire mask:</span> MODIS burned area / active fire.</div>
+            <div><span class="k">Availability:</span> "Code and data availability" section in paper (open-access ACP).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Confounder (war ≈ our policy curtailment) is large and must be modeled, not ignored.</li>
+            <li>Inversion posterior uncertainty inherits EDGAR prior uncertainty; sectoral split relies on EDGAR ratios.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 4 Kim -->
+    <article class="card" id="p1-kim">
+      <div class="card-top"><div class="card-num">4</div><div class="card-head">
+        <h4>Identifying shipping emissions using spatio-temporally resolved TROPOMI data</h4>
+        <div class="card-cite">Kim et al. (2023), <i>Remote Sensing</i> 15(13), 3453 · unsupervised clustering + Getis-Ord Gi*</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">Closest open methodological precedent</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">0.45 → 0.62</div><div class="l">spatial r vs traffic (Med., +ConvGi)</div></div>
+        <div class="metric"><div class="v pos">0.71</div><div class="l">temporal r, SCD vs throughput (Red Sea)</div></div>
+        <div class="metric"><div class="v pos">0.55–0.56</div><div class="l">temporal r, SCD (Med. / Indian)</div></div>
+        <div class="metric"><div class="v neg">n.s.</div><div class="l">raw VCD temporal r (not significant)</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Unsupervised clustering of NO₂ columns + a convolutional Getis-Ord Gi* (<span class="mono">ConvGi</span>) local-autocorrelation statistic separates the shipping signal from background. Spatial correlation with ship-traffic frequency rises from <b>0.448</b> (raw) to <b>0.624</b> (clustered+ConvGi) in the Mediterranean (p&lt;0.01).</li>
+          <li><b>Temporal validation against the RWI/ISL Container Throughput Index:</b> seasonally-adjusted NO₂ <b>slant</b> column (SCD) gives r = <b>0.71</b> (Red Sea), 0.56 (Med.), 0.55 (Indian); raw VCD is <b>insignificant or negative</b> — the choice of SCD and deseasonalization is decisive.</li>
+          <li>Cross-checked against CAMS EAC4 reanalysis (independent atmospheric composition product).</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li><b>Our direct blueprint</b>: cluster TROPOMI over a region → isolate the source from background → correlate against a sector throughput index. We swap shipping/containers for steel/crude-steel.</li>
+          <li>Concrete lessons: prefer <b>relative</b> signal; <b>deseasonalize</b> before correlating; report r with p-values; expect r in the <b>0.5–0.7</b> band for a clean sector link (a quantitative bar for our own result).</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI L2 via Copernicus S5P hub, v1.2.0/1.2.2 (regridded).</div>
+            <div><span class="k">Validation:</span> RWI/ISL Container Throughput Index; ship-track counts.</div>
+            <div><span class="k">Cross-check:</span> CAMS global reanalysis EAC4.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>VCD sensitive to a-priori NO₂ profile shape; relative hotspots only, no absolute emission.</li>
+            <li>Spatial r is moderate (~0.5–0.6) even after processing — ceiling on attribution skill.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 5 Beirle 2021 -->
+    <article class="card" id="p1-beirle1">
+      <div class="card-top"><div class="card-num">5</div><div class="card-head">
+        <h4>Catalog of NOₓ point-source emissions from the divergence of the NO₂ flux (v1)</h4>
+        <div class="card-cite">Beirle et al. (2021), <i>Earth Syst. Sci. Data</i> 13, 2995–3015 · TROPOMI 2018–2019</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">The attribution technique we build on</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">451</div><div class="l">point sources (242 power plants)</div></div>
+        <div class="metric"><div class="v">2–3 km</div><div class="l">localization accuracy</div></div>
+        <div class="metric"><div class="v neg">×2–8</div><div class="l">emission low bias (underestimate)</div></div>
+        <div class="metric"><div class="v">7.2×3.6 km</div><div class="l">TROPOMI pixel (→5.6×3.6 post-2019)</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>NOₓ point sources from the <b>divergence of the horizontal NO₂ flux</b> (flux = TVCD × wind); divergence isolates the local source term from background, highly sensitive to point sources.</li>
+          <li>451 automatically detected sources incl. <b>metal smelters, cement plants, industrial areas</b>; localization 2–3 km.</li>
+          <li>Emissions <b>biased low by a factor 2–8</b>, driven mainly by underestimation of near-surface NO₂ in the TROPOMI column.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li><b>The core attribution method</b> — and proof it already resolves steel-type industrial emitters, justifying source-level attribution over Tangshan.</li>
+          <li>The low bias is the formal reason to work with a <b>relative index</b>, not absolute tonnes, and to restrict to large isolated emitters.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI TVCD.</div>
+            <div><span class="k">Catalog (open):</span> DOI <span class="mono">10.26050/WDCC/Quant_NOx_TROPOMI</span>.</div>
+            <div><span class="k">Method:</span> flux-divergence; fully automated peak detection.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Incomplete at coastlines, complex/mountainous winds, and high-background polluted regions (noisy divergence) — all relevant to industrial NE China.</li>
+            <li>Area sources (megacities) skipped; co-located traffic/heating contaminate the steel term.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 6 Ezran -->
+    <article class="card" id="p1-ezran">
+      <div class="card-top"><div class="card-num">6</div><div class="card-head">
+        <h4>Measuring global economic activity using air pollution</h4>
+        <div class="card-cite">Ezran, Morris, Rama &amp; Riera-Crichton (2023), World Bank WP 10445</div>
+        <div class="badges"><span class="badge b-p1">P1</span><span class="badge b-role">NO₂ &gt; night lights; novelty gap</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">β = 0.348</div><div class="l">growth elasticity of NO₂ (SE 0.061, p&lt;.01)</div></div>
+        <div class="metric"><div class="v">0.11***</div><div class="l">ln(NO₂)→ln(GDP) baseline coef.</div></div>
+        <div class="metric"><div class="v">178 / 2,752</div><div class="l">countries / panel obs (2005–20)</div></div>
+        <div class="metric"><div class="v">R² .80–.88</div><div class="l">within-FE fit</div></div>
+        <div class="metric"><div class="v">only 2</div><div class="l">prior NO₂↔official-activity studies</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Two-way FE panel + country trends: NO₂ retains <b>significant explanatory power for GDP jointly with</b> night lights, CO₂, electricity and survey data (coef 0.11***); lights alone predict annual fluctuations in only ~20% of countries.</li>
+          <li><b>Growth elasticity of NO₂ ≈ 0.35</b>, found <b>constant across nations</b> via an errors-in-variables identification exploiting that NO₂ (day) and lights (night) have orthogonal measurement errors.</li>
+          <li>Rebuts China's GDP; quantifies under-reporting elsewhere (France/UK/Spain 2020 GDP under-reported by 76/181/205 bps). Combustion ≈ 84% of world energy.</li>
+          <li>Their own literature search found <b>only two</b> prior studies quantifying NO₂ vs official economic measures (Montgomery 2018; Wei/Kondragunta) — explicit evidence of the gap.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Cite for (a) NO₂ &gt; lights <b>where data are manipulated</b> (our China steel-data-integrity motivation), (b) <b>timeliness</b> (published within days → leading), (c) the <b>thin-literature gap</b>.</li>
+          <li>β≈0.35 is a national/annual elasticity — our contribution is the <b>cluster/sub-annual</b> regime it does not cover.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> NASA daily global product (OMI-class).</div>
+            <div><span class="k">Lights:</span> DMSP-OLS (pre-2014) + VIIRS (2014–20).</div>
+            <div><span class="k">Output:</span> national accounts; 1,900+ household surveys (overident. checks).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>NO₂ captures combustion-linked activity only; weak for long-run trend in decarbonizing rich economies.</li>
+            <li>National/annual scope — does not address sectoral attribution or sub-annual lead/lag.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== P2 ===================== -->
+<section>
+  <div class="wrap">
+    <h2 class="sec">Priority 2 — Key context</h2>
+    <div class="sec-head"><h3>Methods, confounders, case justification, foundations</h3>
+      <p>The traps to control (policy, scale, seasonality, bias) and why Tangshan + steel is the right case.</p></div>
+
+    <!-- 7 Beirle 2023 -->
+    <article class="card" id="p2-beirle2">
+      <div class="card-top"><div class="card-num">7</div><div class="card-head">
+        <h4>Improved catalog of NOₓ point-source emissions (v2)</h4>
+        <div class="card-cite">Beirle et al. (2023), <i>ESSD</i> 15, 3051–3073 · PAL NO₂ product + ERA5 winds</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">The version of the method to use</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">1,139</div><div class="l">point sources (vs 451 in v1)</div></div>
+        <div class="metric"><div class="v pos">±20%</div><div class="l">agreement with UBA / EPA</div></div>
+        <div class="metric"><div class="v">+10–40%</div><div class="l">TVCD increase from PAL product</div></div>
+        <div class="metric"><div class="v">per-source</div><div class="l">error estimate provided</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Corrections for <b>plume height (satellite sensitivity), 3D topography, and chemical loss of NOₓ</b> remove most of v1's low bias: emissions now agree <b>within ~20%</b> with German (UBA) and US (EPA) reported values.</li>
+          <li>Switch to the PAL product (updated FRESCO cloud + surface-albedo correction) raises tropospheric NO₂ columns by <b>~10–40%</b>; <b>per-source uncertainty</b> now reported.</li>
+          <li>1,139 sources, majority matched to the Global Power Plant Database (GPPD); also smelters, cement, industrial areas, mid-size cities.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Adopt <b>v2 as the attribution engine</b> (PAL + ERA5 + chemical-loss/plume-height corrections); the ~20% accuracy makes a quasi-absolute steel signal defensible, with per-source error for weighting.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI PAL product (proc. v2.3.1).</div>
+            <div><span class="k">Wind:</span> ERA5.</div>
+            <div><span class="k">Catalog (open):</span> DOI <span class="mono">10.26050/WDCC/No_xPointEmissionsV2</span>; match to GPPD.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Still point-source oriented; chemical-loss correction needs a NOₓ lifetime assumption (season/temperature dependent).</li>
+            <li>Background flux in busy traffic/industry regions remains complex.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 8 Montgomery -->
+    <article class="card" id="p2-mont">
+      <div class="card-top"><div class="card-num">8</div><div class="card-head">
+        <h4>Satellite NO₂ vs economic growth over the 100 most populous cities</h4>
+        <div class="card-cite">Montgomery &amp; Holloway (2018), <i>J. Appl. Remote Sens.</i> 12(4), 042607 · Aura/OMI 2005–2011</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">The non-universal-link caveat</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v pos">38 / 56</div><div class="l">low-income cities: positive NO₂↔GUP</div></div>
+        <div class="metric"><div class="v neg">7</div><div class="l">high-income cities: negative</div></div>
+        <div class="metric"><div class="v">~36</div><div class="l">middle-income: no clear relation</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>NO₂↔gross-urban-product is <b>positive in 38/56 low-income cities, negative in the 7 high-income, and flat in ~36 middle-income</b> — an <b>environmental Kuznets</b> pattern: the sign depends on income, not fixed.</li>
+          <li>The satellite pattern broadly matches an independent emissions inventory, with residual differences attributable to atmospheric processing or local energy changes.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>The README's central caveat, with numbers. Justifies resting on a <b>specific high-income, heavy-combustion industrial cluster</b> and <b>empirically verifying the sign</b> for Tangshan before claiming a usable signal.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> Aura/OMI VCD, 2005–2011.</div>
+            <div><span class="k">Economy:</span> gross urban product, population (100 cities).</div>
+            <div><span class="k">Emissions:</span> global gridded inventory.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>City aggregate (mixed sources), OMI resolution, annual scale — not sector-isolated.</li>
+            <li>Sign instability is the main risk it raises for any NO₂→activity claim.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 9 Li 2024 -->
+    <article class="card" id="p2-li24">
+      <div class="card-top"><div class="card-num">9</div><div class="card-head">
+        <h4>Trends and drivers of anthropogenic NOₓ emissions in China since 2020</h4>
+        <div class="card-cite">Li et al. (2024), <i>Environ. Sci. Ecotechnol.</i> 21, 100425 · atmospheric inversion, MEIC prior</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">Confounder: activity vs policy vs meteo</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v neg">↓ 2020–22</div><div class="l">NOₓ falls despite ↑ fossil-fuel use</div></div>
+        <div class="metric"><div class="v">2 sensors</div><div class="l">TROPOMI + OMI corroborate</div></div>
+        <div class="metric"><div class="v">~24%</div><div class="l">China = share of global NOₓ</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Satellite-constrained inversion shows a <b>sustained NOₓ decline 2020–2022 despite rising fossil-fuel consumption</b> — confirmed independently by TROPOMI and OMI.</li>
+          <li>Attribution: 2020 driven by transport (COVID); <b>2021–22 driven by industry + transport via stringent pollution controls</b>, i.e. the decline is policy-led, not activity-led.</li>
+          <li>Explicitly decomposes NOₓ into <b>activity / policy / meteorology</b> using a MEIC bottom-up prior with monthly NBS activity scalars.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li><b>The confounder paper</b>: hard evidence that emission controls can drive NOₓ <i>down while output rises</i> — we must regress out / model curtailments or the indicator inverts.</li>
+          <li>The MEIC-prior inversion + 3-way decomposition is a directly transplantable design for Tangshan.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI + OMI.</div>
+            <div><span class="k">Prior:</span> MEIC + NBS monthly activity (power, cement, iron, mfg.).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Decomposition depends on the inventory's policy/activity split — model, not ground truth.</li>
+            <li>National/provincial scale; steel not isolated as a single cluster.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 10 Zheng -->
+    <article class="card" id="p2-zheng">
+      <div class="card-top"><div class="card-num">10</div><div class="card-head">
+        <h4>Changes in China's anthropogenic emissions &amp; air quality during COVID-19 (2020)</h4>
+        <div class="card-cite">Zheng et al. (2021), <i>ESSD</i> 13, 2895–2907 · bottom-up MEIC + CTM, COVID natural experiment</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">Magnitude of a real activity shock</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v neg">−36%</div><div class="l">NOₓ, Feb 2020 vs Feb 2019</div></div>
+        <div class="metric"><div class="v neg">−27%</div><div class="l">SO₂</div></div>
+        <div class="metric"><div class="v neg">−24%</div><div class="l">PM₂.₅</div></div>
+        <div class="metric"><div class="v">ind ≈ transp</div><div class="l">NOₓ contribution split</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Feb-2020 vs Feb-2019: <b>NOₓ −36%</b>, SO₂ −27%, CO −28%, NMVOC −31%, PM₂.₅ −24%; NOₓ reduction split <b>~equally between industry and transport</b>.</li>
+          <li>Emissions rebounded by April and returned to 2019 levels in H2; <b>Hubei and provinces around Beijing recovered more slowly</b> (extended lockdowns); CTM driven by these emissions reproduces observed air quality.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Gives the <b>expected magnitude (~−36% NOₓ) of a genuine activity shock</b> — a sanity-check scale for any signal we extract from Tangshan.</li>
+          <li>Documents <b>region-specific timing</b> for the Beijing-surrounding provinces (our exact area), useful to disentangle policy vs activity.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">Emissions (open):</span> figshare <span class="mono">10.6084/m9.figshare.c.5214920.v2</span> (monthly, by species/sector/province).</div>
+            <div><span class="k">Inventory:</span> MEIC near-real-time; CTM for AQ.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Bottom-up (not satellite-derived); COVID is an extreme shock, not a normal business cycle.</li>
+            <li>Industry+transport co-move — the steel-only term is not isolated.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 11 Kondragunta -->
+    <article class="card" id="p2-kondra">
+      <div class="card-top"><div class="card-num">11</div><div class="card-head">
+        <h4>COVID-19 fingerprints in US urban air quality (NO₂ vs unemployment)</h4>
+        <div class="card-cite">Kondragunta et al. (2021), <i>JGR Atmospheres</i> 126, e2021JD034797 · peer-reviewed successor to Wei et al. 2020</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">NO₂↔economic statistic + the technical recipe</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v pos">r = 0.75</div><div class="l">on-road NOₓ drop vs TROPOMI NO₂</div></div>
+        <div class="metric"><div class="v pos">r = 0.68</div><div class="l">ΔNO₂ vs on-road (Δ power: r=0.35)</div></div>
+        <div class="metric"><div class="v neg">0.8 µmol/m²</div><div class="l">NO₂ drop per +1pt unemployment</div></div>
+        <div class="metric"><div class="v neg">−23…−33%</div><div class="l">TROPOMI bias vs Pandora (polluted)</div></div>
+        <div class="metric"><div class="v">QA &gt; 0.75</div><div class="l">quality-flag threshold</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>On-road NOₓ fell 9–19% (Feb→Mar) then 8–31% (Mar→Apr); these correlate with TROPOMI NO₂ at <b>r=0.75</b>. Inter-annual ΔNO₂ correlates with on-road (<b>r=0.68</b>) but <b>weakly with power plants (r=0.35)</b> — sector selectivity.</li>
+          <li>NO₂ declines <b>0.8 µmol/m² per +1pt unemployment</b> (Q2-2020) — a direct NO₂↔macro-statistic slope.</li>
+          <li><b>Technical recipe:</b> use <b>QA&gt;0.75</b>; TROPOMI underestimates by <b>23–33%</b> in polluted regions (−28.2±4.8% vs Pandora Helsinki); remove seasonality by <b>year-over-year differencing + double differencing</b>. Power-plant NOₓ −16% vs on-road −50% (2019→2020).</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li><b>Closest precedent for tying NO₂ to an economic statistic</b>; r=0.68–0.75 sets a benchmark for what a strong sector link looks like.</li>
+          <li>We import the exact QC and deseasonalization recipe (QA&gt;0.75, year/double differencing) and budget for the −23…−33% low bias by using relative signal.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> TROPOMI L2 (Copernicus), 3.5×5.6 km.</div>
+            <div><span class="k">On-road NOₓ:</span> FIVE inventory · <span class="mono">csl.noaa.gov/.../2020covid-aqs</span></div>
+            <div><span class="k">Power NOₓ:</span> EPA CEMS. <span class="k">AOD:</span> VIIRS (NOAA CLASS).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Validation paper notes large a-priori-profile sensitivity (bias halves with regional profiles).</li>
+            <li>Traffic-dominated; steel/power respond differently — process elasticity must be checked.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 12 SciRep steel -->
+    <article class="card" id="p2-steel">
+      <div class="card-top"><div class="card-num">12</div><div class="card-head">
+        <h4>Synergistic pollution &amp; carbon reduction in iron-and-steel, Beijing–Tianjin–Hebei</h4>
+        <div class="card-cite">Wen et al. (2024), <i>Scientific Reports</i> 14:12413 · emission inventory + WRF-Chem</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">Case justification: Tangshan + steel</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v">42.5% → 29.1%</div><div class="l">steel share of Tangshan NO₂ (non-heat → heat)</div></div>
+        <div class="metric"><div class="v">55.2%</div><div class="l">sintering = share of sector NOₓ</div></div>
+        <div class="metric"><div class="v">&gt;25%</div><div class="l">BTH share of national crude steel</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>In Tangshan, iron-and-steel contributes <b>42.54% of NO₂ in the non-heating period, dropping to 29.13% in the heating period</b> (heating combustion adds competing sources) — a quantified, seasonal source share.</li>
+          <li><b>Sintering</b> is the dominant process: 55.15% of the sector's NOₓ (also 64.86% SO₂, 46.43% CO, 29.98% PM₂.₅) in Tangshan/Handan.</li>
+          <li>Industrial restructuring + energy-mix change give the largest abatement; ultra-low-emission policy expected to cut the steel share further by 2030.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Quantitative justification for Tangshan and steel as the dominant NOₓ source, with a <b>concrete attributable fraction (~30–43%)</b> to anchor our attribution model.</li>
+          <li>The <b>heating/non-heating split is a first-order seasonal confounder</b> with a measured magnitude — model it explicitly; sintering is the physical process the signal tracks.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">Model:</span> WRF-Chem; bottom-up steel emission inventory.</div>
+            <div><span class="k">Region:</span> Tangshan, Handan (BTH).</div>
+            <div><span class="k">Levers:</span> marginal abatement cost curves per technology (e.g. TRT).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li><b>&gt;50% of Tangshan NO₂ is non-steel</b> → pixel→tonnage is non-linear and not cleanly isolable.</li>
+            <li>Falling steel share over time (ultra-low-emission retrofits) — a moving target for the signal.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 13 Donaldson -->
+    <article class="card" id="p2-don">
+      <div class="card-top"><div class="card-num">13</div><div class="card-head">
+        <h4>The view from above: applications of satellite data in economics</h4>
+        <div class="card-cite">Donaldson &amp; Storeygard (2016), <i>J. Econ. Perspectives</i> 30(4), 171–198 · foundational review</div>
+        <div class="badges"><span class="badge b-p2">P2</span><span class="badge b-role">Disciplinary frame</span></div>
+      </div></div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Three advantages of satellite data in economics: (1) information hard to obtain otherwise, (2) high spatial resolution, (3) wide coverage; low marginal cost panels; cloud platforms (Google Earth Engine) lower the barrier.</li>
+          <li>Especially valuable where official statistics are manipulable (e.g. Indonesia deforestation: +8.2% per additional district, detectable only via satellite).</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>The citation that <b>places NOXUS in an established discipline</b> and supports the "remote sensing where official figures are suspect" angle; its dataset catalog (MODIS, DMSP, WorldPop) is a reference for ancillary layers.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">Catalog:</span> MODIS (250 m), DMSP-OLS lights, LandScan, WorldPop.</div>
+            <div><span class="k">Platform:</span> Google Earth Engine.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Review, not a method or dataset of its own; predates TROPOMI's daily NO₂.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== P3 ===================== -->
+<section>
+  <div class="wrap">
+    <h2 class="sec">Priority 3 — Supporting</h2>
+    <div class="sec-head"><h3>Reinforce a premise or a single limitation</h3>
+      <p>Scale sensitivity, method taxonomy, and a spatial-econometrics angle.</p></div>
+
+    <!-- 14 Parubets -->
+    <article class="card" id="p3-parubets">
+      <div class="card-top"><div class="card-num">14</div><div class="card-head">
+        <h4>Predicting economic activity with satellite NO₂: local indicators in Japan</h4>
+        <div class="card-cite">Parubets &amp; Naito (2025), <i>PLOS ONE</i> 20(12), e0337901 · two-way fixed-effects panel</div>
+        <div class="badges"><span class="badge b-p3">P3</span><span class="badge b-role">Spatial-scale warning</span></div>
+      </div></div>
+      <div class="metrics">
+        <div class="metric"><div class="v pos">0.25°</div><div class="l">significant vs GDP, most sectors</div></div>
+        <div class="metric"><div class="v neg">0.1°</div><div class="l">loses significance / flips sign</div></div>
+        <div class="metric"><div class="v">strongest</div><div class="l">in energy-intensive industry</div></div>
+      </div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>At <b>0.25°</b> NO₂ is statistically and economically significant vs prefectural GDP across most sectors, <b>strongest in energy-intensive industries</b>.</li>
+          <li>At <b>0.1°</b> (finer) most coefficients <b>lose significance and some reverse sign</b> against theory — moderate resolution captures regional patterns better, given proper calibration.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li><b>Quantified scale warning</b>: do not maximize resolution; treat aggregation scale as a tuned hyper-parameter and report sensitivity. Good omen: signal is strongest in the energy-intensive (steel-like) regime.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">NO₂:</span> satellite column at 0.25° and 0.1°.</div>
+            <div><span class="k">Economy:</span> prefectural GDP by sector (Japan).</div>
+            <div><span class="k">Replication (open):</span> OSF <span class="mono">10.17605/OSF.IO/MGDCP</span> (data + code).</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Japan (high-income, clean) — sign/strength may differ from industrial China.</li>
+            <li>Coefficient instability across scales is itself the warning.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 15 Li 2025 review -->
+    <article class="card" id="p3-li25">
+      <div class="card-top"><div class="card-num">15</div><div class="card-head">
+        <h4>Monitoring fossil CO₂ from co-emitted NO₂: progress, challenges, perspectives</h4>
+        <div class="card-cite">Li et al. (2025), <i>Front. Environ. Sci. Eng.</i> 19(1):2 · review</div>
+        <div class="badges"><span class="badge b-p3">P3</span><span class="badge b-role">Map of inversion methods + uncertainty taxonomy</span></div>
+      </div></div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Two method families: <b>plume-based</b> (NO₂ as locator/constraint/validator of CO₂ plumes at point-source &amp; city scale) and <b>emission-ratio (ER)-based</b> (NO₂→NOₓ emission, then NOₓ→CO₂ via emission ratios).</li>
+          <li>Systematic taxonomy of <b>structural vs data uncertainties</b>; short-lived NO₂ is the practical locator because long-lived CO₂ cannot be separated from background.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Frames our method choice (we use the divergence/plume side) and gives a ready-made <b>uncertainty taxonomy to declare</b> in the paper; supports the "short-lived NO₂ = clean cluster locator" argument.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">Type:</span> review — no primary dataset.</div>
+            <div><span class="k">Surveys:</span> NO₂/CO₂ satellites, inversion systems, emission inventories.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>CO₂-focused; relevance to NOXUS is the shared NO₂-inversion machinery, not the CO₂ step.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 16 Liao -->
+    <article class="card" id="p3-liao">
+      <div class="card-top"><div class="card-num">16</div><div class="card-head">
+        <h4>Spatial correlation network of carbon emissions (Chengdu–Chongqing)</h4>
+        <div class="card-cite">Liao &amp; Ruan (2023), <i>Front. Energy Res.</i> 11:1280715 · commentary · social-network analysis / QAP</div>
+        <div class="badges"><span class="badge b-p3">P3</span><span class="badge b-role">Spatial-econometrics angle (by request)</span></div>
+      </div></div>
+      <div class="body">
+        <h5>Findings (technical)</h5>
+        <ul class="lst">
+          <li>Cities are &gt;80% of China's emissions; applies <b>social-network analysis + QAP</b> to model inter-city spatial correlation of carbon emissions (population flow, tech diffusion, industrial transfer).</li>
+          <li>Argues a single city cannot be analyzed in isolation — inter-city links reshape its emissions.</li>
+        </ul>
+        <h5>Use for NOXUS</h5>
+        <ul class="lst">
+          <li>Optional toolkit if NOXUS extends beyond one cluster; a reminder that Tangshan's signal carries <b>regional spatial dependence</b> (transport-in/out of NOₓ) to control for.</li>
+        </ul>
+        <div class="split">
+          <div class="cell data"><h5>Data &amp; code</h5><div class="src">
+            <div><span class="k">Type:</span> commentary on Wang (2021).</div>
+            <div><span class="k">Method:</span> SNA, QAP regression.</div>
+          </div></div>
+          <div class="cell prob"><h5>Problems / caveats</h5><ul class="lst">
+            <li>Different region/pollutant (CO₂), no satellite component — peripheral.</li>
+          </ul></div>
+        </div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== GLOBAL ===================== -->
+<section id="global">
+  <div class="wrap">
+    <h2 class="sec">Synthesis</h2>
+    <div class="sec-head"><h3>Global findings</h3>
+      <p>What is proven, the shared traps with their measured magnitudes, the toolbox, and the quantitative bar our own result has to clear.</p></div>
+
+    <div class="takeaway">
+      <h3>One-sentence thesis</h3>
+      <p>Every link is independently proven — NO₂ as a manipulation-resistant activity proxy (β≈0.35 elasticity, NO₂ flags GDP/electricity divergences), flux-divergence attribution to industrial point sources (v2 within ±20% of inventories), and validating a sector against a throughput index (r≈0.55–0.75) — but no one has chained them into a <b>public, reproducible, single-cluster pipeline that reports the null</b>. That intersection is NOXUS.</p>
+    </div>
+
+    <div class="grid2" style="margin-bottom:16px">
+      <div class="block ok">
+        <h4>Proven (green light)</h4>
+        <ul>
+          <li>NO₂↔activity is strong where combustion dominates: <b>r=0.68–0.75</b> (US traffic/unemployment), elasticity <b>β≈0.35</b> across 178 countries <span class="pill">Kondragunta</span><span class="pill">Ezran</span>.</li>
+          <li>Sector throughput recoverable from clustered NO₂: <b>r≈0.55–0.71</b> on deseasonalized series <span class="pill">Kim</span>.</li>
+          <li>Industrial attribution works and is now accurate to <b>±20%</b> <span class="pill">Beirle v2</span>; a sector activity shock is invertible <span class="pill">Mao −34%</span>.</li>
+          <li>Expected real-shock magnitude: <b>NOₓ −36%</b> (China COVID), with Hebei in focus <span class="pill">Zheng</span>.</li>
+        </ul>
+      </div>
+      <div class="block">
+        <h4>The gap NOXUS fills</h4>
+        <ul>
+          <li><b>Single cluster</b> (Tangshan), not national <span class="pill">vs Morris&amp;Zhang</span><span class="pill">vs Ezran</span>.</li>
+          <li><b>Public + reproducible</b> end-to-end, vs closed commercial indices.</li>
+          <li><b>TROPOMI</b> (3.5×5.6 km) + <b>sub-annual / leading</b> framing.</li>
+          <li>Validation against <b>physical output</b> (crude steel, BF rate), not PMI.</li>
+          <li>Commitment to <b>report the null</b>; literature is explicitly thin (only 2 prior NO₂↔official-activity studies per Ezran).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="block warn" style="margin-bottom:16px">
+      <h4>Five shared traps — with measured magnitudes</h4>
+      <ul>
+        <li><b>1 · Policy confounder.</b> Controls cut NOₓ <i>while output rises</i> (China 2021–22); Tangshan steel's NO₂ share itself drops <b>42.5%→29.1%</b> in the heating season <span class="pill">Li 2024</span><span class="pill">SciRep steel</span>.</li>
+        <li><b>2 · Non-universal, non-fixed sign.</b> Positive in only <b>38/56</b> low-income cities, flat in middle-income — verify the sign for Tangshan <span class="pill">Montgomery&amp;Holloway</span>.</li>
+        <li><b>3 · Spatial scale.</b> At <b>0.1°</b> coefficients lose significance and flip vs <b>0.25°</b> — tune and report scale sensitivity <span class="pill">Parubets&amp;Naito</span>.</li>
+        <li><b>4 · Cloud gaps + incomplete attribution.</b> Coverage <b>0.36 by area</b> (0.82 pop-weighted), non-random; divergence fails at coasts/complex winds/high background <span class="pill">Li&amp;Zheng</span><span class="pill">Beirle</span>.</li>
+        <li><b>5 · Bias + source mixing.</b> TROPOMI underestimates <b>23–33%</b> in polluted air → use relative signal; steel is only <b>~30–43%</b> of Tangshan NO₂ → non-linear pixel→tonnage <span class="pill">Kondragunta</span><span class="pill">SciRep steel</span>.</li>
+      </ul>
+    </div>
+
+    <h3 style="font-size:18px;margin:6px 0 10px">Toolbox we can import (with the source that validates each)</h3>
+    <table class="tbl" style="margin-bottom:22px">
+      <thead><tr><th>Step</th><th>Method</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td class="s">Attribution</td><td>NO₂ flux divergence (TVCD×ERA5 wind) + chemical-loss &amp; plume-height correction (PAL product); per-source error</td><td><span class="pill">Beirle 2021/2023</span></td></tr>
+        <tr><td class="s">Isolate source</td><td>Spatio-temporal clustering + ConvGi (Getis-Ord) to split signal from background; top-down inversion with inventory prior</td><td><span class="pill">Kim</span><span class="pill">Mao</span><span class="pill">Li 2024</span></td></tr>
+        <tr><td class="s">QC</td><td>Quality flag <b>QA&gt;0.75</b>; budget −23…−33% low bias; handle cloud gaps without naive interpolation</td><td><span class="pill">Kondragunta</span><span class="pill">Li&amp;Zheng</span></td></tr>
+        <tr><td class="s">Deseasonalize</td><td>Year-over-year + double differencing; or normalize to an anchor event (CNY); classical seasonal decomposition before correlating</td><td><span class="pill">Kondragunta</span><span class="pill">Li&amp;Zheng</span><span class="pill">Kim</span></td></tr>
+        <tr><td class="s">Remove confounder</td><td>LOESS high-frequency filtering; explicit activity/policy/meteorology decomposition</td><td><span class="pill">Mao</span><span class="pill">Li 2024</span></td></tr>
+        <tr><td class="s">Validate</td><td>Dynamic cross-section×time panel; Pearson r + p-values vs physical throughput; lead/lag tests; report null</td><td><span class="pill">Morris&amp;Zhang</span><span class="pill">Kim</span><span class="pill">Kondragunta</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:6px 0 10px">Quantitative bar for our result</h3>
+    <p style="color:var(--muted);font-size:14.5px;margin:0 0 22px">A credible steel signal should land in the precedents' range: <b>r ≈ 0.5–0.75</b> vs crude-steel output on a deseasonalized series; a real production swing should move NOₓ on the order of <b>tens of percent</b> (cf. −36% COVID, −34% Ukraine industry); and the attributable steel fraction (<b>~30–43%</b>) caps how much of the column we can claim. Below that band, with policy and season controlled, the honest call is a <b>null</b>.</p>
+  </div>
+</section>
+
+<!-- ===================== DATA SOURCES ===================== -->
+<section id="data">
+  <div class="wrap">
+    <h2 class="sec">Reusable</h2>
+    <div class="sec-head"><h3>Datasets, products &amp; code referenced across the literature</h3>
+      <p>Public/free sources we can pull directly. All consistent with NOXUS's "public data only" constraint.</p></div>
+    <table class="tbl">
+      <thead><tr><th>Source</th><th>What / access</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr><td class="s">TROPOMI NO₂ (L2)</td><td>Sentinel-5P tropospheric column; Copernicus Data Space Ecosystem (ex scihub/s5phub); mirrored on Google Earth Engine. PAL reprocessed product recommended.</td><td><span class="pill">Beirle</span><span class="pill">Kim</span><span class="pill">Kondragunta</span><span class="pill">Mao</span><span class="pill">Li 2024</span></td></tr>
+        <tr><td class="s">OMI NO₂</td><td>Aura, NASA — longer/coarser record for cross-check &amp; pre-2018.</td><td><span class="pill">Morris&amp;Zhang</span><span class="pill">Montgomery</span><span class="pill">Ezran</span><span class="pill">Li 2024</span></td></tr>
+        <tr><td class="s">Beirle NOₓ catalog</td><td>v1 <span class="mono">10.26050/WDCC/Quant_NOx_TROPOMI</span>; v2 <span class="mono">10.26050/WDCC/No_xPointEmissionsV2</span>.</td><td><span class="pill">Beirle 21/23</span></td></tr>
+        <tr><td class="s">MEIC inventory</td><td>Multi-resolution Emission Inventory for China; <span class="mono">meicmodel.org.cn</span> — sectoral NOₓ prior.</td><td><span class="pill">Li&amp;Zheng</span><span class="pill">Li 2024</span><span class="pill">Zheng</span></td></tr>
+        <tr><td class="s">EDGAR v8.1</td><td>Global anthropogenic emissions, sectoral split — inversion prior.</td><td><span class="pill">Mao</span></td></tr>
+        <tr><td class="s">ERA5 winds</td><td>ECMWF reanalysis — flux/divergence computation.</td><td><span class="pill">Beirle v2</span></td></tr>
+        <tr><td class="s">GPPD</td><td>Global Power Plant Database — source matching/exclusion.</td><td><span class="pill">Beirle v2</span></td></tr>
+        <tr><td class="s">Zheng COVID emissions</td><td>Monthly China emissions by species/sector/province; figshare <span class="mono">10.6084/m9.figshare.c.5214920.v2</span>.</td><td><span class="pill">Zheng</span></td></tr>
+        <tr><td class="s">FIVE on-road NOₓ</td><td>Fuel-based vehicle emissions; <span class="mono">csl.noaa.gov/.../2020covid-aqs</span>. EPA CEMS for power-plant NOₓ.</td><td><span class="pill">Kondragunta</span></td></tr>
+        <tr><td class="s">CAMS EAC4</td><td>Copernicus atmospheric-composition reanalysis — independent NO₂ cross-check.</td><td><span class="pill">Kim</span></td></tr>
+        <tr><td class="s">WorldPop / LandScan</td><td>Gridded population (0.1°) for density stratification &amp; weighting.</td><td><span class="pill">Li&amp;Zheng</span><span class="pill">Donaldson</span></td></tr>
+        <tr><td class="s">Replication code</td><td>Parubets OSF <span class="mono">10.17605/OSF.IO/MGDCP</span>; Morris&amp;Zhang SSRN <span class="mono">2920650</span>; Kondragunta &amp; Mao data-availability sections.</td><td><span class="pill">Parubets</span><span class="pill">Morris&amp;Zhang</span></td></tr>
+        <tr><td class="s">Benchmark (ours)</td><td>Crude-steel output (World Steel Assoc.; China NBS); blast-furnace operating rate (CREA, <span class="mono">energyandcleanair.org</span>).</td><td><span class="pill">NOXUS target</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Synthesis generated for NOXUS from <code>literature/extracted/*.md</code> (16 papers) · 2026-06-13.
+    Numbers are taken from each paper's abstract, results tables and data-availability statements; verify against the PDF of record before citing — the <code>pdftotext</code> extracts can garble tables/equations. Full register and DOIs: <a href="README.md">literature/README.md</a>, <a href="references.bib">references.bib</a>.
+  </div>
+</footer>
+
+</body>
+</html>

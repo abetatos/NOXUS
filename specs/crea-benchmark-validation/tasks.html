@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — CREA benchmark ingestion + NO₂ activity-signal validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — CREA benchmark ingestion + NO₂ activity-signal validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-001</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Each task is small and independently verifiable. Mark complete by adding
+        <code>class="done"</code> to its <code>&lt;li class="task-item"&gt;</code>. Global status lives in
+        <code>tasks.json</code>.</p>
+
+        <ol class="task-timeline">
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T1</span>
+              <strong>Add a committed fixture CSV reproducing the CREA hazards.</strong></div>
+            <div class="task-item-body">Multi-row header, trailing spaces, <code>0.00</code> placeholders,
+            interleaved weekly/daily cadence, the exact Tangshan column. Basis for AT1/AT-EDGE-1.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T2</span>
+              <strong>Tests for benchmark parse/clean (REQ-001..006).</strong></div>
+            <div class="task-item-body">Assert by-name selection, header skip, zeros→NA, trailing-space
+            coercion, sort/de-dup, parquet schema, auxiliary series retained. Write failing first.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T3</span>
+              <strong>Implement <code>noxus/data/benchmark.py</code> (REQ-001..006).</strong></div>
+            <div class="task-item-body">fetch_benchmark_snapshot → dated raw CSV; load_benchmark (by-name,
+            clean); emit_benchmark → tidy parquet. No network outside fetch.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T4</span>
+              <strong>Benchmark error handling (ERR-001/002).</strong></div>
+            <div class="task-item-body">Unreachable/empty source fails without clobbering a good snapshot;
+            missing Tangshan header raises a descriptive error listing found headers.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T5</span>
+              <strong>Add run config keys (REQ-030).</strong></div>
+            <div class="task-item-body">Source URL, AOI, frequency, lag window, min-coverage threshold,
+            covariate set, OOS scheme — in <code>noxus/config/</code>.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T6</span>
+              <strong>Tests for preprocessing (REQ-010..013).</strong></div>
+            <div class="task-item-body">Synthetic series with known seasonality/trend; coverage-threshold
+            masking; meteo residualization and curtailment control.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T7</span>
+              <strong>Implement <code>validation/preprocess.py</code> (REQ-010..013).</strong></div>
+            <div class="task-item-body">align_series (freq + min_coverage), deseasonalize (STL/dummies),
+            stationarity_gate (ADF+KPSS), residualize (meteo + curtailment).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T8</span>
+              <strong>Tests + implement lead/lag (REQ-020/021).</strong></div>
+            <div class="task-item-body">CCF peak-lag with bounds; Granger with BH multiplicity
+            correction. Planted-lag fixture recovers the known lag.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T9</span>
+              <strong>Tests + implement models (REQ-022).</strong></div>
+            <div class="task-item-body">Distributed-lag/VAR for stationary track; VECM/ECM for cointegrated
+            track. Coefficients + CIs. Lag-order cap for short samples (EDGE-005).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T10</span>
+              <strong>Tests + implement OOS skill (REQ-023).</strong></div>
+            <div class="task-item-body">Pseudo-real-time AR vs AR+NO₂ (expanding/rolling), RMSE both,
+            Diebold–Mariano. Planted-signal beats AR; planted-null does not (AT3/AT4).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T11</span>
+              <strong>Results artifact + plain-language summary (REQ-024).</strong></div>
+            <div class="task-item-body">Emit parquet/JSON and a summary that states lead/no-lead
+            explicitly, reports the null, and echoes config (method, stationarity, covariates, lags,
+            coverage threshold).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T12</span>
+              <strong>Robustness path with reconstructed predictor (REQ-025).</strong></div>
+            <div class="task-item-body"><code>--robustness reconstructed</code>; comparison output; assert
+            reconstruction never enters the default path.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T13</span>
+              <strong>Insufficient-data + missing-dependency guards (ERR-003/004).</strong></div>
+            <div class="task-item-body">Refuse stats below min sample length; actionable message when NO₂
+            predictor or meteo inputs are absent.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T14</span>
+              <strong>Wire CLI subcommands (REQ-030).</strong></div>
+            <div class="task-item-body"><code>ingest-benchmark</code> and <code>validate</code> in
+            <code>noxus/cli/main.py</code>, config-driven; CLI smoke test (AT-REG-1).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T15</span>
+              <strong>Run validation commands.</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> and <code>uv run ruff check .</code>
+            green (AC-006).</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T16</span>
+              <strong>Update affected documentation.</strong></div>
+            <div class="task-item-body">README Data sources + provenance; <code>references.bib</code>
+            benchmark entry; <code>docs/</code> methods note. Reviewer confirms in Documentation decision.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T17</span>
+              <strong>Refresh the project map.</strong></div>
+            <div class="task-item-body">Mark <code>data/</code> benchmark + <code>validation/</code> as
+            implemented; note new <code>data/raw/benchmark/</code> area.</div>
+          </li>
+          <li class="task-item done">
+            <div class="task-item-header"><span class="req-id t">T18</span>
+              <strong>Propose decision-log entries.</strong></div>
+            <div class="task-item-body">Benchmark source-of-record + provenance; out-of-sample DM as the
+            standard for leading-indicator claims. Propose only — developer approves text.</div>
+          </li>
+        </ol>
+      </section>
+
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <p>The reviewer verifies each item before marking the task <code>done</code>.</p>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Requirements are covered by tests.</li>
+          <li><input type="checkbox" disabled> Tests pass.</li>
+          <li><input type="checkbox" disabled> Lint passes (no typecheck configured).</li>
+          <li><input type="checkbox" disabled> No protected files modified without approval.</li>
+          <li><input type="checkbox" disabled> Reviewer approved traceability.</li>
+          <li><input type="checkbox" disabled> Documentation decision recorded.</li>
+          <li><input type="checkbox" disabled> Reconstruction kept out of the default path (REQ-025 / decision 2026-06-13).</li>
+        </ul>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

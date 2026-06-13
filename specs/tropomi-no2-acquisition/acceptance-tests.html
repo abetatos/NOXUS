@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — TROPOMI NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002a</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Observable behaviour required for acceptance. Network/auth are mocked; the one real-data check (AT5b) is the developer's clear-day verification.</p></section>
+      <hr>
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <ul>
+          <li>A fake openEO connection returns a synthetic AOI overpass (xarray) → deterministic unit tests, no network/credentials.</li>
+          <li>QA/coverage/version/resumability asserted on synthetic windows.</li>
+          <li>Verification: synthetic store for selection + render; real-data visual check is manual.</li>
+        </ul>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+        <h3 id="test-locations">Related test files</h3>
+        <pre><code>tests/data/test_tropomi.py
+tests/data/test_verify_no2.py
+tests/cli/test_cli.py
+tests/fixtures/ (synthetic AOI overpasses)</code></pre>
+      </section>
+      <hr>
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table><thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-001/004/005</span></td><td>AT1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-002</span></td><td>AT2</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-003/006</span></td><td>AT3</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-007</span></td><td>AT4</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT5a/AT5b</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">ERR-001..003</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+        </tbody></table>
+      </section>
+      <hr>
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1"><div class="card-header"><span class="req-id">AT1</span><span class="card-title">AOI subset + variables + provenance</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-001, REQ-004, REQ-005</dd>
+            <dt>Scenario</dt><dd>Mocked openEO returns a synthetic overpass for a 2-day range.</dd>
+            <dt>Action</dt><dd>Run <code>acquire_no2</code>.</dd>
+            <dt>Expected result</dt><dd>Request used filter_bbox(AOI)+temporal+QA; output keeps NO₂ column, qa, cloud, kernel, geo, precision; per-overpass file + provenance (collection, version, qa, aoi) written; only AOI window persisted.</dd>
+            <dt>Negative expectations</dt><dd>No full-granule download; no secrets in logs.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_tropomi.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at2"><div class="card-header"><span class="req-id">AT2</span><span class="card-title">Processor version tracked + discontinuity flagged</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-002, EDGE-002</dd>
+            <dt>Scenario</dt><dd>Synthetic overpasses tagged v1 (early) and v2 (later).</dd>
+            <dt>Expected result</dt><dd>Each stored overpass records its version; a range spanning both reports a version discontinuity.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_tropomi.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at3"><div class="card-header"><span class="req-id">AT3</span><span class="card-title">QA filter + coverage fraction</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-003, REQ-006</dd>
+            <dt>Scenario</dt><dd>AOI window with a known qa distribution and some cloudy pixels.</dd>
+            <dt>Expected result</dt><dd>Pixels below threshold dropped; valid-coverage fraction equals the known share of passing AOI pixels.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_tropomi.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at4"><div class="card-header"><span class="req-id">AT4</span><span class="card-title">Idempotent / resumable</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-007</dd>
+            <dt>Scenario</dt><dd>Run acquisition twice over the same range.</dd>
+            <dt>Expected result</dt><dd>Second run fetches nothing new (manifest hit); interrupting mid-range and resuming completes without re-fetching done overpasses.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_tropomi.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at5a"><div class="card-header"><span class="req-id">AT5a</span><span class="card-title">Verification: clear-day selection + render (synthetic)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Scenario</dt><dd>Synthetic store with one low-cloud/high-NO₂ day and several cloudy days.</dd>
+            <dt>Expected result</dt><dd><code>select_clear_high_days</code> returns the clear high-NO₂ day; <code>render_day</code> writes a PNG containing the facility markers.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_verify_no2.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at5b"><div class="card-header"><span class="req-id">AT5b</span><span class="card-title">Verification: real clear-day co-location (manual)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-011, REQ-012, AC-004</dd>
+            <dt>Scenario</dt><dd>Fetch a short real range; pick a clear high-NO₂ day; render NO₂-over-AOI with facility overlay (optional S2 thumbnail).</dd>
+            <dt>Expected result</dt><dd>The NO₂ enhancement visibly sits over the steel sub-clusters (central Tangshan and/or Caofeidian/Qian'an). <em>Manual visual check by the developer; cannot be asserted in CI (non-deterministic, needs creds).</em></dd>
+            <dt>Suggested test location</dt><dd>manual — output under <code>data/derived/verification/</code></dd>
+          </dl></div></div>
+
+      </section>
+      <hr>
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+        <div class="card risk-high" id="at-err-1"><div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Auth / collection / job failures</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>ERR-001, ERR-002, ERR-003</dd>
+            <dt>Scenario</dt><dd>(a) missing/invalid creds; (b) unknown collection/band; (c) job failure mid-batch.</dd>
+            <dt>Expected result</dt><dd>(a) clear error naming <code>.env</code> variables, no secret echoed; (b) descriptive error naming collection/band; (c) failure recorded, fetched overpasses intact, resume works.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_tropomi.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+        <div class="card" id="at-reg-1"><div class="card-header"><span class="req-id">AT-REG-1</span><span class="card-title">CLI additive + config-driven</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt><dd><code>noxus --help</code> and existing subcommands keep working.</dd>
+            <dt>Related requirements</dt><dd>REQ-020</dd>
+            <dt>Action</dt><dd><code>noxus fetch --help</code>, <code>noxus verify-no2 --help</code>.</dd>
+            <dt>Expected result</dt><dd>Subcommands exist, read config, expose documented flags.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have a test (auto or manual).</li>
+          <li><input type="checkbox" disabled> Only AOI window transferred; no full granules.</li>
+          <li><input type="checkbox" disabled> No secrets logged/committed.</li>
+          <li><input type="checkbox" disabled> Real clear-day verification reviewed (AT5b).</li>
+          <li><input type="checkbox" disabled> Unresolved behaviour captured in open-questions.html.</li>
+        </ul>
+      </section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Tests map back to requirements; auth/network mocked.</li>
+          <li>Mark AT5b clearly as manual (needs credentials, non-deterministic).</li>
+          <li>Do not invent behaviour beyond the approved spec.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

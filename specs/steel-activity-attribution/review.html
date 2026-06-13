@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Steel-sector NO₂ activity signal + validation (Phase 2, T5–T14)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Steel-sector NO₂ activity signal + validation</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Review scope</th><td><strong>Phase 2 slice: T5–T14</strong> (high-risk block). Phase 1 (T1–T4) reviewed/approved previously. T15 intentionally not implemented.</td></tr>
+        <tr><th>Reviewer</th><td>reviewer (subagent), deep-review mode</td></tr>
+        <tr><th>Date</th><td>2026-06-13</td></tr>
+        <tr><th>Verdict (this slice)</th><td><span class="badge badge-ready">APPROVE-WITH-NITS</span></td></tr>
+        <tr><th>Task state after review</th><td><code>in_progress</code> — T15 remains; whole task NOT marked done.</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The T5–T14 slice implements the ERA5 ingest, meteo regress-out, deseasonalisation + confounder
+        modelling, relative index, revived validation engine (align / sign / r-p / lead-lag), report
+        (incl. honest null), error handling, housekeeping, and CLI wiring. The slice is correct,
+        traceable to requirements, and the statistical-claims and credential surfaces are clean.
+        <code>uv run pytest</code> = <strong>89 passed</strong>; <code>uv run ruff check .</code> =
+        <strong>all checks passed</strong>; all 8 CLI subcommands present (4 existing unchanged, 4 new
+        wired). Verdict for this slice is <strong>APPROVE-WITH-NITS</strong>: three non-blocking nits
+        (curtailment provenance honesty, multiple-lag disclosure, summary-n field) to resolve before the
+        whole task can become <code>done</code> — but the whole task stays <code>in_progress</code>
+        regardless because T15 (real end-to-end run + docs + decision log) is intentionally pending.</p>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run (run-and-verify evidence)</h2>
+        <table>
+          <thead><tr><th>Command</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run pytest -q</code></td><td><strong>89 passed</strong> in ~8.4s.</td></tr>
+            <tr><td><code>uv run ruff check .</code></td><td><strong>All checks passed.</strong></td></tr>
+            <tr><td><code>uv run noxus --help</code></td><td>Lists <code>attribute, index, validate, ingest-era5, grid, ingest-benchmark, fetch, verify-no2</code> — 4 new + 4 existing.</td></tr>
+            <tr><td><code>uv run noxus {grid,fetch,ingest-benchmark,verify-no2} --help</code></td><td>All existing subcommands load unchanged (AT-REG-1).</td></tr>
+            <tr><td>Numeric spot-check: <code>correlate</code> vs <code>scipy.stats.pearsonr</code> + manual</td><td>r=0.904762 identical across all three; p=0.0020; CI [0.552, 0.983]. Match.</td></tr>
+            <tr><td>Numeric spot-check: <code>lead_lag</code> lag convention</td><td>Planted index→benchmark shift of 2: <code>peak_lag=+2</code>, <code>peak_r=1.000</code>; <code>index.shift(2)</code> vs benchmark r=1.000. Confirms "positive lag = index leads" matches the docstring.</td></tr>
+            <tr><td>Degenerate guard: <code>correlate(n=2)</code></td><td>Returns r=0, p=1, NaN CI — safe null, no crash.</td></tr>
+            <tr><td><code>git ls-files | grep -i 'derived/no2|raw/era5|steel_…|validation_…'</code></td><td>(none tracked) — NO₂-derived + ERA5 outputs are not committed (NFR-004).</td></tr>
+            <tr><td>Grep for tonnage/absolute claims in code</td><td>Only negative assertions in comments/strings ("never an absolute tonnage"). No tonnage column anywhere (REQ-030).</td></tr>
+            <tr><td>Grep for secret reads in <code>era5.py</code></td><td>None. CDS fallback raises before any credential access; <code>~/.cdsapirc</code> named only in a docstring/message.</td></tr>
+          </tbody>
+        </table>
+        <p>Environment note: <code>VIRTUAL_ENV</code> mismatch warning (conda env vs project <code>.venv</code>)
+        is benign — uv ignores it and uses the project environment.</p>
+      </section>
+
+      <section id="changed-files">
+        <h2>Changed files reviewed (T5–T14)</h2>
+        <table>
+          <thead><tr><th>File</th><th>Task(s)</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/era5.py</code></td><td>T5</td><td>ARCO-ERA5 anonymous Zarr (<code>token="anon"</code>), CDS fallback raises with instructions, AOI subset + lon normalisation + overpass window + footprint aggregation. Network isolated behind <code>_open_arco_store</code> / <code>_store</code> injection. Conforms to design.</td></tr>
+            <tr><td><code>noxus/signal/index.py</code></td><td>T6/T7/T8</td><td>regress_out_meteo (linear/loess, form recorded), deseasonalize (yoy-double-diff + structural heating + curtailment via OLS residualisation), build_index (zscore/anchor, cap recorded, no tonnage), write/read provenance. NaN gaps preserved throughout.</td></tr>
+            <tr><td><code>noxus/validation/preprocess.py</code></td><td>T9</td><td>align_series accepts <code>index_value</code> (documented evolution from NOX-001 <code>no2_attributed</code>); coverage screening masks below floor, never interpolates; inner-join overlap.</td></tr>
+            <tr><td><code>noxus/validation/leadlag.py</code></td><td>T9</td><td>correlate (scipy pearsonr + CI), verify_sign (never flips), lead_lag (CCF peak). Degenerate guards return safe nulls.</td></tr>
+            <tr><td><code>noxus/validation/report.py</code></td><td>T10</td><td>build_results + render_summary + report + run_validation; JSON + plain-language summary; null/lead/concurrent conclusion; bar classification; full config echo; ERR-004 short-overlap refusal; ERR-001 missing-input messages.</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>T1 (consumed T5+)</td><td>SignalConfig/ValidationConfig knobs all fixed as defaults and echoed into results (no silent tunables).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>T13</td><td>attribute/index/validate/ingest-era5 wired to real functions; existing subcommands untouched.</td></tr>
+            <tr><td><code>.gitignore</code></td><td>T12</td><td><code>data/derived/no2/</code> and <code>data/raw/era5/</code> ignored.</td></tr>
+            <tr><td><code>pyproject.toml</code></td><td>T12</td><td>scipy, statsmodels, zarr, gcsfs, h5netcdf, xarray pinned. No <code>cdsapi</code> (fallback not wired — consistent with design).</td></tr>
+            <tr><td><code>tests/{data,signal,validation,cli,attribution}/…</code></td><td>T2/T14</td><td>Planted-meteo, planted-seasonal, planted-signal, planted-null fixtures; ERA5 mocked; deterministic (fixed seeds).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="traceability">
+        <h2>Requirement → code → test traceability</h2>
+        <table>
+          <thead><tr><th>Req</th><th>Code symbol</th><th>Test</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-010 (ERA5 ingest, dated snapshot)</td><td><code>era5.ingest_era5</code>, <code>snapshot_path</code>, <code>_subset_aoi</code></td><td><code>test_era5::test_ingest_era5_writes_dated_snapshot_no_network</code>, <code>…via_injected_store</code></td><td>✔</td></tr>
+            <tr><td>REQ-011 (meteo regress-out, form recorded)</td><td><code>index.regress_out_meteo</code> (+ <code>era5_footprint_series</code>)</td><td><code>test_index::test_regress_out_meteo_recovers_activity</code> (r&gt;0.95), <code>…records_loess_form</code>, <code>…preserves_nan_gaps</code></td><td>✔</td></tr>
+            <tr><td>REQ-020 (deseasonalise, method recorded)</td><td><code>index.deseasonalize</code> (yoy-double-diff)</td><td><code>test_index::test_deseasonalize_removes_seasonal_term</code></td><td>✔</td></tr>
+            <tr><td>REQ-021 (heating as STRUCTURAL term)</td><td><code>heating_season_indicator</code> + <code>_residualize_on_terms</code> (OLS, modelled not differenced away)</td><td><code>test_index::test_deseasonalize_records_structural_terms</code>, <code>…marks_heating_months</code></td><td>✔ (see Finding N1 on the default sub-annual constancy edge)</td></tr>
+            <tr><td>REQ-022 (curtailment exogenous control)</td><td><code>deseasonalize(curtailment=…)</code>; <code>_load_curtailment</code> returns None by default</td><td><code>test_index::test_deseasonalize_records_structural_terms</code> (planted curtailment)</td><td>⚠ Finding N1 — control wired + tested, but default-absent state is recorded as <code>curtailment_source='crea'</code> while no data is applied.</td></tr>
+            <tr><td>REQ-030 (relative/unitless, no tonnage)</td><td><code>index.build_index</code> (zscore/anchor)</td><td><code>test_index::test_build_index_is_unitless_zscore</code> (asserts no "ton" column), <code>…anchor_period_is_relative</code></td><td>✔</td></tr>
+            <tr><td>REQ-031 (attributable cap recorded)</td><td><code>build_index attributable_cap</code> → provenance; surfaced in summary</td><td><code>test_index::test_build_index_is_unitless_zscore</code>, <code>…provenance_roundtrip</code>; <code>test_validation::test_report_echoes_config_and_bar</code></td><td>✔</td></tr>
+            <tr><td>REQ-040 (align to common freq, coverage screen)</td><td><code>preprocess.align_series</code></td><td><code>test_validation::test_align_series_accepts_index_value_column</code>, <code>…coverage_screen_drops_low_cov</code></td><td>✔</td></tr>
+            <tr><td>REQ-041 (empirical sign, never flipped)</td><td><code>leadlag.verify_sign</code> (indeterminate when n.s.)</td><td><code>test_validation::test_planted_signal_recovers_sign…</code> (positive), <code>test_planted_null_reports_null</code> (indeterminate)</td><td>✔</td></tr>
+            <tr><td>REQ-042 (Pearson r+p, lead-lag profile)</td><td><code>leadlag.correlate</code>, <code>lead_lag</code></td><td>planted-signal recovers lag k &amp; r&gt;0.5 p&lt;0.05; numeric spot-check vs scipy</td><td>✔ (see Finding N2 on multi-lag disclosure)</td></tr>
+            <tr><td>REQ-043 (machine + plain-language report, NULL explicit, CIs)</td><td><code>report.build_results</code>, <code>render_summary</code>, <code>_conclusion</code></td><td><code>test_report_planted_signal_concludes_lead</code>, <code>test_report_planted_null_states_null_explicitly</code> (asserts "NULL" + "Morris")</td><td>✔</td></tr>
+            <tr><td>REQ-044 (r≈0.5–0.75 bar classification)</td><td><code>report.classify_bar</code></td><td><code>test_classify_bar_bands</code> (incl. |r| for negatives)</td><td>✔</td></tr>
+            <tr><td>REQ-050 (CLI subcommands, config-driven, existing unchanged)</td><td><code>cli/main.py</code> _cmd_attribute/_index/_validate/_ingest_era5</td><td><code>tests/cli/test_cli.py</code>; <code>noxus --help</code> verified manually</td><td>✔</td></tr>
+            <tr><td>ERR-001 (missing cube/benchmark/index)</td><td>FileNotFoundError in <code>build_footprint_signal</code>, <code>build_activity_index</code>, <code>run_validation</code></td><td><code>test_run_validation_missing_index_raises</code>, <code>…missing_benchmark_raises</code></td><td>✔</td></tr>
+            <tr><td>ERR-002 (ERA5 snapshot missing, no silent skip)</td><td><code>ERA5SnapshotError</code> in <code>era5_footprint_series</code>, <code>_latest_era5_snapshot</code></td><td><code>test_era5_footprint_series_missing_snapshot_raises</code></td><td>✔</td></tr>
+            <tr><td>ERR-003 (degenerate geometry / empty ring)</td><td><code>GeometryError</code> in <code>footprint_mask</code>, <code>background_ring</code></td><td>covered in phase-1 <code>tests/attribution/test_source.py</code></td><td>✔ (phase-1)</td></tr>
+            <tr><td>ERR-004 (short overlap refusal)</td><td><code>InsufficientOverlapError</code> in <code>report.report</code></td><td><code>test_short_overlap_refuses</code></td><td>✔</td></tr>
+            <tr><td>NFR-002 (public/free; ARCO anonymous)</td><td><code>_open_arco_store token="anon"</code></td><td>ERA5 tests mock network; no credentials needed to run suite</td><td>✔</td></tr>
+            <tr><td>NFR-004 (no-publish; gitignored)</td><td><code>.gitignore</code></td><td><code>git ls-files</code> shows none tracked</td><td>✔</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="deep-review">
+        <h2>Deep-review record (high-risk block)</h2>
+        <p><strong>High-risk categories touched:</strong> large cross-cutting feature that revives a
+        reverted module, statistical-claims surface (p-hacking risk across many tunable knobs), and a new
+        external data dependency with an optional authenticated fallback (credential surface). Per the
+        design risks section and <code>reference/deep-review-policy.md</code>.</p>
+
+        <h3>Escalation rungs actually run</h3>
+        <ul>
+          <li><strong>Rung 1 (always) — standard reviewer + High-risk checklist + security-focused pass: RUN.</strong>
+          Manual statistical audit, credential-surface grep, git-tracking check, numeric reproduction of
+          the core stats against scipy/hand-computation.</li>
+          <li><strong>Rung 2 (recommended) — adversarial pass: RUN (single-reviewer, three lenses).</strong>
+          Statistical-correctness lens (p-hacking, lag selection, null reachability), security lens
+          (credentials, network in tests), correctness/edge lens (NaN/coverage, degenerate inputs). A
+          separate independent reviewer subagent per lens was not spawned; this single deep pass exercised
+          all three lenses adversarially and reproduced the headline claims numerically. Recorded as the
+          accepted substitute.</li>
+          <li><strong>Rung 3 (optional, paid) — cloud deep review / PR review service: NOT RUN.</strong>
+          Requires explicit per-invocation developer approval and incurs cost; not requested. Its absence
+          does not block per policy — rung 2 is the accepted substitute.</li>
+        </ul>
+
+        <h3>Statistical / p-hacking discipline</h3>
+        <ul>
+          <li><strong>Null is genuinely reachable.</strong> <code>test_planted_null_reports_null</code> uses
+          two independent random series (seeds 99) → <code>|r|&lt;0.3</code>, <code>p&gt;0.05</code>,
+          sign <code>indeterminate</code> (never flipped, EDGE-007). The conclusion logic
+          (<code>_conclusion</code>) returns <code>"null"</code> whenever the lag-0 correlation is not
+          significant OR the peak |r| is below-bar — the null is not engineered away.</li>
+          <li><strong>Planted signal recovers truth.</strong> seed-7 fixture, benchmark = 2·index(t−3) +
+          noise → sign positive &amp; significant, <code>peak_lag == 3</code>, r&gt;0.5 p&lt;0.05 on the
+          lead-aligned series, CI reported. Reproduced independently.</li>
+          <li><strong>Knobs are fixed in config and echoed.</strong> All researcher-degrees-of-freedom
+          (deseason method, meteo form, lag window, cap, anchor, coverage floor, min_overlap, success bar)
+          are <code>SignalConfig</code>/<code>ValidationConfig</code> defaults and are written into
+          <code>steel_validation_results.json</code> <code>config_echo</code> and the plain-language
+          summary. No silent defaults that could be tuned post-hoc without disclosure.</li>
+          <li><strong>r/p/CI computed correctly.</strong> Verified numerically: <code>correlate</code>
+          matches <code>scipy.stats.pearsonr</code> (modern API <code>.statistic</code>/<code>.pvalue</code>
+          + <code>confidence_interval</code>) exactly; degenerate/zero-variance inputs return a safe null
+          rather than crashing.</li>
+        </ul>
+
+        <h3>Security / credential surface</h3>
+        <ul>
+          <li>Primary ARCO path is anonymous (<code>storage_options={"token": "anon"}</code>) — no
+          credentials. CDS fallback (<code>source="cds"</code>) raises <code>ERA5SourceError</code> with
+          instructions <em>before</em> any credential read; <code>~/.cdsapirc</code> appears only in a
+          docstring and an error string (variable-name reference only). No <code>getenv</code>/secret
+          reads in <code>era5.py</code>. No secrets logged. <strong>Security findings: none.</strong></li>
+          <li>No network in tests — ARCO is mocked via <code>_open_arco_store</code> monkeypatch / <code>_store</code> injection; suite runs with zero credentials.</li>
+          <li>ERA5 snapshots + NO₂-derived outputs gitignored and confirmed untracked.</li>
+        </ul>
+
+        <h3>Relative-not-absolute</h3>
+        <p><code>build_index</code> emits only <code>index_value</code> (z-score or indexed-to-baseline ×100);
+        no tonnage/output column exists; the test asserts absence of any "ton" column. Cap (0.30–0.43)
+        recorded in provenance and surfaced in the summary with an explicit "RELATIVE, not absolute
+        tonnage" caveat. <strong>Confirmed via code + tests.</strong></p>
+
+        <h3>Confounder modelling (REQ-021/022)</h3>
+        <p>Heating season is modelled as a structural OLS covariate of the deseasonalised series
+        (<code>_residualize_on_terms</code>), not merely differenced away — satisfies REQ-021's intent.
+        Curtailment is wired as an exogenous control and tested with a planted window, but the
+        end-to-end <code>_load_curtailment</code> returns <code>None</code> by default (no calendar
+        artifact yet, deferred to T15/Q6a). That deferral is honest in the code comment — see Finding N1
+        for the one provenance-honesty gap.</p>
+
+        <h3>Contract reconciliation</h3>
+        <p><code>align_series</code> accepting <code>index_value</code> (vs NOX-001's <code>no2_attributed</code>)
+        is a deliberate, documented evolution (module docstring + <code>_PREDICTOR_COLUMNS</code> tolerates
+        legacy names). Judged acceptable. OOS / Diebold–Mariano deferral is consistent with the spec
+        default (heavier engine treated as optional extension).</p>
+
+        <h3>NaN / coverage handling</h3>
+        <p>No interpolation anywhere: regress-out, deseasonalise, and index all preserve NaN rows
+        (<code>test_regress_out_meteo_preserves_nan_gaps</code>); align_series masks below-coverage rows
+        and inner-joins; ERR-004 refuses short overlaps. Edge inputs (too few points, zero variance) take
+        safe fallbacks. <strong>Edge cases: none missed for this slice.</strong></p>
+
+        <h3>Performance findings</h3>
+        <p>None material. <code>lead_lag</code> recomputes correlation over 2·max_lag+1 shifts (≤17) — trivial.
+        ERA5 spatial regrid is nearest-neighbour on a small AOI. No hot-path or resource-leak concerns
+        (datasets explicitly <code>.load().close()</code>).</p>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+
+        <h3>Blocking</h3>
+        <p><strong>None.</strong> No blocking issue in the T5–T14 slice.</p>
+
+        <h3>Non-blocking (resolve or record explicit deferral before the whole task is <code>done</code>)</h3>
+        <ul>
+          <li><strong>N1 — Curtailment provenance honesty (elevated: statistical-claims surface).</strong>
+          <code>_load_curtailment</code> always returns <code>None</code>, so the curtailment exogenous
+          control (REQ-022) is never applied in the end-to-end path, yet provenance records
+          <code>curtailment_source: "crea"</code> and the summary echoes <code>curtailment_control: crea</code>.
+          A reader would believe a curtailment control was applied when it was not. <em>Reproduced:</em>
+          end-to-end <code>build_activity_index</code> path passes <code>curtailment=None</code>, so
+          <code>structural_terms</code> contains only <code>heating_season</code>. <em>Fix (small, low-risk):</em>
+          when no curtailment series is loaded, record <code>curtailment_control: "absent (no calendar
+          artifact; deferred to T15/Q6a)"</code> (or surface <code>structural_terms</code> alongside the
+          source) so the echo cannot overstate the control. Severity: medium (honesty/NFR-003). Does not
+          block this slice; should be resolved (or explicitly deferred to T15 with the real curtailment
+          calendar) before <code>done</code>.</li>
+
+          <li><strong>N2 — Multiple-lag selection not disclosed (elevated: statistical-claims surface).</strong>
+          <code>lead_lag</code> selects <code>peak_r</code> as the max |r| over 17 lags, and
+          <code>_conclusion</code> classifies that peak against the success bar. The reported
+          <code>ccf_sig_bound</code> (±1.96/√n) is an uncorrected per-lag white-noise band — selecting the
+          maximum over many lags inflates the apparent peak significance. The headline significance gate
+          correctly uses the lag-0 <code>correlate</code> p-value (not the peak), which mitigates the
+          worst over-claim, but the inflation from peak selection is not surfaced. <em>Theoretical
+          (not a code bug); reproduced conceptually, not a failing test.</em> <em>Fix (doc-level):</em> add
+          a one-line note in <code>render_summary</code> / methods doc that the peak lag is selected over
+          the lag window and the per-lag band is not multiplicity-corrected. Severity: low–medium. Resolve
+          or defer with justification before <code>done</code>.</li>
+
+          <li><strong>N3 — Summary <code>n</code> field provenance.</strong> <code>render_summary</code>
+          reports <code>n = r["n_overlap"]</code> (= <code>len(aligned)</code>) rather than
+          <code>CorrResult.n</code> (the jointly non-NaN count used by <code>correlate</code>). After
+          <code>align_series</code> these are equal (it drops NaN), so the displayed n is correct today,
+          but the <code>CorrResult.n</code> value is silently discarded. <em>Fix (trivial, optional):</em>
+          carry <code>corr.n</code> into the results dict, or add an assertion that the two agree. Severity:
+          low (cosmetic/robustness). Non-blocking.</li>
+        </ul>
+
+        <h3>Observations (no action required)</h3>
+        <ul>
+          <li>ARCO-ERA5 store path/variable names (<code>ARCO_ERA5_URL</code>, <code>ERA5_VAR_NAMES</code>)
+          are hard-coded constants. The design requires verifying the current path/var names against live
+          docs at implementation; since the real fetch is T15 and tests mock the store, this verification
+          is correctly deferred to T15. Flag for T15: confirm the exact ARCO Zarr path/version and PBL
+          variable name before the first real fetch (the design's External-dependencies freshness table is
+          the checklist).</li>
+          <li><code>_residualize_on_terms</code> drops zero-variance covariate columns — if a run window
+          never enters the heating season the heating term would be dropped (correctly, as it carries no
+          information then). On the full 2019→present series this is a non-issue; noted for T15 awareness.</li>
+        </ul>
+      </section>
+
+      <section id="external-deps">
+        <h2>External dependencies and freshness</h2>
+        <p>New deps added and pinned via uv: <code>scipy&gt;=1.17.1</code>, <code>statsmodels&gt;=0.14.6</code>,
+        <code>zarr&gt;=3.2.1</code>, <code>gcsfs&gt;=2026.5.0</code>, <code>h5netcdf&gt;=1.8.1</code>
+        (<code>xarray</code> already present). <code>cdsapi</code> intentionally NOT added (CDS fallback not
+        wired; raises with instructions). The design's External-dependencies-and-freshness table records
+        the docs-to-check, version constraints, deprecated-API-avoidance (legacy CDS endpoint avoided), and
+        compatibility notes. The modern <code>scipy.stats.pearsonr</code> CI API is used and verified
+        numerically. <strong>Outstanding freshness item for T15 (not blocking this slice):</strong> the
+        live ARCO-ERA5 Zarr path/version and PBL short name must be confirmed against current docs before
+        the first real fetch — the code is exercised only against a mocked store here.</p>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <p><strong>Deferred to T15 — not required for this slice.</strong> The spec scopes documentation
+        (project map, <code>docs/data-access.md</code> ERA5 section, methods note, README/references,
+        <code>.gitignore</code>) to T15, which runs the real end-to-end chain and records actual results.
+        No user-facing behavior is finalised until then. For task-field tracking:
+        <code>documentation_required: true</code>, <code>documentation_status: "pending"</code>,
+        <code>documentation_targets: [project-map, docs/data-access.md, docs methods note, .gitignore (done in T12), README/references.bib]</code>.
+        The documenter should run as part of T15, after the real run, before the whole task is marked
+        <code>done</code>. <code>.gitignore</code> changes were already made (T12) and verified.</p>
+      </section>
+
+      <section id="decision-log">
+        <h2>Decision-log proposals</h2>
+        <p><strong>Deferred to T15 (proposed only; developer decides).</strong> The spec's memory section
+        lists the candidate decisions, and the tasks file assigns them to T15. They should be proposed for
+        <code>decisions/</code> once the real run fixes the empirical values:</p>
+        <ul>
+          <li>(a) Relative-index / cluster-attribution paradigm for v1; flux divergence deferred to NOX-004.</li>
+          <li>(b) ERA5 from the public ARCO-ERA5 Zarr store (CDS fallback) as the meteo source; chosen
+          regress-out form (linear default).</li>
+          <li>(c) Footprint radius + background-ring geometry once tuned on real coverage.</li>
+          <li>(d) Deseasonalisation method of record (yoy-double-diff).</li>
+          <li>(e) (Surfaced by this review) Honest-reporting stance: curtailment-control absence and
+          multiple-lag selection must be disclosed in provenance/summary (relates to N1/N2) — candidate
+          for a workflow/methodology note.</li>
+        </ul>
+        <p>No decision-log entry is written now (no developer approval; values not yet empirical).</p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <p><strong>Phase-2 slice (T5–T14): APPROVE-WITH-NITS.</strong> Implementation is correct,
+        traceable, statistically disciplined, and credential-clean; tests + lint green; CLI additive.
+        Three non-blocking nits (N1 curtailment provenance honesty, N2 multi-lag disclosure, N3 summary-n)
+        must be resolved or explicitly deferred to T15 before the whole task becomes <code>done</code>.</p>
+        <p><strong>Whole task: remains <code>in_progress</code>.</strong> T15 (real end-to-end run + docs +
+        decision log) is intentionally not implemented; its absence is expected, not a finding. No tasks
+        are marked done, task status is unchanged, and no <code>history.html</code> entry is appended at
+        this stage.</p>
+      </section>
+
+      <hr>
+      <section id="re-review-2026-06-13b">
+        <h2>Re-review addendum — 2026-06-13 (delta after phase-2; ERA5 CDS-only switch)</h2>
+        <table class="meta-table"><tbody>
+          <tr><th>Scope</th><td>Focused re-review of the <strong>delta</strong> made after the phase-2 review above. The ERA5 source was switched from ARCO-primary to <strong>CDS-only</strong> (ARCO removed, no residual fallback), <code>cdsapi</code> added, <code>gcsfs</code>/<code>zarr</code> dropped; deseason default <code>yoy-double-diff</code>→<code>yoy</code>; phase-2 nits N1–N3 fixed; spec updated to CDS-only (Q3/Q4 resolved); a new preliminary analysis artifact + writeup added. The phase-2 note above is now partly stale on the ERA5 surface (it still describes the ARCO/anon path) and is retained per policy.</td></tr>
+          <tr><th>Deep-review lens</th><td>Two high-risk surfaces: (1) CDS credential surface, (2) statistical-claims honesty.</td></tr>
+          <tr><th>Verdict (delta)</th><td><span class="badge badge-ready">APPROVE-WITH-NITS</span> — two low-severity documentation nits only; no blocking, no elevated (credential/honesty) findings.</td></tr>
+          <tr><th>Task state</th><td><code>in_progress</code> — T15 remains; whole task NOT marked done.</td></tr>
+        </tbody></table>
+
+        <h3>Commands run (this re-review)</h3>
+        <table>
+          <thead><tr><th>Command</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run pytest -q</code></td><td><strong>90 passed</strong> in ~10s (was 89; +1 ERA5 CDS test).</td></tr>
+            <tr><td><code>uv run ruff check .</code></td><td><strong>All checks passed.</strong></td></tr>
+            <tr><td><code>uv run noxus ingest-era5 --help</code></td><td>No <code>--source</code> flag (only <code>-h</code>). Existing subcommands still parse (AT-REG-1).</td></tr>
+            <tr><td>Grep <code>gcsfs|zarr|open_zarr|arco|era5_source</code> in <code>noxus/</code></td><td>Only one hit: a docstring in <code>era5.py</code> noting ARCO was rejected. No live ARCO/zarr/gcsfs path. None in <code>tests/</code>.</td></tr>
+            <tr><td>Grep credential reads in <code>era5.py</code></td><td><code>os.environ.get(CDSAPI_KEY/URL)</code> → local var → <code>cdsapi.Client(key=...)</code>; never printed/logged/committed. Value-by-reference only. Clean.</td></tr>
+            <tr><td><code>uv.lock</code> + <code>pyproject.toml</code></td><td><code>cdsapi&gt;=0.7.7</code> present in both; no <code>zarr</code>/<code>gcsfs</code> entries remain.</td></tr>
+            <tr><td>Numeric: per-year chunk → concat → sortby → unique(time) → trim-to-era</td><td>3-year span, 9 raw steps → 6 kept; monotonic, unique, trimmed to <code>[era5_start, today]</code>; raw temp files cleaned. Correct.</td></tr>
+            <tr><td>End-to-end deseason default propagation</td><td><code>test_build_activity_index_no_meteo_end_to_end</code> asserts provenance <code>deseason_method == "yoy"</code>; config + docstring + decision log agree.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Traceability (changed code ↔ spec ↔ tests)</h3>
+        <ul>
+          <li><strong>ERA5 = CDS-only</strong> (<code>era5.py</code> <code>ingest_era5</code>/<code>_fetch_cds_netcdf</code>/<code>_normalise_cds</code>; <code>run.py</code> <code>era5_start</code>; <code>cli/main.py</code> <code>ingest-era5</code>) ↔ Q3 RESOLVED (CDS; ARCO rejected), assumptions A (CDS), decision log 2026-06-13 ERA5 entry ↔ <code>tests/data/test_era5.py</code> (CDS server-side subset, AOI/overpass request shape, footprint aggregation, missing-snapshot ERR-002). Consistent.</li>
+          <li><strong>Deseason default yoy + 4 methods</strong> (<code>index.py</code> <code>deseasonalize</code>/<code>SignalConfig.deseason_method</code>) ↔ Q4 RESOLVED, decision log 2026-06-13 deseason entry ↔ <code>tests/signal/test_index.py</code> (yoy/stl/yoy-double-diff/none + end-to-end yoy provenance). Consistent.</li>
+          <li><strong>N1/N2/N3 fixes</strong> ↔ REQ-022/042/043, NFR-003 ↔ report tests. See resolution table below.</li>
+        </ul>
+
+        <h3>Phase-2 nits N1–N3 — resolution check</h3>
+        <table>
+          <thead><tr><th>Nit</th><th>Status</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td><strong>N1</strong> curtailment provenance honesty</td><td><span class="badge badge-ready">RESOLVED</span></td><td><code>build_activity_index</code> records <code>curtailment_applied: curtailment is not None</code> (False by default, since <code>_load_curtailment</code> returns None). <code>run_validation</code> echoes <code>curtailment_control</code> as <code>"crea (NOT applied — calendar absent, deferred T15/Q6a)"</code> when not applied. The echo can no longer overstate the control.</td></tr>
+            <tr><td><strong>N2</strong> multi-lag selection disclosure</td><td><span class="badge badge-ready">RESOLVED</span></td><td><code>render_summary</code> now prints a NOTE: peak chosen over <code>2·max_lag+1</code> lags, per-lag band NOT multiplicity-corrected, peak r optimistic, null/usable decision relies on the lag-0 sign test not the peak. Matches the actual logic in <code>_conclusion</code> (gates on <code>sign.significant</code>).</td></tr>
+            <tr><td><strong>N3</strong> summary n provenance</td><td><span class="badge badge-ready">RESOLVED</span></td><td><code>build_results</code> now emits <code>corr_n: int(corr.n)</code>; <code>render_summary</code> reports <code>n = r.get("corr_n", r["n_overlap"])</code> — the real post-dropna n from <code>correlate</code>, not <code>n_overlap</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Deep-review record (delta) — high-risk categories: CDS credential surface; statistical-claims honesty</h3>
+        <ul>
+          <li><strong>Rung 1 (standard + security-focused + statistical-honesty pass): RUN.</strong> Credential-surface grep + read-through; CDS-only confirmation across <code>noxus/</code>, <code>tests/</code>, <code>pyproject</code>, <code>uv.lock</code>; numeric reproduction of the per-year chunking/dedup/trim; honesty audit of the preliminary writeup.</li>
+          <li><strong>Rung 2 (adversarial pass): RUN (single-reviewer, three lenses).</strong> Credential lens (no value printed/logged/committed; tests never touch network via <code>_cds_fetch</code> injection; CDS client constructed with key only when env-set, else <code>~/.cdsapirc</code>); statistical-honesty lens (default-method change is mechanistically justified in the decision log + writeup, not a fishing result; r≈0.19 explicitly framed as below-bar near-null; null reachable; relative-not-absolute preserved); chunking-correctness lens (sortby + <code>np.unique</code> dedup + era trim + raw cleanup verified numerically).</li>
+          <li><strong>Rung 3 (paid cloud deep review): NOT RUN.</strong> Needs explicit developer approval + cost; not requested. Not blocking (rung 2 is the accepted substitute).</li>
+          <li><strong>Credential findings: none.</strong> The switch from anonymous ARCO to authenticated CDS adds a credential read, but it is by-reference only and isolated behind <code>_fetch_cds_netcdf</code> (network path, <code>pragma: no cover</code>); the suite runs with zero credentials. <code>.env.example</code> documents <code>CDSAPI_URL</code>/<code>CDSAPI_KEY</code> with values blank. Protected-area policy satisfied.</li>
+          <li><strong>Statistical-honesty findings: none elevated.</strong> The preliminary writeup (<code>docs/preliminary-results.html</code>) frames the result <em>relatively</em> (negative at level = retrofit decoupling, weak positive after detrending), reports the null/below-bar honestly, does NOT spin r≈0.19 / peak +0.29 as success, carries caveats (curtailment not applied, untuned thresholds, overpass-window meteo, weekly partial), and the reproduce command matches <code>analysis/preliminary_signal.py</code>. The lead-lag peak +6 mo is described as "suggestive, not robustly significant" — consistent with the N2 multiplicity caveat.</li>
+        </ul>
+
+        <h3>Findings (delta)</h3>
+        <h4>Blocking</h4>
+        <p><strong>None.</strong></p>
+        <h4>Elevated (credential surface / statistical honesty)</h4>
+        <p><strong>None.</strong></p>
+        <h4>Non-blocking (low severity — documentation drift; resolve before <code>done</code> or fold into T15 docs)</h4>
+        <ul>
+          <li><strong>D1 — stale CLI example in <code>design.html</code> (line ~202).</strong> The example
+          <code>uv run noxus validate --max-lag 8 --deseason yoy-double-diff --no-meteo</code> references
+          <code>--deseason</code> and <code>--no-meteo</code> flags that do not exist on <code>validate</code>
+          (<code>--no-meteo</code> is on <code>index</code>; no <code>--deseason</code> flag exists on any
+          subcommand — deseason is config-driven only). Confirmed by grep: no <code>--deseason</code>
+          argument anywhere in <code>noxus/</code>. Severity: low (spec example only; code/tests correct).
+          Fix: correct the example to a real invocation, or move <code>--no-meteo</code> to the
+          <code>index</code> line and drop <code>--deseason</code>.</li>
+          <li><strong>D2 — REQ-020 parenthetical default is stale (<code>requirements.html</code> line ~64).</strong>
+          REQ-020 still reads "default: year-over-year + double differencing per Kondragunta 2021", but Q4
+          resolved the default to <code>yoy</code> (double-diff demoted). The resolution is captured in Q4 +
+          the decision log + the code, so this is internal doc drift, not a code/spec contradiction. Severity:
+          low. Fix: update REQ-020's parenthetical to "default: year-over-year (yoy); double-differencing,
+          STL, none also selectable" to match Q4.</li>
+        </ul>
+        <p>Neither D1 nor D2 is elevated and neither blocks the delta. They should be cleaned up as part of the
+        T15 documentation phase (or surgically now); they do not affect the implementation, tests, or the two
+        high-risk surfaces.</p>
+
+        <h3>Documentation decision (delta)</h3>
+        <p><strong>Still deferred to T15</strong> — <code>documentation_required: true</code>,
+        <code>documentation_status: "pending"</code>. The CDS-only switch adds two documentation targets:
+        the <code>docs/data-access.md</code> ERA5 section (CDS account + licence acceptance +
+        <code>CDSAPI_KEY</code>) and the <code>.env.example</code> (already updated — verify in the docs
+        re-check), plus the two doc-drift fixes D1/D2. The preliminary writeup
+        (<code>docs/preliminary-results.html</code>) is already present and honest; T15 should reconcile it
+        with the final run and the project map.</p>
+
+        <h3>Decision-log (delta)</h3>
+        <p>The two relevant decisions are <strong>already recorded</strong> in
+        <code>decisions/architecture-decisions.md</code> (2026-06-13: "ERA5 meteorology source: Copernicus
+        CDS; ARCO rejected" and "Deseasonalisation default: yoy; double-differencing demoted"). No new
+        decision-log entry is proposed by this re-review; the honest-reporting stance surfaced as N1/N2 in
+        phase-2 is now implemented in code and need not become a separate entry unless the developer wants a
+        standalone methodology note.</p>
+
+        <h3>Decision (delta)</h3>
+        <p><strong>APPROVE-WITH-NITS</strong> for the post-phase-2 delta. The ERA5 CDS-only rewrite is
+        correct (per-year chunking verified), credential-clean, and fully traced to the updated spec +
+        decision log; the deseason default change is justified and propagated end-to-end; nits N1–N3 are
+        resolved; tests (90) + lint green; CLI lost <code>--source</code> with existing subcommands intact.
+        Two low-severity documentation-drift nits (D1 stale CLI example, D2 stale REQ-020 default) to fix
+        before <code>done</code> or during the T15 docs phase. <strong>Task stays <code>in_progress</code></strong>
+        — T15 (real end-to-end run + docs + reconciliation) is intentionally pending; not marked done.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

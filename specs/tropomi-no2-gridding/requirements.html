@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — TROPOMI NO₂ gridding + compositing</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — TROPOMI NO₂ gridding + temporal compositing</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Feature slug</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Author</th><td>spec-author (main conversation)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Turn the per-overpass AOI NO₂ from NOX-002a into an <strong>analysis-ready cube</strong>: a
+        time-stacked, temporally-composited, coverage-screened NO₂ grid over the Tangshan AOI, realising
+        the cloud-handling decision (aggregation + minimum-coverage threshold, never interpolation;
+        2026-06-13).</p>
+        <p><strong>Scope reality:</strong> the NOX-002a/openEO product is <em>already</em> on a regular
+        grid (~0.05°×0.035°, ≈5×4 km, 30×51 cells over the default AOI). So this task is
+        <strong>harmonisation + temporal compositing</strong>, <em>not</em> swath→grid oversampling.
+        Beirle-style fine oversampling (sub-pixel resolution enhancement) needs raw L2 footprints and is
+        <strong>deferred to the L2 path in NOX-003</strong>.</p>
+        <p>It also emits an <strong>interim AOI-mean weekly NO₂ series</strong> — a plain spatial mean over
+        valid cells, <em>explicitly pre-attribution</em> — matching the validation predictor contract so
+        the validation engine (NOX-001) can be smoke-tested end-to-end on real data before proper
+        attribution exists. NO₂-derived outputs are <strong>gitignored</strong> (not published), per the
+        developer's no-publish-downloaded-data decision.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+
+        <h3 id="fr-cube">Cube assembly &amp; compositing</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When gridding runs, the system shall load every overpass recorded in the NOX-002a manifest and stack them into a single time cube on a common grid; if overpass grids differ, it shall resample onto a configured target grid (default: the native openEO grid).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When compositing, the system shall aggregate per-overpass NO₂ to a configured frequency (default <strong>weekly</strong> <code>W</code>; monthly optional) by the mean over valid (non-NaN) observations per cell.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When compositing, the system shall compute and store a <strong>valid-coverage</strong> layer: per cell-and-period (fraction of contributing overpasses with a valid value) and a per-period AOI coverage summary.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>While compositing, the system shall apply a configurable <strong>minimum-coverage threshold</strong> (period-level and cell-level) and mask cells/periods below it to NA — <strong>never interpolating</strong> across cloud gaps (decision 2026-06-13).</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>When the cube is built, the system shall write it to <code>data/derived/no2/</code> as a NetCDF cube (<code>time × y × x</code>) of <code>no2</code> + <code>coverage</code> with provenance (AOI, frequency, threshold, source manifest, processor versions present).</span></div>
+
+        <h3 id="fr-series">Interim AOI series</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When requested, the system shall emit an <strong>interim AOI-mean NO₂ series</strong> at the composite frequency — the spatial mean over valid cells per period, with the period valid-coverage — to <code>data/derived/no2/no2_aoi_mean.parquet</code>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>The interim series shall match the validation predictor contract (columns <code>date</code>, <code>no2_attributed</code>, <code>valid_coverage</code>) but shall be <strong>clearly labelled as a naive spatial mean, not attribution</strong> (provenance/column note), so it is not mistaken for the NOX-003 product.</span></div>
+
+        <h3 id="fr-cli">CLI</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When the user runs gridding via the <code>noxus</code> CLI, the system shall expose it as a documented subcommand driven by <code>noxus/config/</code> (frequency, coverage threshold, target grid, input store, output dir).</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> The cube is a deterministic function of the acquired store + config; provenance recorded.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>No-publish.</strong> NO₂-derived outputs (cube, AOI series) are gitignored — they are derived from downloaded data and must not be published.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Cloud-decision conformance.</strong> Aggregation + minimum-coverage only; no gap interpolation in the production cube.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Stack conformance.</strong> Python ≥3.12; numpy/pandas/xarray; passes <code>uv run pytest</code> and <code>uv run ruff check .</code>.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Periods with no valid overpasses (heavy cloud) → period masked, recorded as zero coverage, not dropped silently.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>A single overpass in a period → composite = that overpass (coverage reflects 1 contributing day).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>Overpass grids differ slightly (different AOI buffer / resolution) → resample to the target grid before stacking (REQ-001).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Mixed processor versions across the record (v1/v2) → carried through and surfaced in provenance (do not silently blend the discontinuity).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>The store is partial (full fetch still running) → grid what exists; re-running after more data extends the cube.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the NOX-002a store/manifest is empty or missing, the system shall fail with a clear message ("run 'noxus fetch' first").</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If overpass grids cannot be reconciled onto the target grid, the system shall raise a descriptive error rather than silently mis-aligning.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>Given a synthetic per-overpass store, gridding produces a weekly cube (<code>time × y × x</code>) whose values equal the manual mean over each week's valid overpasses.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>Periods/cells below the coverage threshold are NA; no interpolation is performed.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The interim AOI-mean series equals the spatial mean over valid cells per period and carries the predictor-contract columns + the "naive, not attribution" label.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>Cube + series are written under <code>data/derived/no2/</code> and are gitignored.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI).</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NOX-002a store</strong> — <code>data/raw/tropomi/</code> per-overpass NetCDFs + manifest (input).</li>
+          <li><strong>AOI</strong> — <code>noxus.config.region</code> (target grid extent).</li>
+          <li>No network; pure local processing (numpy/pandas/xarray, existing deps).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Affects: project map (<code>data/</code> gridding implemented; new <code>data/derived/no2/</code> gitignored store), <code>.gitignore</code> (NO₂ derived outputs), possibly <code>docs/data-access.md</code> (cube description). Reviewer confirms.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision: "openEO delivers a gridded product → NOX-002b is compositing, not swath oversampling; fine oversampling deferred to the L2 path (NOX-003)." Proposed at review.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Synthetic store → weekly cube equals manual weekly means.</td></tr>
+            <tr><td><span class="req-id">REQ-003/004</span></td><td>AT2</td><td>Coverage layer + threshold masking; no interpolation.</td></tr>
+            <tr><td><span class="req-id">REQ-005</span></td><td>AT1</td><td>Cube written with provenance under data/derived/no2.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011</span></td><td>AT3</td><td>AOI-mean series = spatial mean; predictor columns + naive label.</td></tr>
+            <tr><td><span class="req-id">ERR-001/002</span></td><td>AT-ERR-1</td><td>Empty store; irreconcilable grid.</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td>CLI wired, config-driven.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

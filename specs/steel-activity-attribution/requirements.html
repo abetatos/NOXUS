@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Steel-sector NO₂ activity signal + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Steel-sector NO₂ activity signal + validation vs CREA</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Author</th><td>spec-author (subagent)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Derive a <strong>relative steel-sector activity index</strong> for the Tangshan cluster from the
+        analysis-ready weekly NO₂ cube (NOX-002b) and test, transparently, whether it tracks / leads the
+        CREA blast-furnace operating-rate benchmark (NOX-001). This task <strong>revives the
+        validation/correlation module</strong> that was reverted to a scaffold in NOX-001 (there was no
+        predictor to validate against yet) and reconciles its design with the new attribution stage.</p>
+        <p><strong>Paradigm (locked, developer-approved 2026-06-13):</strong> v1 is the
+        <strong>relative-index / cluster-attribution</strong> blueprint (Kim 2023) — sample a footprint
+        around the steel facilities, subtract a regional background, normalise meteorology, deseasonalise,
+        emit a relative index, correlate against throughput. <strong>Flux-divergence point-source
+        attribution (Beirle 2021/2023) is explicitly out of scope</strong> and deferred to NOX-004 (it
+        needs a raw L2 swath path and is known to resolve poorly in high-background / complex-wind regions
+        like industrial NE China).</p>
+        <p>The pipeline is: <em>weekly cube → sample on the facility footprint → subtract/normalise a
+        regional background → meteorological normalisation (ERA5 wind/PBL regress-out) → deseasonalise →
+        relative activity index → validate vs CREA (Pearson r + p-values, lead/lag) → report</em>. A
+        rigorous, honest <strong>NULL is an acceptable, designed-for outcome</strong> (Morris &amp; Zhang
+        2019).</p>
+        <p><strong>New data dependency:</strong> ERA5 reanalysis (wind + boundary-layer height) ingested
+        from the Copernicus CDS (server-side AOI subset), consistent with the project's
+        public-data-only constraint.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests. Each requirement notes its rationale
+        and the literature that motivates it.</p>
+
+        <h3 id="fr-footprint">Footprint sampling &amp; background</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the signal pipeline runs, the system shall load the weekly NO₂ cube from NOX-002b (<code>data/derived/no2/no2_cube_w.nc</code>; vars <code>no2</code>, <code>coverage</code>) and the operating facilities from <code>data/derived/tangshan_steel_facilities.csv</code>, filtering to facilities whose <code>status</code> indicates active operation (default: <code>operating</code> and <code>operating pre-retirement</code>; <code>retired</code>/<code>cancelled</code> excluded).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When sampling the signal, the system shall extract cells on a configurable <strong>footprint</strong> around the operating facility locations (a radius/buffer in km, default to be confirmed — see open questions) and aggregate them into a per-period footprint NO₂ value over valid cells, <strong>rather than a flat AOI mean</strong>. <em>Rationale:</em> a flat AOI mean dilutes the cluster signal with background; sampling the footprint follows the Kim (2023) "isolate the source from background" blueprint.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When constructing the signal, the system shall estimate a <strong>regional background</strong> from a configurable geometry (default: an annular ring outside the facility footprint but inside the AOI) and shall subtract and/or normalise the footprint value against it, producing a background-corrected footprint signal. <em>Rationale:</em> background subtraction is required to separate the cluster term from the BTH regional NO₂ field (Kim 2023; trap 4).</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>While sampling and background-correcting, the system shall propagate the NOX-002b per-period valid-coverage and apply the inherited minimum-coverage screening; periods/cells below threshold are marked missing and <strong>never interpolated</strong> (NOX-002b cloud decision, 2026-06-13).</span></div>
+
+        <h3 id="fr-meteo">Meteorological normalisation (ERA5)</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When meteorological normalisation is enabled, the system shall ingest <strong>ERA5</strong> wind components and boundary-layer height (and any further configured variables) over the AOI and era (2019→present) from the public Copernicus Climate Data Store, persisting a dated/versioned local snapshot so analysis is reproducible from the snapshot (no live fetch at analysis time).</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When normalising the signal, the system shall <strong>regress the meteorological covariates out</strong> of the background-corrected footprint signal (Mao 2025 / Li 2024 approach), so the index reflects activity net of the dominant weekly ventilation confounder; the regression form (linear residualisation vs LOESS-style filtering) shall be configurable and recorded in the run output. <em>Rationale:</em> wind/PBL drive most of the week-to-week NO₂ column variance; not removing them lets weather masquerade as activity.</span></div>
+
+        <h3 id="fr-deseason">Deseasonalisation &amp; confounder modelling</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When deseasonalising, the system shall remove seasonality from the signal and benchmark by a configurable, recorded method (default: <code>yoy</code> year-over-year change, resolved 2026-06-13 — double-differencing erased the signal on this series, Q4; alternatives: <code>stl</code>, <code>yoy-double-diff</code>, <code>none</code>). <em>Rationale:</em> raw VCD correlations are insignificant; deseasonalisation is decisive for a clean sector link (Kim 2023; Kondragunta 2021).</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When modelling, the system shall explicitly model the <strong>heating/non-heating seasonal confounder</strong> as a structural term (e.g. a heating-season indicator or season-specific scaling), <strong>not merely deseasonalise it away</strong>, because the steel share of Tangshan NO₂ itself shifts from <strong>42.5% (non-heating) to 29.1% (heating)</strong> (Wen et al. 2024, <i>Scientific Reports</i>) — the sensitivity of the column to steel activity is season-dependent, so a single deseasonalisation mis-specifies it.</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>When modelling, the system shall include known <strong>policy/production-curtailment periods</strong> as exogenous controls, because emission controls can cut NOₓ while physical output rises (Li et al. 2024); without this control the indicator can invert.</span></div>
+
+        <h3 id="fr-index">Relative activity index</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When all corrections are applied, the system shall emit a <strong>relative activity index</strong> (a normalised, unitless series; e.g. indexed to an anchor period or z-scored), and shall <strong>not</strong> claim an absolute steel-tonnage figure. <em>Rationale:</em> (a) TROPOMI underestimates the column by 23–33% in polluted air (Kondragunta 2021), and (b) steel is only ~30–43% of Tangshan NO₂ (Wen et al. 2024), so the pixel→tonnage map is non-linear and uncalibrated — only a relative signal is defensible.</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>When the index is emitted, the system shall record the configured <strong>attributable-fraction cap</strong> (~30–43%, Wen et al. 2024) in the run provenance as the ceiling on how much of the column variation can plausibly be steel, and shall surface it in the report so the index is not over-interpreted.</span></div>
+
+        <h3 id="fr-validation">Validation vs CREA</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When validation runs, the system shall align the relative index and the CREA blast-furnace operating-rate benchmark (<code>data/derived/benchmark_tangshan_bf_operating_rate.parquet</code>) to a common frequency (default weekly) using a configured, documented aggregation rule, honouring the coverage screening.</span></div>
+        <div class="req-row"><span class="req-id">REQ-041</span><span>When validation runs, the system shall <strong>empirically verify the sign</strong> of the index↔benchmark relationship for Tangshan and report it before claiming a usable signal, because the NO₂↔activity sign is income/region dependent and not fixed (Montgomery &amp; Holloway 2018). A negative or insignificant sign is a reportable outcome, not a failure to suppress.</span></div>
+        <div class="req-row"><span class="req-id">REQ-042</span><span>When validation runs, the system shall compute the <strong>Pearson correlation r with its p-value</strong> between the deseasonalised index and benchmark, and a <strong>cross-correlation / lead-lag</strong> profile over a configured lag window, reporting the peak-correlation lag with confidence bounds.</span></div>
+        <div class="req-row"><span class="req-id">REQ-043</span><span>When validation completes, the system shall emit a machine-readable results artifact and a human-readable summary that states the conclusion in plain language — including, explicitly, the <strong>NULL case</strong> (no usable lead/correlation after controls) as a valid, designed-for result (Morris &amp; Zhang 2019), and shall report effect sizes with confidence intervals rather than a bare point estimate.</span></div>
+        <div class="req-row"><span class="req-id">REQ-044</span><span>When reporting, the system shall state the result against the literature <strong>success bar of r ≈ 0.5–0.75</strong> on the deseasonalised series (Kim 2023 / Kondragunta 2021 band), classifying the outcome relative to that band.</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-050</span><span>When the user runs the signal and validation via the <code>noxus</code> CLI, the system shall expose them as documented subcommands driven by <code>noxus/config/</code> (footprint radius, background geometry, ERA5 variables + regression form, deseasonalisation method, lag window, anchor/index base, attributable-fraction cap, paths), reusing/extending the existing <code>attribute</code>, <code>index</code>, and <code>validate</code> placeholder subcommands.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Every reported result shall be reproducible from the committed cube + benchmark parquet + ERA5 snapshot + recorded config; no live fetch at analysis time.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free data only.</strong> ERA5 is ingested from the free Copernicus CDS; no commercial/paywalled inputs.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Honest reporting.</strong> The summary shall present r/p with confidence intervals and the sign check; it shall not present an unconditioned in-sample correlation as proof of a leading indicator, and shall report the null when present.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>No-publish.</strong> NO₂-derived outputs (footprint signal, index, ERA5-derived fields over the AOI) are gitignored, consistent with the NOX-002b no-publish-downloaded-data decision; the small results summary/CREA-aligned artifact may be committed if it contains no raw NO₂ field.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Determinism.</strong> Given identical inputs and config, outputs shall be deterministic (fixed seeds where any randomness exists).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>Stack conformance.</strong> Python ≥3.12; numpy/pandas/xarray/pyarrow (+ any approved stats dependency); passes <code>uv run pytest</code> and <code>uv run ruff check .</code>.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Two facilities share identical coordinates (e.g. the Caofeidian rows at 39.160401, 118.429806) → footprint cells are de-duplicated, not double-counted.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>The footprint and background ring overlap, or the background ring leaves the AOI → the geometry is clipped to the cube extent and the system reports the effective cell counts; an empty background ring is an error (ERR-003).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>Heavy-cloud weeks fall below the inherited coverage threshold → footprint/background marked missing for that week, not interpolated; the validation aligns on the surviving overlap.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Short overlapping sample (TROPOMI 2019→present vs weekly CREA) limits lag orders → cap lags to keep degrees of freedom positive and report the cap (cf. NOX-001 EDGE-005).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>Mixed TROPOMI processor versions (v1/v2 discontinuity, carried in NOX-002b provenance) → surfaced and, where feasible, controlled (e.g. version indicator) so a reprocessing step is not mistaken for an activity change.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>ERA5 grid/cadence differs from the NO₂ grid → ERA5 is regridded/aggregated to the composite frequency and footprint before regress-out; the alignment rule is recorded.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-007</span><span>Sign verification (REQ-041) returns negative/insignificant → pipeline still completes and reports the null; it does not silently flip the sign to force a positive result.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the NOX-002b cube or the NOX-001 benchmark parquet is missing, the system shall fail with an actionable message naming the missing artifact and the command that produces it ("run 'noxus grid' / 'noxus ingest-benchmark' first").</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the ERA5 snapshot is missing or unreadable while meteorological normalisation is enabled, the system shall fail with an actionable message (how to fetch ERA5), and shall not silently skip the meteo control.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If no facility falls inside the cube extent, or the background ring contains no valid cells, the system shall raise a descriptive geometry error rather than emit an empty/degenerate signal.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If, after alignment and coverage screening, the overlapping index/benchmark sample is shorter than a configured minimum length, the system shall refuse to run the statistical tests and report insufficient data rather than emit unstable estimates (cf. NOX-001 ERR-003).</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>Given a synthetic cube + facility CSV, footprint sampling selects exactly the cells within the configured radius of operating facilities (retired/cancelled excluded; co-located dups handled) and the per-period footprint value equals the manual mean over valid footprint cells.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>Background subtraction/normalisation yields the manually-computed background-corrected signal; an empty background ring raises ERR-003.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>With a synthetic ERA5 field, meteo regress-out removes the planted wind/PBL component from the signal (residual is meteorology-free to tolerance); the regression form is recorded.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>Deseasonalisation removes a planted seasonal term; the heating/non-heating term and curtailment controls are present and recorded in the run output.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>The relative index is unitless/normalised with the attributable-fraction cap recorded; no absolute-tonnage value is emitted.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span>On a <strong>planted-signal</strong> synthetic dataset (benchmark = f(index at lag k) + noise) validation recovers sign, lag k, and r in band; on a <strong>planted-null</strong> dataset (independent series) it reports the null with r near zero and a non-significant p — proving the pipeline reports the null honestly.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span>The summary states the conclusion in plain language including the null, reports r/p with CIs and the sign check, classifies against the r≈0.5–0.75 bar, and lists the deseasonalisation method, meteo covariates, curtailment controls, footprint/background geometry, lag window, and attributable-fraction cap used.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, parquet/JSON artifacts, and optional static plot files.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None — no screenshots or mockups are inputs. An optional diagnostic plot (index vs benchmark, deseasonalised) may be emitted as a static file.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NOX-002b cube</strong> — <code>data/derived/no2/no2_cube_w.nc</code> (<code>no2</code>, <code>coverage</code>; weekly; gitignored) — the predictor input.</li>
+          <li><strong>NOX-001 benchmark</strong> — <code>data/derived/benchmark_tangshan_bf_operating_rate.parquet</code> (<code>date</code>, <code>value</code>, …) + auxiliary steel series for robustness.</li>
+          <li><strong>Facility footprint</strong> — <code>data/derived/tangshan_steel_facilities.csv</code> (<code>name, latitude, longitude, technology, status</code>; 39 rows).</li>
+          <li><strong>ERA5</strong> — wind components + boundary-layer height from the public Copernicus Climate Data Store (<strong>new dependency</strong>; access path/auth and exact variables under open questions). Public/free; consistent with the project constraint.</li>
+          <li><strong>Policy-curtailment calendar</strong> — Tangshan curtailment periods (from CREA/public reporting) as an exogenous control (source/format to be confirmed; cf. NOX-001).</li>
+          <li><strong>Python libraries</strong> — numpy/pandas/xarray/pyarrow present; a stats dependency (e.g. <code>statsmodels</code> and/or <code>scipy</code>) is proposed for regression/CCF/correlation tests (open question).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: project map (<code>attribution/</code>, <code>signal/</code>,
+        <code>validation/</code> become implemented; new ERA5 store), <code>.gitignore</code> (ERA5 +
+        NO₂-derived signal/index outputs), <code>docs/data-access.md</code> (ERA5 access), a methods note
+        under <code>docs/</code> (footprint/background, meteo regress-out, deseasonalisation, validation),
+        and possibly <code>references.bib</code>/<code>README.md</code>. Reviewer confirms the final list.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decisions to log at review time (proposed only; developer decides): (a) the
+        relative-index / cluster-attribution paradigm for v1 with flux-divergence deferred to NOX-004; (b)
+        ERA5 from the Copernicus CDS (server-side AOI subset) as the meteo normalisation source and the chosen regress-out form; (c) the chosen
+        footprint radius + background-ring geometry once tuned on real coverage; (d) the deseasonalisation
+        method of record. The relative-vs-absolute and report-the-null stances are already implied by the
+        literature and NOX-001.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Footprint sampling: cell selection + status filter + dedup.</td></tr>
+            <tr><td><span class="req-id">REQ-003</span></td><td>AT2</td><td>Background subtraction/normalisation; empty-ring error.</td></tr>
+            <tr><td><span class="req-id">REQ-004</span></td><td>AT2</td><td>Coverage screening propagated; no interpolation.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011</span></td><td>AT3</td><td>ERA5 ingest snapshot; meteo regress-out removes planted component.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT4</td><td>Deseasonalise; heating-season term; curtailment control recorded.</td></tr>
+            <tr><td><span class="req-id">REQ-030/031</span></td><td>AT5</td><td>Relative index; attributable-fraction cap; no absolute tonnage.</td></tr>
+            <tr><td><span class="req-id">REQ-040..044</span></td><td>AT6</td><td>Align; sign check; r/p + lead-lag; null reporting; bar classification.</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td>Missing cube/benchmark/ERA5; degenerate geometry; short sample.</td></tr>
+            <tr><td><span class="req-id">REQ-050</span></td><td>AT-REG-1</td><td>CLI subcommands wired; config-driven; existing commands unchanged.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — TROPOMI NO₂ gridding</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — TROPOMI NO₂ gridding</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Observable behaviour required for acceptance. Fully offline — deterministic synthetic per-overpass store.</p></section>
+      <hr>
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <ul>
+          <li>Build a synthetic store: a handful of per-overpass NetCDFs with known values/dates + manifest.</li>
+          <li>Assert composites equal manual means; coverage + thresholds exact; AOI series = spatial mean.</li>
+        </ul>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+        <h3 id="test-locations">Related test files</h3>
+        <pre><code>tests/data/test_gridding.py
+tests/cli/test_cli.py</code></pre>
+      </section>
+      <hr>
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table><thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-001/002/005</span></td><td>AT1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-003/004</span></td><td>AT2</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-010/011</span></td><td>AT3</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">ERR-001/002</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+        </tbody></table>
+      </section>
+      <hr>
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1"><div class="card-header"><span class="req-id">AT1</span><span class="card-title">Weekly cube equals manual weekly means</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-001, REQ-002, REQ-005</dd>
+            <dt>Scenario</dt><dd>Synthetic store: e.g. 4 overpasses across 2 ISO weeks with known NO₂ values.</dd>
+            <dt>Action</dt><dd>Run <code>build_cube</code>.</dd>
+            <dt>Expected result</dt><dd>Cube (<code>time × y × x</code>) has one step per week; each cell equals the mean of that week's valid overpasses; written to <code>data/derived/no2/</code> with provenance (freq, threshold, versions).</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gridding.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at2"><div class="card-header"><span class="req-id">AT2</span><span class="card-title">Coverage layer + threshold masking, no interpolation</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-003, REQ-004</dd>
+            <dt>Scenario</dt><dd>One week dense (high coverage), one week sparse (below threshold), some cells all-NaN.</dd>
+            <dt>Expected result</dt><dd>Coverage layer matches the known valid fraction; the sparse week/cells are NA; no values appear where all inputs were NaN (no interpolation).</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gridding.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at3"><div class="card-header"><span class="req-id">AT3</span><span class="card-title">Interim AOI-mean series</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Scenario</dt><dd>From the same synthetic cube.</dd>
+            <dt>Expected result</dt><dd>Series equals the spatial mean over valid cells per period; columns <code>date, no2_attributed, valid_coverage</code>; provenance/attrs flag it "naive spatial mean, not attribution".</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gridding.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+        <div class="card risk-high" id="at-err-1"><div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Empty store / irreconcilable grid</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>ERR-001, ERR-002</dd>
+            <dt>Scenario</dt><dd>(a) no overpasses/manifest; (b) overpasses on incompatible grids with no target grid.</dd>
+            <dt>Expected result</dt><dd>(a) clear "run 'noxus fetch' first" error; (b) descriptive grid-mismatch error (no silent mis-alignment).</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gridding.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+        <div class="card" id="at-reg-1"><div class="card-header"><span class="req-id">AT-REG-1</span><span class="card-title">CLI additive + config-driven</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt><dd><code>noxus --help</code> + existing subcommands unchanged.</dd>
+            <dt>Related requirements</dt><dd>REQ-020</dd>
+            <dt>Action</dt><dd><code>noxus grid --help</code>; run on the synthetic store.</dd>
+            <dt>Expected result</dt><dd>Subcommand exists, reads config, writes the cube + series.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have a test.</li>
+          <li><input type="checkbox" disabled> No interpolation across gaps.</li>
+          <li><input type="checkbox" disabled> NO₂ outputs gitignored.</li>
+          <li><input type="checkbox" disabled> AOI series labelled pre-attribution.</li>
+        </ul>
+      </section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Tests map back to requirements; fully offline (synthetic store).</li>
+          <li>Do not invent behaviour beyond the approved spec.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

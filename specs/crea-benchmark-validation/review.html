@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — CREA benchmark ingestion + NO₂ activity-signal validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — CREA benchmark ingestion + NO₂ activity-signal validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-001</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Reviewer</th>      <td>reviewer (inline, main conversation)</td></tr>
+          <tr><th>Review status</th> <td><span class="badge badge-ok">approved</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <p>Each row maps a requirement to its implementation and test evidence.</p>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Implemented?</th><th>Tested?</th><th>Evidence</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002/003</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>data/benchmark.py</code> fetch/snapshot/load; <code>test_benchmark.py</code> (by-name select, header skip)</td></tr>
+            <tr><td><span class="req-id">REQ-004</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>_clean_numeric</code> 0.00→NA; <code>test_zeros_become_na…</code>, <code>test_trailing_whitespace…</code></td></tr>
+            <tr><td><span class="req-id">REQ-005/006</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>emit_benchmark</code> tidy schema + aux long; <code>test_emit_primary_parquet_schema</code>, <code>test_auxiliary_columns_retained</code></td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012/013</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>preprocess.py</code>; <code>test_preprocess.py</code> (align/mask, STL, ADF+KPSS gate, residualize)</td></tr>
+            <tr><td><span class="req-id">REQ-020/021</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>leadlag.py</code> CCF + Granger(BH); <code>test_leadlag.py</code> (planted lag recovered, null clean)</td></tr>
+            <tr><td><span class="req-id">REQ-022</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>models.py</code> distributed-lag + VECM; <code>test_models.py</code></td></tr>
+            <tr><td><span class="req-id">REQ-023/024</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>oos.py</code> + <code>report.py</code>; <code>test_oos.py</code>, <code>test_report.py</code> (planted lead detected, null reported, JSON serialisable)</td></tr>
+            <tr><td><span class="req-id">REQ-025</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>report.compare_predictors</code> + <code>--robustness reconstructed</code>; <code>test_default_path_is_deterministic_and_robustness_compares</code></td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>cli/main.py</code> subcommands + <code>config/run.py</code>; <code>test_cli.py</code></td></tr>
+            <tr><td><span class="req-id">ERR-001/002</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>BenchmarkSourceError</code>/<code>BenchmarkColumnError</code>; <code>test_missing_column_raises…</code></td></tr>
+            <tr><td><span class="req-id">ERR-003/004</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>InsufficientDataError</code>; CLI ERR-004 message; <code>test_insufficient_data_raises</code>, <code>test_validate_without_predictor…</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <pre><code>uv add statsmodels            # + scipy, patsy
+uv run pytest                 # 34 passed
+uv run ruff check .           # All checks passed!
+uv run noxus ingest-benchmark --from-snapshot tests/fixtures/crea_wind_sample.csv --out &lt;tmp&gt;
+uv run noxus validate         # ERR-004 actionable message (no predictor yet), rc 1
+uv run noxus validate --predictor &lt;synthetic&gt; --benchmark &lt;synthetic&gt;
+  # -> "LEADS the benchmark out of sample"; DM=5.03 (p≈0); CCF/Granger peak lag 2; results JSON written</code></pre>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <div class="collapsible-section">
+          <button class="collapse-btn" type="button"><span class="arrow">▾</span> Blocking findings</button>
+          <div class="collapse-body"><p><code>None</code>.</p></div>
+        </div>
+        <div class="collapsible-section">
+          <button class="collapse-btn" type="button"><span class="arrow">▾</span> Non-blocking findings</button>
+          <div class="collapse-body">
+            <div class="req-row edge"><span class="req-id edge">NBK-1</span><span>A JSON-serialisation bug (numpy int64 keys in the Granger result) was found during end-to-end CLI verification and fixed; a regression test (<code>test_results_artifact_is_json_serialisable</code>) was added. Lesson: exercise the serialisation path, not only the in-memory result.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-2</span><span>Auxiliary benchmark columns are best-effort: absent ones are skipped (only the primary column is mandatory) so ingestion survives source column drift. This is a deliberate refinement of REQ-006's strict reading; documented here and in <code>load_benchmark</code>.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-3</span><span>Statistical tests use deterministic synthetic fixtures (planted-lead / planted-null), not live data, per the design. Real end-to-end validation awaits the upstream NO₂ attribution stage (open question Q1, default accepted).</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="visual-verification">
+        <h2>Visual verification</h2>
+        <p><code>None</code> — no browser UI in this feature.</p>
+      </section>
+
+      <section id="spec-drift-check">
+        <h2>Spec drift check</h2>
+        <p>Changes stayed within the design's <code>Files to change</code>: new <code>noxus/validation/*.py</code>,
+        <code>noxus/config/run.py</code>, rewritten <code>noxus/data/benchmark.py</code> and
+        <code>noxus/validation/leadlag.py</code> (scaffolds), extended <code>noxus/cli/main.py</code>,
+        new tests, and <code>pyproject.toml</code>/<code>uv.lock</code> (statsmodels, Q3-approved).
+        Documentation updates (README, references.bib, project map, docs note) are expected closing
+        tasks. <code>None</code> unjustified out-of-scope.</p>
+      </section>
+
+      <section id="high-risk-deep-review">
+        <h2>High-risk and deep review</h2>
+        <p><code>None</code> high-risk. Source is public/unauthenticated; no secrets, protected files,
+        remote mutations, migrations, or auth. Reviewed at the standard level.</p>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <table>
+          <thead><tr><th>Decision</th><th>Selected</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-warning">required</span> — targets below; <code>documentation_status: updated</code> after re-check.</td><td>☑</td></tr>
+            <tr><td><span class="badge badge-ok">not required</span></td><td>☐</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>Documentation target</th><th>Updated / justified unaffected</th></tr></thead>
+          <tbody>
+            <tr><td><code>README.md</code> — Data sources + provenance</td><td class="ok">Updated</td></tr>
+            <tr><td><code>literature/references.bib</code> — benchmark source entry</td><td class="ok">Updated (<code>crea_steel_benchmark</code>)</td></tr>
+            <tr><td><code>docs/validation-methods.md</code> — econometric pipeline note</td><td class="ok">Added</td></tr>
+            <tr><td><code>.claude/context/project-map.md</code> — data/validation implemented + CLI commands</td><td class="ok">Updated</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="proposals">
+        <h2>Proposals</h2>
+        <p>Propose-only — nothing is written to the decision log without explicit developer approval of the exact text.</p>
+        <p><strong>Decision-log entries proposed:</strong> (1) Benchmark source-of-record = CREA public CSV snapshot (over HTML scraping / commercial APIs), with commercial-provenance caveat → <code>architecture-decisions.md</code>. (2) Out-of-sample Diebold–Mariano skill is the standard bar for any leading-indicator claim in NOXUS (in-sample correlation is not sufficient) → <code>architecture-decisions.md</code>. (3) Rejected alternatives (HTML scraping, CEIC/Mysteel paid APIs, reconstruction in the default path) → <code>rejected-options.md</code>.</p>
+        <p><strong>Failure-learning entry proposed:</strong> <code>None</code> (the JSON-key bug was caught and fixed within the task; lesson captured as NBK-1).</p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <table>
+          <thead><tr><th>Option</th><th>Meaning</th><th>Selected</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-ok">approved</span></td><td>Task can move to <code>done</code>.</td><td>☑</td></tr>
+            <tr><td><span class="badge badge-warning">needs_changes</span></td><td>Implementation defects.</td><td>☐</td></tr>
+            <tr><td><span class="badge badge-blocking">spec_revision_required</span></td><td>Spec wrong/incomplete.</td><td>☐</td></tr>
+            <tr><td><span class="badge badge-warning">blocked</span></td><td>External input needed.</td><td>☐</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="notes">
+        <h2>Notes</h2>
+        <div class="req-row err">
+          <span class="req-id err">UPDATE 2026-06-13</span>
+          <span><strong>Validation reverted as premature.</strong> This review originally approved both
+          benchmark ingestion and the validation engine. On the same day the developer (correctly)
+          observed that validating made no sense with no predictor to validate — the NO₂ attribution
+          stage does not exist yet, so the engine only ran on synthetic fixtures. The validation
+          modules (<code>preprocess/models/oos/report.py</code>), the statsmodels dependency, and
+          <code>docs/validation-methods.md</code> were <strong>reverted</strong>; <code>leadlag.py</code>
+          returned to scaffold. <strong>Standing delivered scope: benchmark ingestion only</strong>
+          (13 tests pass, lint clean). The validation design is retained in this spec for reuse and is
+          deferred to a post-attribution task (NOX-003).</span>
+        </div>
+        <p>Original (pre-revert) note: scope per developer decision (Benchmark CREA + validation) with
+        Q1–Q4 defaults accepted; the validation engine was complete and proven on synthetic fixtures.</p>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

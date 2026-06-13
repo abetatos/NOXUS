@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — TROPOMI NO₂ acquisition + AOI subset + QA</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-002a</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>tropomi-no2-acquisition</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-draft">spec_draft</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author (main conversation)</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Acquire the predictor substrate: Sentinel-5P/TROPOMI <strong>L2 tropospheric NO₂</strong> over
+        the Tangshan area of interest (AOI), for the TROPOMI era (2019-01 → present), via
+        <strong>openEO server-side spatial subsetting</strong> on the Copernicus Data Space Ecosystem
+        (CDSE). Downloading full orbit granules is infeasible (~3,734 overpasses × ~609 MB ≈ 2.2 TB);
+        openEO returns only the AOI window, keeping ~0.2–1 GB. Use a <strong>version-consistent</strong>
+        record (OFFL + RPRO) and track the processor version per observation. Apply the recommended
+        quality filter, retain the analysis-relevant L2 variables (incl. the averaging kernel), track
+        per-period valid coverage, and make the acquisition resumable.</p>
+        <p>This task ends at a per-overpass, AOI-clipped, QA-filtered NO₂ store. <strong>Gridding /
+        temporal compositing is NOX-002b; attribution to facilities is NOX-003.</strong> A
+        <strong>verification step</strong> (clear-sky, high-NO₂ days, NO₂ field with facility overlay) is
+        included to confirm the location and that the signal is physically sensible.</p>
+        <p>Scope reality (see <code>assumptions.html</code>): at TROPOMI's ~5.5×3.5 km footprint a steel
+        plant is sub-pixel and 14 of 26 operating plants share a pixel with a neighbour, so the signal is
+        <strong>cluster / sub-cluster level, not per-factory</strong>.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+
+        <h3 id="fr-acq">Acquisition</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When acquisition runs, the system shall request Sentinel-5P L2 tropospheric NO₂ over the configured AOI and date range via openEO with a <strong>server-side spatial subset</strong> (AOI bbox), never downloading full orbit granules.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When acquiring, the system shall use a version-consistent record (<strong>OFFL + RPRO</strong> where available) and shall record the <strong>processor/algorithm version</strong> for each observation so the v1→v2 discontinuity can be detected and flagged.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>While ingesting, the system shall apply a configurable quality filter, default <code>qa_value ≥ 0.75</code>, discarding pixels below the threshold.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>When ingesting, the system shall retain, per overpass over the AOI: <code>nitrogendioxide_tropospheric_column</code>, <code>qa_value</code>, cloud fraction, the <strong>averaging kernel</strong>, geolocation (pixel centres/corners), and the column precision/uncertainty.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>When an overpass is ingested, the system shall persist the clipped result reproducibly under <code>data/raw/tropomi/</code>, tagged with date, AOI, QA threshold, collection and processor version (provenance).</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>When ingesting, the system shall compute and store a <strong>valid-coverage fraction</strong> per overpass over the AOI (share of AOI pixels passing QA), feeding the cloud-handling policy (2026-06-13 decision).</span></div>
+        <div class="req-row"><span class="req-id">REQ-007</span><span>While acquiring the full record, the system shall be <strong>idempotent and resumable</strong>: re-running skips overpasses already fetched and continues after interruption, and shall support batching to respect the openEO credit budget.</span></div>
+
+        <h3 id="fr-verify">Verification</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When verification runs, the system shall select <strong>clear-sky, high-signal days</strong> (low cloud fraction and high AOI NO₂) from the acquired record.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>For a selected day, the system shall render the <strong>TROPOMI NO₂ field over the AOI with the steel-facility locations overlaid</strong>, so a reviewer can confirm the NO₂ enhancement co-locates with the steel sub-clusters.</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>The verification shall optionally include an <strong>optical thumbnail</strong> (e.g. Sentinel-2 true colour) of a facility location, as an independent check that a plant is physically present where the NO₂ enhancement appears.</span></div>
+
+        <h3 id="fr-cli">CLI</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When the user runs the acquisition and verification via the <code>noxus</code> CLI, the system shall expose them as documented subcommands driven by <code>noxus/config/</code> (AOI/buffer, date range, QA threshold, collection/version, credit-batch size).</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Acquisition is parameterised and provenance-tagged; given the same config and source state, the kept dataset is reproducible. Raw clips live under gitignored <code>data/raw/</code>.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free.</strong> Uses the existing CDSE account via openEO within the free credit quota; credentials are read from <code>.env</code> per <code>.env.example</code>, never logged or committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Volume discipline.</strong> Only the AOI window is transferred; no full-granule downloads.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run ruff check .</code> and <code>uv run pytest</code>; the <code>openeo</code> package is added (geo I/O may use the <code>geo</code> extra).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Heavily clouded periods yield few/no valid pixels → low coverage; the overpass is kept with its coverage flag, not interpolated (cloud decision).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Processor-version discontinuity (v1→v2) within the record → must be tracked (REQ-002) and surfaced, not silently mixed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>openEO jobs fail/time out or hit credit limits → resumable batching (REQ-007); partial progress is not lost.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Some days have two overpasses over the AOI (swath overlap at this latitude) → both retained, de-duplicated by acquisition time.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>An AOI request returns an empty/all-masked window → recorded as zero-coverage, not an error.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If CDSE/openEO authentication fails (missing/invalid credentials), the system shall fail with a clear message referencing the <code>.env</code> variable names — never echoing secret values.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the openEO collection or NO₂ band cannot be found, the system shall raise a descriptive error naming the collection/band attempted.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If an openEO job fails irrecoverably for a batch, the system shall record the failure, leave already-fetched overpasses intact, and allow a resume.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>A small date-range acquisition over the AOI returns AOI-clipped NO₂ (with qa/cloud/kernel/geo), persisted with provenance, transferring only the AOI window.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>Each stored overpass carries its processor version and a valid-coverage fraction; a mixed-version range surfaces the discontinuity.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>Re-running the acquisition skips already-fetched overpasses (idempotent/resumable).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The verification produces, for a clear high-NO₂ day, a NO₂-over-AOI render with facility points overlaid showing enhancement at the steel sub-clusters (optionally with an optical thumbnail).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass; auth/network are mocked in tests.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Verification output is static image/plot files inspected by a human.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>The verification renders (NO₂ field + facility overlay; optional optical thumbnail) are <em>produced</em> by this feature as evidence, not inputs. No input screenshots.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>CDSE openEO</strong> — Sentinel-5P L2 NO₂ collection; auth via the existing CDSE account (<code>CDSE_*</code> in <code>.env</code>); 10,000 free credits/month. Python package <code>openeo</code> (new).</li>
+          <li><strong>Facilities CSV</strong> — <code>data/derived/tangshan_steel_facilities.csv</code> for the verification overlay and AOI provenance.</li>
+          <li><strong>AOI</strong> — <code>noxus.config.region.TANGSHAN</code> / <code>tangshan_aoi(buffer)</code>.</li>
+          <li><strong>(Optional) optical basemap</strong> — Sentinel-2 true colour (via openEO/Sentinel Hub or a static tile) for REQ-012; source TBD (open question).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>docs/data-access.md</code> (openEO acquisition method), <code>README.md</code> Data sources/Status, the project map (<code>data/tropomi.py</code> implemented; new <code>data/raw/tropomi/</code>), and possibly <code>.env.example</code> notes. Reviewer confirms.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>The openEO acquisition decision is already proposed for the log (2026-06-13). A new candidate: the version-consistency policy (OFFL+RPRO + per-observation version tracking) as the standard to avoid algorithm-change artifacts. Proposed at review only.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/004/005</span></td><td>AT1</td><td>Mocked openEO: AOI subset request shape, variables retained, provenance persisted.</td></tr>
+            <tr><td><span class="req-id">REQ-002</span></td><td>AT2</td><td>Processor version recorded; mixed-version range flagged.</td></tr>
+            <tr><td><span class="req-id">REQ-003/006</span></td><td>AT3</td><td>QA filter; coverage fraction from a synthetic AOI window.</td></tr>
+            <tr><td><span class="req-id">REQ-007</span></td><td>AT4</td><td>Resumable: second run skips fetched overpasses.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT5 (verification)</td><td>Clear-day selection + render with facility overlay (may be manual).</td></tr>
+            <tr><td><span class="req-id">ERR-001..003</span></td><td>AT-ERR-1</td><td>Auth failure, collection not found, job failure/resume.</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td>CLI subcommands wired, config-driven.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Steel-sector NO₂ activity signal</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Steel-sector NO₂ activity signal + validation</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Observable behaviour required for acceptance. Fully offline — deterministic synthetic cube, facility CSV, synthetic ERA5, and planted-signal / planted-null fixtures. No network (ERA5 mocked).</p></section>
+      <hr>
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <ul>
+          <li>Synthetic weekly cube with known cell coordinates/values + coverage; small facility CSV (operating cell, retired row, co-located duplicate).</li>
+          <li>Assert footprint cell selection, background correction, meteo regress-out, deseasonalisation, relative index, and validation against planted signal / planted null.</li>
+          <li>Statistical correctness via planted fixtures only — never asserted on live data.</li>
+        </ul>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+        <h3 id="test-locations">Related test files</h3>
+        <pre><code>tests/attribution/test_source.py
+tests/data/test_era5.py
+tests/signal/test_index.py
+tests/validation/test_validation.py
+tests/cli/test_cli.py</code></pre>
+      </section>
+      <hr>
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table><thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-003/004</span></td><td>AT2</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-010/011</span></td><td>AT3</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT4</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-030/031</span></td><td>AT5</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-040..044</span></td><td>AT6, AT7</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-050</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+        </tbody></table>
+      </section>
+      <hr>
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1"><div class="card-header"><span class="req-id">AT1</span><span class="card-title">Footprint sampling + status filter + dedup</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-001, REQ-002</dd>
+            <dt>Scenario</dt><dd>Synthetic cube + facility CSV with one operating facility inside the extent, one retired facility, and a co-located duplicate at identical coordinates.</dd>
+            <dt>Action</dt><dd>Run <code>footprint_mask</code> + <code>footprint_signal</code>.</dd>
+            <dt>Expected result</dt><dd>Mask selects exactly the cells within the configured radius of the operating facility; retired excluded; co-located cells counted once; per-period footprint value = manual mean over valid footprint cells.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/attribution/test_source.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at2"><div class="card-header"><span class="req-id">AT2</span><span class="card-title">Background correction + coverage propagation, no interpolation</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-003, REQ-004</dd>
+            <dt>Scenario</dt><dd>Planted background field; one week below the coverage threshold; an empty-ring case.</dd>
+            <dt>Expected result</dt><dd>Corrected signal = manual (footprint − background); below-threshold week marked missing (not interpolated); empty ring raises ERR-003.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/attribution/test_source.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at3"><div class="card-header"><span class="req-id">AT3</span><span class="card-title">ERA5 ingest + meteo regress-out</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Scenario</dt><dd>Synthetic ERA5 field (mocked CDS retrieval via <code>_cds_fetch</code>); signal = activity + β·wind + noise.</dd>
+            <dt>Expected result</dt><dd>ERA5 ingest writes a dated snapshot (network mocked); <code>regress_out_meteo</code> residual recovers the planted activity to tolerance; the regression form is recorded in provenance.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_era5.py</code>, <code>tests/signal/test_index.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at4"><div class="card-header"><span class="req-id">AT4</span><span class="card-title">Deseasonalisation + heating-season + curtailment controls</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-020, REQ-021, REQ-022</dd>
+            <dt>Scenario</dt><dd>Series with a planted seasonal term; a heating-season window; a planted curtailment period.</dd>
+            <dt>Expected result</dt><dd>Deseasonalisation removes the seasonal term; the heating-season term is applied as a structural covariate (not just smoothed away); the curtailment exogenous control is present; method + terms recorded in the run output.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_index.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at5"><div class="card-header"><span class="req-id">AT5</span><span class="card-title">Relative index + attributable-fraction cap</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-030, REQ-031</dd>
+            <dt>Scenario</dt><dd>From the corrected, meteo-free, deseasonalised series.</dd>
+            <dt>Expected result</dt><dd>Index is normalised/unitless (anchor or z-score); the attributable-fraction cap (~0.30–0.43) is recorded in provenance; no absolute-tonnage value is emitted anywhere.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_index.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at6"><div class="card-header"><span class="req-id">AT6</span><span class="card-title">Validation recovers a planted signal AND reports a planted null</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-040, REQ-041, REQ-042, REQ-043</dd>
+            <dt>Scenario</dt><dd>(a) benchmark = f(index at lag k) + noise; (b) index and benchmark independent.</dd>
+            <dt>Expected result</dt><dd>(a) sign verified positive, lead-lag peak at lag k, Pearson r in band with significant p and a CI; (b) r ≈ 0, p not significant, conclusion = NULL — proving the pipeline reports the null honestly and does not flip the sign to force a positive.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_validation.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at7"><div class="card-header"><span class="req-id">AT7</span><span class="card-title">Report content: null, CIs, sign, bar classification, config echo</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-043, REQ-044</dd>
+            <dt>Scenario</dt><dd>Run report on both AT6 datasets.</dd>
+            <dt>Expected result</dt><dd>Summary states the conclusion in plain language (lead/concurrent/null), reports r/p with CIs and the sign check, classifies against the r≈0.5–0.75 bar, and echoes deseasonalisation method, meteo covariates, curtailment control, footprint/background geometry, lag window, and attributable-fraction cap.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_validation.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+        <div class="card risk-high" id="at-err-1"><div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Missing inputs / degenerate geometry / short sample</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>ERR-001, ERR-002, ERR-003, ERR-004</dd>
+            <dt>Scenario</dt><dd>(a) cube/benchmark absent; (b) ERA5 snapshot absent with meteo enabled; (c) no facility in extent / empty ring; (d) overlap shorter than the configured minimum.</dd>
+            <dt>Expected result</dt><dd>(a) actionable "run 'noxus grid' / 'noxus ingest-benchmark' first"; (b) actionable ERA5 message, no silent skip of the meteo control; (c) descriptive geometry error; (d) insufficient-data refusal rather than unstable estimates.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_validation.py</code>, <code>tests/attribution/test_source.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+        <div class="card" id="at-reg-1"><div class="card-header"><span class="req-id">AT-REG-1</span><span class="card-title">CLI additive + config-driven</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt><dd><code>noxus --help</code> and existing subcommands (<code>grid</code>, <code>fetch</code>, <code>ingest-benchmark</code>, <code>verify-no2</code>) unchanged.</dd>
+            <dt>Related requirements</dt><dd>REQ-050</dd>
+            <dt>Action</dt><dd><code>noxus attribute --help</code>, <code>noxus index --help</code>, <code>noxus validate --help</code> (+ optional <code>ingest-era5</code>); run on the synthetic fixtures.</dd>
+            <dt>Expected result</dt><dd>Subcommands exist, read config, run the pipeline, write the signal/index/results artifacts.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have a test.</li>
+          <li><input type="checkbox" disabled> Planted-null test proves honest null reporting.</li>
+          <li><input type="checkbox" disabled> No interpolation across cloud gaps.</li>
+          <li><input type="checkbox" disabled> Relative index only — no absolute tonnage.</li>
+          <li><input type="checkbox" disabled> Sign verified empirically; CIs reported.</li>
+          <li><input type="checkbox" disabled> ERA5 + NO₂-derived outputs gitignored; credentials by var name only.</li>
+        </ul>
+      </section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Tests map back to requirements; fully offline (synthetic fixtures, ERA5 mocked).</li>
+          <li>The planted-signal / planted-null pair (AT6) is the headline determinism + honesty guarantee.</li>
+          <li>Do not invent behaviour beyond the approved spec; do not assert statistics on live data.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
