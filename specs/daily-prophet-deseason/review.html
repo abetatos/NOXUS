@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Daily NO₂ + Prophet</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Daily NO₂ aggregation + Prophet decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-pending">not started — awaiting human approval, then implementation</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Status</h2>
+        <p>Placeholder. The reviewer fills this in after implementation. Deep-review focus: (1)
+        <strong>no look-ahead</strong> — the in-sample Prophet fit is diagnostic only; any lead/market claim
+        must use the causal rolling refit, proven by the guard test (AC-006); (2)
+        <strong>determinism</strong> — MAP / <code>uncertainty_samples=0</code> (AC-003); (3)
+        <strong>observed-only residual</strong> — Prophet's gap interpolation never presented as data
+        (AC-002); (4) <strong>changepoint over-fitting</strong> — constrained + swept (EDGE-004); (5)
+        <strong>honest marginal value</strong> — report whether daily-Prophet actually beats the harmonic
+        residual, incl. a null, with the SNR-ceiling caveat; (6) prophet lazy-imported, harmonic fallback
+        intact, daily NO₂-derived gitignored.</p>
+      </section>
+      <section id="findings"><h2>Findings</h2><p>—</p></section>
+      <section id="decision"><h2>Decision</h2><p>—</p></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

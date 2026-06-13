@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Daily NO₂ + Prophet decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Daily NO₂ aggregation + Prophet decomposition (trend + yearly + weekly)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-002a/b</code> (overpasses/cube), <code>NOX-003.1</code> (residual), <code>NOX-004</code> (catalyst)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The exploration (<code>docs/exploration-results.html</code>) showed two things: (a) better
+        seasonality removal helps — a single annual Fourier harmonic on the intensity residual lifts the
+        best-regime coupling to r≈0.78 — and (b) the binding limit is the <strong>signal-to-noise</strong>:
+        steel is only ~40% of the column <em>mean</em>, so a level estimator is capped near r≈0.63. The one
+        lever that can raise steel's <em>variance</em> share without the (deferred) flux-divergence method is
+        <strong>temporal source separation via the day-of-week cycle</strong>: steel runs 24/7 (baseload,
+        flat across the week) while traffic/other sources carry a strong weekly cycle — so removing the
+        weekly component isolates the industrial term. That cycle is invisible in the weekly composite and
+        needs a <strong>daily</strong> series.</p>
+        <p>This feature (1) adds a <strong>daily NO₂ footprint series</strong> (aggregate the per-overpass
+        data to a daily grid, coverage-screened, never interpolated) and (2) applies a <strong>Prophet
+        decomposition</strong> — piecewise-linear <strong>trend</strong> (removes the secular emission-
+        intensity decline) + <strong>yearly</strong> + <strong>weekly</strong> Fourier seasonality — to emit
+        a deseasonalised activity residual and the day-of-week diagnostic, then compares it against the BF
+        operating rate and re-runs the NOX-004 catalyst on the cleaner residual.</p>
+        <p><strong>Feasibility (verified 2026-06-13):</strong> 2,617 overpasses span 2019-01-01→present;
+        the daily footprint has <strong>1,984 valid days (73%)</strong> after cloud screening, and valid
+        days are <strong>balanced across weekdays</strong> (Mon 290 … Sun 270) — so the weekly cycle is
+        observable, not cloud-aliased. <code>prophet</code> 1.3.0 is installed (developer-approved).</p>
+        <p><strong>Honesty (carried over):</strong> the SNR ceiling is real — the 40% <em>mean</em> share
+        bounds a level estimator but steel's <em>variance</em> share rises to ~60% when curtailments are the
+        swing factor, so the catalyst/event framing remains the right consumer. Strict <strong>no
+        look-ahead</strong> for any predictive/market claim (Prophet refit causally), and an honest
+        <strong>null</strong> is a valid outcome (Morris &amp; Zhang 2019).</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-daily">Daily NO₂ aggregation</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the daily path runs, the system shall composite the per-overpass NO₂ store (NOX-002a, <code>data/raw/tropomi/</code>) to a <strong>daily</strong> cube using the NOX-002b gridding at <code>freq="D"</code>, applying the inherited coverage screening so cloudy/empty days are <strong>masked (NaN), never interpolated</strong> (NOX-002b cloud decision).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When sampling, the system shall produce a <strong>daily footprint NO₂ series</strong> (NOX-003 footprint sampling + background correction at daily resolution) with per-day <code>valid_coverage</code>, and shall record the valid-day fraction and the per-weekday valid-count so weekday balance is auditable (EDGE-002).</span></div>
+
+        <h3 id="fr-prophet">Prophet decomposition</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When deseasonalising, the system shall fit a <strong>Prophet</strong> model on the daily footprint NO₂ with a <strong>trend</strong> (piecewise-linear, changepoints) + <strong>yearly</strong> + <strong>weekly</strong> Fourier seasonality, fitting only on observed (non-NaN) days (Prophet handles the irregular/gappy index natively), and shall emit the <strong>trend</strong>, <strong>yearly</strong>, <strong>weekly</strong> components and the <strong>deseasonalised residual</strong> (activity proxy) on the observed days only.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When fitting, the system shall be <strong>deterministic</strong> (MAP estimation; <code>uncertainty_samples=0</code> or a fixed seed) so a given input + config reproduces the same decomposition (NFR-005), and shall record the Prophet config (growth, changepoint prior, yearly/weekly Fourier orders) in the run provenance.</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>When emitting the residual, the system shall return it <strong>only on observed days</strong> — Prophet's fitted value on a cloud-gap day is a model interpolation and shall <strong>not</strong> be presented as an observation (no fabricated activity, EDGE-001).</span></div>
+
+        <h3 id="fr-sourcesep">Weekday source-separation diagnostic</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When the weekly component is available, the system shall emit a <strong>day-of-week source-separation diagnostic</strong>: the weekly seasonal shape and its amplitude, interpreted as — a <strong>flat</strong> weekly cycle ⇒ steel-dominated (baseload); a <strong>strong weekday/weekend</strong> cycle ⇒ a non-steel (traffic/other) component now removed from the activity residual. The diagnostic shall quantify the variance removed by the weekly term.</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When reporting, the system shall test the hypothesis that removing the weekly cycle <strong>raises steel's effective variance share</strong> — i.e. whether the Prophet residual couples to the BF rate better than the weekly intensity/harmonic residual (NOX-003.1) — and shall report the result honestly, including a null.</span></div>
+
+        <h3 id="fr-compare">Comparison &amp; integration</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When comparing, the system shall correlate the daily-Prophet residual (and its weekly/monthly aggregates) against the CREA BF operating rate with the established metrics — full-sample r, rolling-regime peak, and lead-lag — <strong>alongside</strong> the existing yoy / STL / intensity / harmonic residuals, so the marginal value of the daily-Prophet path is explicit.</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>When integrated, the system shall expose the Prophet decomposition as a selectable <strong><code>deseason_method="prophet"</code></strong> (additive; existing methods unchanged) and shall allow the NOX-004 <strong>catalyst to re-run on the daily-Prophet residual</strong>, reporting whether event precision/recall/lead improve.</span></div>
+        <div class="req-row"><span class="req-id">REQ-032</span><span>When any <strong>lead or market claim</strong> is made from the Prophet residual, the system shall use a <strong>causal</strong> decomposition (Prophet refit on data up to each decision time, or an equivalent rolling refit) — the in-sample full-series fit is for diagnosis only, never for a tradeable lead (no look-ahead, carrying NOX-004 REQ-041).</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When the user runs the daily path via the <code>noxus</code> CLI, the system shall expose it through documented config/subcommands (e.g. a daily <code>grid</code>/<code>attribute</code> mode + a <code>deseason_method="prophet"</code>), reproducible from a recorded config; existing weekly subcommands and defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Daily cube + Prophet residual reproduce from the committed/derived inputs + recorded config; no live fetch at analysis time.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free data only.</strong> Same TROPOMI store, re-aggregated; <code>prophet</code> is a free OSS dependency (developer-approved).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>No look-ahead for predictive use.</strong> In-sample Prophet is diagnostic; a causal/rolling refit is required before any lead/market claim.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Honest reporting.</strong> Report the marginal value (or null) of the daily-Prophet path with the SNR-ceiling caveat; no cherry-picked window.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Determinism.</strong> Prophet in MAP mode (<code>uncertainty_samples=0</code>); fixed seeds; identical inputs → identical outputs.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>No-publish.</strong> Daily NO₂-derived series (cube, footprint, residual) are gitignored; small stats summaries + figures may be committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-007</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run pytest</code> + <code>uv run ruff check .</code>; <code>prophet</code> lazy-imported so the rest of the package loads without it and tests mock/skip it.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Long cloud gap → Prophet still fits trend/seasonality across it, but the residual is emitted only on observed days; the interpolated fit is never presented as data.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Weekday-biased cloud cover would alias the weekly term → the valid-per-weekday counts are reported; if badly imbalanced, the weekly component is flagged unreliable (verified balanced 2026-06-13).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>Two overpasses on one day (orbit overlap at the AOI edge) → daily compositing means over valid cells, de-duplicated, not double-counted.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Prophet changepoint over-fitting (trend chases noise) → constrain the changepoint prior and report sensitivity, mirroring the NOX-003.1 smoothness discipline.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>Partial cube (fetch incomplete) → the daily path still runs and labels the result partial; the full-fetch re-run remains the arbiter (NOX-003.1 T10).</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the per-overpass store / manifest is missing, the daily compositing fails with an actionable message naming <code>noxus fetch</code>.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If <code>prophet</code> is not installed, the Prophet path fails with an actionable install message (and the harmonic method remains available as the dependency-free fallback).</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If fewer than a configured minimum of valid days exist, the system refuses the Prophet fit and reports insufficient data rather than over-fitting.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The daily compositing produces a daily footprint series with coverage screening; cloud-gap days are NaN (not interpolated); valid-day fraction + per-weekday counts are emitted (REQ-001/002).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>On a <strong>synthetic</strong> daily series (planted trend + yearly + weekly + activity + noise) the Prophet decomposition recovers the trend and the weekly/yearly components within tolerance, and the residual recovers the planted activity; the residual is emitted only on observed days (REQ-010/012).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>Determinism: refitting on identical input/config yields an identical residual (NFR-005).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The weekday diagnostic recovers a planted weekly cycle's amplitude and reports the variance it removes; a flat-weekly synthetic yields ~zero weekly amplitude (REQ-020).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>The comparison table reports the daily-Prophet residual vs BF (full + rolling-regime + lead-lag) alongside yoy/STL/intensity/harmonic; the catalyst re-runs on the Prophet residual (REQ-030/031).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span>A causal/rolling-refit path exists and a guard test shows the residual at day <em>t</em> used for any lead claim does not depend on future days (REQ-032, NFR-003).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span><code>prophet</code> is lazy-imported (package imports without it); ERR-002 fires with an actionable message when absent; harmonic fallback works (REQ ERR-002).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, parquet/JSON, and static figures (decomposition, weekday component, comparison) — folded into the exploration HTML report.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. Output figures: Prophet decomposition (trend/yearly/weekly/residual), the day-of-week component, and the deseason-method comparison incl. daily-Prophet.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>Per-overpass NO₂ store</strong> — <code>data/raw/tropomi/</code> (2,617 overpasses; gitignored) re-aggregated to daily.</li>
+          <li><strong>NOX-002b gridding / NOX-003 footprint</strong> — reused at <code>freq="D"</code>.</li>
+          <li><strong>CREA benchmark</strong> — BF operating rate, for the comparison.</li>
+          <li><strong>prophet</strong> — 1.3.0, installed (developer-approved); lazy-imported; harmonic method is the dependency-free fallback.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: project map (daily path + prophet method), <code>docs/data-access.md</code>
+        (daily aggregation note), the exploration HTML report (new daily-Prophet section), a methods note,
+        <code>.gitignore</code> (daily NO₂-derived), <code>decisions/</code> (Prophet decomposition decision)
+        and <code>history.html</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Daily compositing + coverage + weekday counts.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT2, AT3</td><td>Prophet decomposition; determinism; observed-only residual.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021</span></td><td>AT4</td><td>Weekday diagnostic; variance removed.</td></tr>
+            <tr><td><span class="req-id">REQ-030/031</span></td><td>AT5</td><td>Comparison + catalyst re-run.</td></tr>
+            <tr><td><span class="req-id">REQ-032</span></td><td>AT6</td><td>Causal refit guard.</td></tr>
+            <tr><td><span class="req-id">ERR-002</span></td><td>AT7</td><td>Lazy import + fallback.</td></tr>
+            <tr><td><span class="req-id">NFR-007</span></td><td>AT8</td><td>Tests + lint.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

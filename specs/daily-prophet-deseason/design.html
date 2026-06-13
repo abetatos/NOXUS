@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Daily NO₂ + Prophet decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Daily NO₂ aggregation + Prophet decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Mostly <strong>re-use + one new module</strong>. The daily series is the existing NOX-002b
+        gridding at <code>freq="D"</code> followed by the NOX-003 footprint sampling — both already
+        frequency-agnostic (verified: a daily cube of 2,720 days, 1,984 valid after screening, builds
+        today). The genuinely new piece is a <strong>Prophet wrapper</strong> in <code>noxus/signal/</code>
+        that fits trend + yearly + weekly seasonality on the gappy daily footprint NO₂ and returns the
+        components + the observed-only residual, wired in as an additive <code>deseason_method="prophet"</code>.</p>
+        <p>Why Prophet here and not just more Fourier: Prophet gives, in one model, (a) a flexible
+        <strong>piecewise-linear trend</strong> that removes the secular emission-intensity decline
+        (the developer's "background reduction"), (b) <strong>yearly</strong> seasonality (the heating
+        cycle), and (c) <strong>weekly</strong> seasonality — the day-of-week term that is the whole point:
+        it is the temporal handle on <strong>source separation</strong> (steel baseload vs the traffic
+        weekly cycle), and it only exists at daily resolution. Determinism is kept by MAP estimation
+        (<code>uncertainty_samples=0</code>).</p>
+        <p>Two consumers: (1) a <strong>diagnostic comparison</strong> (does the daily-Prophet residual beat
+        the weekly intensity/harmonic residual against the BF rate?) and (2) a <strong>catalyst re-run</strong>
+        (NOX-004) on the cleaner residual. Any <em>lead/market</em> claim requires a causal/rolling Prophet
+        refit; the full-series fit is diagnostic only.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="200" viewBox="0 0 720 200" aria-label="Daily Prophet data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="78" width="150" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="96" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">overpasses (raw)</text>
+            <text x="83" y="111" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">~1/day, 2019→</text>
+            <line x1="158" y1="100" x2="196" y2="100" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="198" y="74" width="150" height="52" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="273" y="92" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">daily cube (freq=D)</text>
+            <text x="273" y="107" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ footprint sample</text>
+            <text x="273" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">cloud-screened (NaN)</text>
+            <line x1="348" y1="100" x2="386" y2="100" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="388" y="66" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="468" y="84" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">Prophet fit</text>
+            <text x="468" y="98" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">trend + yearly + weekly</text>
+            <text x="468" y="112" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">→ residual (obs only)</text>
+            <text x="468" y="126" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ weekday diagnostic</text>
+            <line x1="548" y1="100" x2="586" y2="100" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="588" y="74" width="124" height="52" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="650" y="92" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">compare vs BF</text>
+            <text x="650" y="106" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">+ catalyst re-run</text>
+            <text x="650" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">(causal for leads)</text>
+            <text x="360" y="180" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">Weekly seasonal term = source-separation handle (steel baseload vs traffic cycle).</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Reuses <code>noxus/data/gridding.py</code> (<code>freq="D"</code>) and
+        <code>noxus/attribution/source.py</code> (footprint at daily). Adds <code>noxus/signal/prophet_deseason.py</code>
+        (Prophet wrapper + weekday diagnostic + causal refit) and a <code>deseason_method="prophet"</code>
+        branch in <code>noxus/signal/index.py</code>. Extends <code>noxus/config/run.py</code> and the
+        analysis/exploration report. NO₂-derived daily outputs gitignored.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/prophet_deseason.py</code></td><td>new</td><td>Prophet fit (trend+yearly+weekly, MAP/deterministic), observed-only residual, weekday diagnostic, causal rolling refit (REQ-010..012,020,032).</td></tr>
+            <tr><td><code>noxus/signal/index.py</code></td><td>extend</td><td><code>deseason_method="prophet"</code> branch (lazy import; harmonic fallback). Existing branches untouched (REQ-031).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td>Daily-path + Prophet params (freq, changepoint prior, yearly/weekly Fourier orders, min valid days) (REQ-040).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Daily aggregation mode (e.g. <code>grid --freq D</code> already works; expose a daily attribute + prophet path). Existing commands unchanged.</td></tr>
+            <tr><td><code>analysis/seasonality_probe.py</code> / exploration report</td><td>extend</td><td>Add the daily-Prophet residual to the comparison + the decomposition/weekday figures into <code>docs/exploration-results.html</code> (REQ-030).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>Daily NO₂-derived cube/footprint/residual (NFR-006).</td></tr>
+            <tr><td><code>pyproject.toml</code> / <code>uv.lock</code></td><td>done</td><td><code>prophet</code> already added (developer-approved 2026-06-13).</td></tr>
+            <tr><td><code>tests/signal/test_prophet_deseason.py</code></td><td>new</td><td>Planted daily decomposition; determinism; observed-only; weekday; lazy-import/fallback; causal guard.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>Existing <code>deseasonalize()</code> branches + <code>intensity.py</code></td><td>Additive only; harmonic/intensity stay the dependency-free path.</td></tr>
+            <tr><td><code>noxus/catalyst/**</code></td><td>Consumed read-only; re-run with the new residual via its existing config (the residual is just a different decomposition parquet).</td></tr>
+            <tr><td><code>noxus/data/era5.py</code>, validation</td><td>Untouched.</td></tr>
+            <tr><td>Flux-divergence / raw-L2</td><td>NOX-005; out of scope.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/signal/**</code>, <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>,
+        <code>analysis/**</code>, <code>docs/exploration-results.html</code>, <code>tests/**</code>,
+        <code>.gitignore</code>, <code>pyproject.toml</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/signal/prophet_deseason.py  (new)
+@dataclass(frozen=True)
+class ProphetFit:
+    residual: pd.Series      # activity proxy, observed days only
+    trend: pd.Series
+    yearly: pd.Series
+    weekly: pd.Series        # the day-of-week component (source-sep handle)
+    weekly_amplitude: float
+    variance_removed: dict   # {trend, yearly, weekly} share of variance
+    params: dict
+
+def prophet_deseason(daily: pd.Series, *, changepoint_prior: float,
+                     yearly_order: int, weekly_order: int,
+                     min_valid_days: int) -> ProphetFit: ...        # lazy import prophet; MAP, deterministic
+def weekday_profile(weekly: pd.Series) -> pd.DataFrame: ...         # Mon..Sun effect + amplitude
+def prophet_deseason_causal(daily, *, refit_every, min_train) -> pd.Series:  # rolling refit, no look-ahead
+
+# noxus/signal/index.py
+def deseasonalize(..., method="prophet", cfg=None): ...            # branch -> prophet_deseason(...).residual
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+steel_footprint_daily.parquet          # date(daily), no2_corrected, valid_coverage
+steel_prophet_decomposition.parquet    # date, signal, trend, yearly, weekly, residual_activity (obs only)
+
+# data/derived/  (small stats — committable)
+seasonality_compare.csv                # method, r_lag0, r_best, rolling_peak (now incl. prophet)
+weekday_profile.csv                    # weekday, effect, amplitude, variance_removed
+# docs/figures/exploration/  (committed)
+expl_prophet_decomposition.png, expl_weekday_profile.png  (+ updated compare)
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus grid --freq D                         # daily cube (existing, freq-agnostic)
+uv run noxus attribute --radius 5                  # daily footprint (on the daily cube)
+uv run noxus index --deseason prophet              # Prophet trend+yearly+weekly -> residual
+uv run python analysis/seasonality_probe.py        # comparison incl. daily-Prophet + weekday figure
+uv run noxus catalyst                              # re-run events/market on the Prophet residual
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored daily products (<code>steel_footprint_daily.parquet</code>,
+        <code>steel_prophet_decomposition.parquet</code>) + small committable stats CSVs (comparison,
+        weekday profile). No database.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>prophet 1.3.0</strong></td><td>Prophet API: <code>Prophet(growth, changepoint_prior_scale, yearly_seasonality, weekly_seasonality, uncertainty_samples=0)</code>; <code>.fit(df[ds,y])</code>; <code>.predict</code> returns trend/yearly/weekly columns. Verify the component column names in 1.3.0.</td><td>Lazy-imported (NFR-007). MAP for determinism. cmdstanpy backend bundled.</td></tr>
+            <tr><td>gridding / footprint</td><td>Internal contracts; <code>freq="D"</code> verified to build a daily cube + footprint (1,984 valid days).</td><td>Reused read-only.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>No new secrets, no new network egress (same local overpass store). Daily NO₂-derived outputs
+        gitignored. Standard protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (daily path + prophet method), <code>docs/data-access.md</code> (daily aggregation),
+        the exploration HTML (daily-Prophet section + figures), a methods note, <code>.gitignore</code>,
+        <code>decisions/</code> (Prophet decomposition decision), <code>history.html</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Daily compositing</strong>: synthetic overpasses (or a synthetic daily cube) → daily footprint with NaN cloud gaps; valid fraction + weekday counts emitted (AT1).</li>
+          <li><strong>Prophet decomposition</strong>: planted <code>trend + yearly + weekly + activity + noise</code> daily series → recovers trend/weekly/yearly within tolerance, residual ≈ activity, residual on observed days only (AT2); refit reproduces identically (AT3).</li>
+          <li><strong>Weekday diagnostic</strong>: planted weekly cycle → amplitude + variance-removed recovered; flat-weekly → ~zero amplitude (AT4).</li>
+          <li><strong>Comparison + catalyst</strong>: the Prophet residual flows through the existing compare + catalyst contracts (AT5).</li>
+          <li><strong>Causal guard</strong>: rolling-refit residual at <em>t</em> unchanged by appended future days (AT6).</li>
+          <li><strong>Lazy import / fallback</strong>: package imports without prophet; ERR-002 actionable; harmonic fallback works (AT7).</li>
+        </ul>
+        <p>Prophet tests run on small synthetic series (fast, deterministic MAP); skipped with a clear marker
+        if prophet is unavailable in CI, with the harmonic-fallback test always running.</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). Decomposition + weekday figures eyeballed as outputs.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Marginal-gain risk (likely).</strong> If steel really is baseload, the weekly component is small and the gain over the harmonic residual is modest — that itself is the (honest) finding. Mitigation: report the variance-removed + the comparison; accept a null marginal gain.</li>
+          <li><strong>Changepoint over-fitting.</strong> Prophet's piecewise trend can chase noise (same risk as the NOX-003.1 spline). Mitigation: constrain <code>changepoint_prior_scale</code>, report sensitivity.</li>
+          <li><strong>Daily is noisier per point.</strong> One overpass/day vs a weekly composite → more measurement noise; partly offset by 5–7× more points and Prophet's smoothing. Report on observed days only.</li>
+          <li><strong>Look-ahead via in-sample Prophet.</strong> The full-series fit uses all data; fine for diagnosis, invalid for a tradeable lead. Mitigation: causal rolling refit for any lead/market claim (REQ-032), guard test.</li>
+          <li><strong>Determinism / dependency weight.</strong> Prophet (cmdstanpy) is heavy and stochastic by default. Mitigation: MAP (<code>uncertainty_samples=0</code>), lazy import, harmonic fallback kept.</li>
+          <li><strong>SNR ceiling unchanged for levels.</strong> Prophet cannot beat the 40% mean-share ceiling for a level estimator; its value is via the weekly source-separation (variance share) + the event framing. <strong>Rejected:</strong> claiming Prophet "fixes" the correlation.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: a new module + a new deseason branch + a daily output; existing weekly paths and
+        defaults unchanged. Rollback = revert the feature branch and delete the gitignored daily artifacts;
+        if prophet proves problematic, disable the branch (harmonic remains the method of record).</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

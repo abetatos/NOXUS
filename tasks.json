@@ -221,6 +221,30 @@
         "human_approved": false
       },
       "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-006",
+      "title": "Daily NO2 aggregation + Prophet decomposition (trend + yearly + weekly)",
+      "slug": "daily-prophet-deseason",
+      "description": "Build a DAILY NO2 footprint series (re-aggregate the per-overpass store at freq=D, coverage-screened, never interpolated) and apply a PROPHET decomposition (piecewise-linear trend + yearly + weekly Fourier seasonality) to (a) remove the secular emission-intensity decline AND calendar seasonality in one model, and (b) exploit the day-of-week cycle for SOURCE SEPARATION: steel is baseload (flat across the week) while traffic/other carry a weekly cycle, so removing the weekly term raises steel's variance share -- the one temporal lever (short of flux divergence NOX-005) that can beat the ~40% mean-share SNR ceiling. Motivated by the deep exploration (docs/exploration-results.html): harmonic Fourier lifts best-regime r to 0.78 but the 40% MEAN share caps a level estimator; the weekly cycle is only visible at daily resolution. FEASIBILITY VERIFIED 2026-06-13: 2617 overpasses (2019->present, ~1/day); daily footprint = 1984 valid days (73%) after cloud screening, balanced across weekdays (Mon 290..Sun 270); prophet 1.3.0 installed. Pipeline: daily cube/footprint -> Prophet (deterministic MAP, uncertainty_samples=0, observed-only residual) -> weekday source-separation diagnostic -> compare residual vs BF (full/regime/lead-lag) alongside yoy/STL/intensity/harmonic -> re-run NOX-004 catalyst on the cleaner residual. DISCIPLINE: in-sample fit is diagnostic only; any lead/market claim uses a CAUSAL rolling refit (no look-ahead); prophet lazy-imported with the harmonic method as the dependency-free fallback; honest NULL acceptable; SNR ceiling recorded; daily NO2-derived gitignored.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": ["NOX-002b", "NOX-003.1", "NOX-004"],
+      "spec_path": "specs/daily-prophet-deseason/",
+      "scope": [
+        "noxus/signal/**",
+        "noxus/config/run.py",
+        "noxus/cli/main.py",
+        "analysis/**",
+        "docs/exploration-results.html",
+        "tests/**",
+        ".gitignore",
+        "pyproject.toml"
+      ],
+      "approval": {
+        "human_approved": true
+      },
+      "created": "2026-06-13"
     }
   ]
 }
