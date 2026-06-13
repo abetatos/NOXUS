@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — CREA benchmark ingestion + NO₂ activity-signal validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — CREA benchmark ingestion + NO₂ activity-signal validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-001</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-draft">spec_draft</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author (main conversation)</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>This feature delivers two coupled capabilities for NOXUS:</p>
+        <ol>
+          <li><strong>Benchmark ingestion.</strong> Fetch the physical-output benchmark for the Tangshan
+          steel cluster — the weekly <em>blast-furnace operating rate</em> — from CREA's public,
+          WIND-sourced Google-Sheet CSV; clean its placeholder zeros; persist a dated, versioned raw
+          snapshot; and emit a tidy, validated time series in parquet.</li>
+          <li><strong>Activity-signal validation.</strong> Test, transparently, whether the attributed
+          Tangshan NO₂ signal <em>leads</em> that benchmark, after removing seasonality, meteorological
+          confounding, and policy-curtailment confounding. The headline test is out-of-sample forecast
+          skill (an AR baseline vs. AR+NO₂, compared with Diebold–Mariano), not in-sample correlation.
+          A null result is a valid, reportable outcome.</li>
+        </ol>
+        <p>This is the realization of the <code>noxus/data/</code> (benchmark side) and
+        <code>noxus/validation/</code> modules. The NO₂ attribution that produces the predictor series
+        is an upstream dependency (see <a href="#external-dependencies">External dependencies</a>);
+        this feature consumes it through a defined contract and does not implement attribution.</p>
+        <p>Cloud-gap handling for the NO₂ predictor follows the project decision of 2026-06-13
+        (aggregation + minimum-coverage threshold as core; reconstruction only as robustness) recorded
+        in <code>decisions/architecture-decisions.md</code>.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-benchmark">Benchmark ingestion</h3>
+        <div class="req-row">
+          <span class="req-id">REQ-001</span>
+          <span>When the benchmark ingestion runs, the system shall fetch the CREA CSV from the
+          configured source URL and persist the unmodified bytes to
+          <code>data/raw/benchmark/crea_wind_&lt;YYYY-MM-DD&gt;.csv</code> as a dated snapshot.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-002</span>
+          <span>When parsing the CREA CSV, the system shall skip the metadata header rows
+          (<code>#ERROR!</code>, <code>Name</code>, <code>Frequency</code>, <code>Unit</code>,
+          <code>ID</code>, <code>Time Period</code>, <code>Source</code>, <code>Update</code>) and read
+          the dated observation rows that follow.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-003</span>
+          <span>When extracting the benchmark, the system shall select the column
+          <code>China: Tangshan: Operating Rate of Blast Furnaces</code> by its exact header name (not
+          by positional index) and the date column, producing a two-column series.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-004</span>
+          <span>While cleaning the benchmark series, the system shall treat values of <code>0.00</code>
+          (and exact zeros) as missing (<code>NA</code>), because a 0% blast-furnace operating rate is
+          a not-reported placeholder rather than a real observation.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-005</span>
+          <span>When emitting the benchmark, the system shall write a tidy series to
+          <code>data/derived/benchmark_tangshan_bf_operating_rate.parquet</code> with columns
+          <code>date</code> (date), <code>value</code> (float, percent), <code>source</code> and
+          <code>snapshot_date</code>, sorted ascending by date and de-duplicated on date.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-006</span>
+          <span>When the benchmark is emitted, the system shall additionally retain the configured set of
+          auxiliary control series present in the same CSV (e.g. daily pig-iron output, daily crude-steel
+          output) for downstream robustness use, applying the same zero-as-missing rule.</span>
+        </div>
+
+        <h3 id="fr-align">Alignment &amp; preprocessing</h3>
+        <div class="req-row">
+          <span class="req-id">REQ-010</span>
+          <span>When validation runs, the system shall load the NO₂ predictor series (with its
+          per-period valid-coverage fraction) and the benchmark series and align them to a single common
+          frequency (default: weekly), using a configured, documented aggregation rule.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-011</span>
+          <span>While preprocessing each series, the system shall remove seasonality (configurable:
+          STL decomposition or calendar dummies) and shall record the deseasonalization method used in
+          the run output.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-012</span>
+          <span>When preprocessing, the system shall test each series for stationarity (ADF and KPSS)
+          and shall report the test statistics and the chosen modelling track (levels vs. differences vs.
+          cointegration) in the run output.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-013</span>
+          <span>When constructing the NO₂ predictor for modelling, the system shall residualize it
+          against configured meteorological covariates (e.g. ERA5 boundary-layer height, wind speed,
+          temperature) and shall include policy-curtailment periods as exogenous controls, so the signal
+          tested is net of meteorology and known curtailments.</span>
+        </div>
+
+        <h3 id="fr-tests">Lead/lag &amp; modelling</h3>
+        <div class="req-row">
+          <span class="req-id">REQ-020</span>
+          <span>When validation runs, the system shall compute the cross-correlation function between the
+          processed NO₂ predictor and the processed benchmark over a configured lag window and report the
+          lag of peak correlation with confidence bounds.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-021</span>
+          <span>When validation runs, the system shall perform a Granger-causality test (NO₂ → benchmark)
+          over the configured lag orders, correcting reported p-values for multiple comparisons across
+          lags.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-022</span>
+          <span>When validation runs, the system shall fit the model track selected per REQ-012 (a
+          distributed-lag/VAR model for stationary series, or a VECM/ECM when series are cointegrated)
+          and report coefficients with confidence intervals.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-023</span>
+          <span>When evaluating leading-indicator value, the system shall run a pseudo-real-time
+          out-of-sample evaluation (expanding or rolling window) comparing an AR-only baseline of the
+          benchmark against an AR+lagged-NO₂ model, and shall report out-of-sample RMSE for both and the
+          Diebold–Mariano test of equal predictive accuracy.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-024</span>
+          <span>When all tests complete, the system shall emit a machine-readable results artifact
+          (parquet/JSON) and a human-readable summary stating, in plain language, whether the NO₂ signal
+          leads the benchmark out-of-sample, including the case where it does not (the null).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-025</span>
+          <span>When a robustness run is requested, the system shall re-run the validation with the
+          reconstructed (gap-filled) NO₂ predictor and report whether conclusions change, keeping
+          reconstruction strictly out of the default (production) path per the 2026-06-13 decision.</span>
+        </div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row">
+          <span class="req-id">REQ-030</span>
+          <span>When the user runs the benchmark ingestion and validation via the <code>noxus</code> CLI,
+          the system shall expose them as documented subcommands with configurable inputs, and shall use
+          values from <code>noxus/config/</code> for source URL, AOI, frequency, lag window, coverage
+          threshold, and covariate set.</span>
+        </div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-001</span>
+          <span><strong>Reproducibility.</strong> Every reported result shall be reproducible from a
+          committed snapshot of the benchmark plus the recorded configuration; runs shall not depend on
+          live-fetching a mutable remote at analysis time.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-002</span>
+          <span><strong>Public/free data only.</strong> All inputs shall remain public and free
+          (project constraint); the commercial provenance of the benchmark (WIND / China United Steel
+          Network, republished by CREA) shall be documented in <code>references.bib</code>.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-003</span>
+          <span><strong>Honest reporting.</strong> The summary shall report effect sizes with confidence
+          intervals and out-of-sample skill; it shall not present an in-sample correlation alone as
+          evidence of a leading indicator.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-004</span>
+          <span><strong>Determinism.</strong> Given identical inputs and config, statistical outputs
+          shall be deterministic (fixed seeds where any randomness exists).</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-005</span>
+          <span><strong>Stack conformance.</strong> Implementation shall use the project stack (Python
+          ≥3.12, numpy/pandas/xarray/pyarrow) and pass <code>uv run ruff check .</code> and
+          <code>uv run pytest</code>.</span>
+        </div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-001</span>
+          <span>The Tangshan column reports on a different cadence than other columns, so its rows are
+          interleaved with <code>0.00</code> placeholders on dates belonging to other (e.g. daily)
+          series — these must become <code>NA</code> and not enter aggregation as zeros (REQ-004).</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-002</span>
+          <span>Numeric cells carry trailing whitespace (e.g. <code>"96.81 "</code>); parsing must strip
+          and coerce robustly.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-003</span>
+          <span>The CSV column order or set may change over time; selection by exact header name guards
+          against silent column drift (REQ-003). A missing expected column is an error (ERR-002), not a
+          silent skip.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-004</span>
+          <span>Frequency mismatch: benchmark is weekly, NO₂ overpasses are daily-with-gaps; some weeks
+          may fall below the minimum NO₂ coverage threshold and must be marked missing rather than
+          aggregated from too few pixels.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-005</span>
+          <span>Short overlapping sample (TROPOMI from 2018) limits feasible VAR/lag orders; the system
+          must cap lag orders to keep degrees of freedom positive and report when it does so.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-006</span>
+          <span>Non-stationary series with a common trend risk spurious regression; the modelling track
+          must branch on the stationarity/cointegration result (REQ-012, REQ-022).</span>
+        </div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err">
+          <span class="req-id err">ERR-001</span>
+          <span>If the source URL is unreachable or returns non-CSV/empty content, the system shall fail
+          with a clear error and shall not overwrite or corrupt an existing good snapshot.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-002</span>
+          <span>If the expected Tangshan column header is absent from the fetched CSV, the system shall
+          raise a descriptive error naming the expected header and listing the headers found.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-003</span>
+          <span>If, after cleaning, the overlapping NO₂/benchmark sample is shorter than a configured
+          minimum length, the system shall refuse to run the statistical tests and report insufficient
+          data rather than emit unstable estimates.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-004</span>
+          <span>If a required input artifact (NO₂ predictor parquet or meteorological covariates) is
+          missing, the system shall fail with an actionable message identifying the missing dependency.</span>
+        </div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-001</span>
+          <span>Running the benchmark ingestion on a committed sample CSV produces the tidy parquet with
+          zeros converted to <code>NA</code>, dates parsed, sorted and de-duplicated, covering at least
+          the 2018–present overlap window.</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-002</span>
+          <span>A dated raw snapshot is written under <code>data/raw/benchmark/</code> and is the input
+          of record for the run (re-runs from the snapshot reproduce the parquet byte-for-byte under the
+          same config).</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-003</span>
+          <span>The validation run emits CCF peak-lag, Granger results (multiplicity-corrected), the
+          selected model's coefficients with CIs, and the out-of-sample AR vs. AR+NO₂ RMSE with a
+          Diebold–Mariano statistic.</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-004</span>
+          <span>The human-readable summary states the lead/no-lead conclusion explicitly, reports the
+          null when present, and lists the deseasonalization method, stationarity decision, covariates
+          removed, lag window, and coverage threshold used.</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-005</span>
+          <span>A robustness run with the reconstructed NO₂ predictor produces a comparison showing
+          whether the conclusion is stable, without the reconstructed series entering the default path.</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-006</span>
+          <span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</span>
+        </div>
+      </section>
+
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p>None. This feature has no browser UI; outputs are CLI text, parquet/JSON artifacts, and
+        optionally static plot files.</p>
+      </section>
+
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p>None — no screenshots or mockups are inputs to this task.</p>
+      </section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>CREA benchmark CSV</strong> — public Google-Sheet CSV export
+          (<code>docs.google.com/spreadsheets/d/1-LumT7h3GSryFLFYzxK_QedmhI6X4y58/export?format=csv</code>),
+          republishing WIND / China United Steel Network steel series. Validated reachable and containing
+          the Tangshan column, 2013-12-20 → present, weekly, on 2026-06-13.</li>
+          <li><strong>NO₂ predictor (upstream NOXUS attribution)</strong> — consumed via a parquet
+          contract: per-period attributed NO₂ over the Tangshan AOI plus a valid-coverage fraction. This
+          feature does not implement attribution; if the artifact does not yet exist, see
+          <code>open-questions.html</code> Q1.</li>
+          <li><strong>Meteorological covariates</strong> — ERA5 (or equivalent public reanalysis) fields
+          for de-confounding (REQ-013); ingestion path/contract to be confirmed (open question).</li>
+          <li><strong>Policy-curtailment calendar</strong> — Tangshan production-curtailment periods
+          (from CREA/Mysteel reporting) as an exogenous control.</li>
+          <li><strong>Python libraries</strong> — <code>statsmodels</code> (ADF/KPSS, VAR/VECM, Granger),
+          plus existing numpy/pandas/pyarrow. Adding <code>statsmodels</code> is proposed (open question
+          Q3).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>README.md</code> "Data sources" (add CREA CSV + provenance),
+        <code>literature/references.bib</code> (benchmark data source entry), the project map
+        (<code>data/</code> and <code>validation/</code> become implemented), and a methods note under
+        <code>docs/</code> describing the econometric pipeline. The reviewer confirms the final list.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decisions to log at review time: (a) the benchmark source-of-record choice (CREA CSV
+        snapshot over scraping/commercial APIs) and its provenance caveat; (b) the headline-test choice
+        (out-of-sample DM vs. in-sample correlation) as the standard for any leading-indicator claim in
+        NOXUS. The cloud-handling decision is already recorded (2026-06-13). Entries proposed only;
+        never written without developer approval.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002/003</span></td><td>AT1</td><td>Parse fixture CSV; correct snapshot + column selection by name.</td></tr>
+            <tr><td><span class="req-id">REQ-004</span></td><td>AT-EDGE-1</td><td>Zeros → NA; no zero leaks into aggregation.</td></tr>
+            <tr><td><span class="req-id">REQ-005/006</span></td><td>AT1</td><td>Tidy parquet schema, sort, de-dup; auxiliary series retained.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT2</td><td>Alignment, deseasonalization, stationarity branch reported.</td></tr>
+            <tr><td><span class="req-id">REQ-013</span></td><td>AT2</td><td>Meteo residualization + curtailment exogenous control.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT3</td><td>CCF peak-lag, Granger (corrected), model coefficients+CIs.</td></tr>
+            <tr><td><span class="req-id">REQ-023/024</span></td><td>AT3, AT4</td><td>OOS AR vs AR+NO₂, DM stat; explicit null reporting.</td></tr>
+            <tr><td><span class="req-id">REQ-025</span></td><td>AT5</td><td>Robustness with reconstructed predictor; isolation from default path.</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td>Unreachable source, missing column, short sample, missing dependency.</td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td>AT-REG-1</td><td>CLI subcommands wired; config-driven.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

@@ -18,6 +18,14 @@
   },
   "permissions": {
     "allow": [],
-    "deny": []
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./**/.env)",
+      "Edit(./.env)",
+      "Bash(cat .env)",
+      "Bash(cat ./.env)"
+    ]
   }
 }

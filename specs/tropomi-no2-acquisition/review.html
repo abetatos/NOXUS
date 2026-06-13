@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — TROPOMI NO₂ acquisition + AOI subset + QA</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-002a</code></td></tr>
+        <tr><th>Feature slug</th><td><code>tropomi-no2-acquisition</code></td></tr>
+        <tr><th>Reviewer</th><td>reviewer (inline)</td></tr>
+        <tr><th>Review status</th><td><span class="badge badge-ok">approved — live-verified 2026-06-13</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Implemented?</th><th>Tested?</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/004/005</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>tropomi.acquire_no2</code>/<code>OpenEOFetcher</code>; <code>test_acquire_writes_overpasses_with_provenance</code></td></tr>
+            <tr><td><span class="req-id">REQ-002 / EDGE-002</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td>version per overpass + <code>version_discontinuity</code>; <code>test_version_discontinuity_flagged</code></td></tr>
+            <tr><td><span class="req-id">REQ-003/006</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>apply_qa</code>, <code>coverage_fraction</code>; <code>test_qa_filter_and_coverage</code></td></tr>
+            <tr><td><span class="req-id">REQ-007</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td>manifest batches/overpasses; <code>test_resumable_*</code>, <code>test_overpass_level_idempotency</code></td></tr>
+            <tr><td><span class="req-id">REQ-010/011</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>verify_no2.select_clear_high_days</code>/<code>render_day</code>; <code>test_verify_no2.py</code></td></tr>
+            <tr><td><span class="req-id">REQ-012</span></td><td class="warning">Partial</td><td class="warning">No (live)</td><td><code>fetch_optical_thumbnail</code> implemented; exercised only against real openEO (developer-run)</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td>CLI <code>fetch</code>/<code>verify-no2</code>; <code>test_cli.py</code></td></tr>
+            <tr><td><span class="req-id">ERR-001</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>mint_cdse_token</code>/<code>connect_openeo</code>; <code>test_mint_token_*</code> (secret never returned/logged)</td></tr>
+            <tr><td><span class="req-id">ERR-002/003</span></td><td class="ok">Yes</td><td class="warning">Partial</td><td>error wrapping + manifest <code>batch_errors</code>; live job-failure path is developer-run</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <pre><code>uv add openeo matplotlib h5netcdf h5py
+uv run pytest        # 29 passed
+uv run ruff check .  # All checks passed!</code></pre>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <div class="collapsible-section"><button class="collapse-btn" type="button"><span class="arrow">▾</span> Blocking findings</button>
+          <div class="collapse-body"><p><code>None</code>.</p></div></div>
+        <div class="collapsible-section"><button class="collapse-btn" type="button"><span class="arrow">▾</span> Non-blocking findings</button>
+          <div class="collapse-body">
+            <div class="req-row edge"><span class="req-id edge">NBK-1</span><span><strong>Live paths not exercisable here.</strong> The real openEO connection, the collection/version specifics (open Q1, task T1) and the clear-day visual co-location check (AT5b, task T12) require CDSE credentials + network and are <strong>developer-run</strong>. Everything else is tested with a faked fetcher and mocked auth.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-2</span><span>Processor version falls back to a date-based label (cutoff 2022-07-01) when the source does not expose a version — confirm against the real collection at T1 and refine if needed.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-3</span><span>Averaging-kernel retention (REQ-004) depends on what the openEO collection returns (Q1/A5); if only gridded output is available the kernel is revisited at attribution (NOX-003).</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-4</span><span>New deps added: <code>openeo</code>, <code>matplotlib</code>, <code>h5netcdf</code>, <code>h5py</code> (+ openeo's geo stack). pandas/xarray were pinned down a minor version by openeo's constraints; full suite re-run green.</span></div>
+          </div></div>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <table><thead><tr><th>Decision</th><th>Selected</th></tr></thead>
+        <tbody><tr><td><span class="badge badge-warning">required</span></td><td>☑</td></tr><tr><td><span class="badge badge-ok">not required</span></td><td>☐</td></tr></tbody></table>
+        <table><thead><tr><th>Target</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>docs/data-access.md</code> (openEO acquisition + run commands)</td><td class="ok">Updated</td></tr>
+          <tr><td><code>.claude/context/project-map.md</code> (tropomi/verify implemented, commands, deps, raw store)</td><td class="ok">Updated</td></tr>
+          <tr><td><code>README.md</code> Status</td><td class="ok">Updated</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="proposals">
+        <h2>Proposals</h2>
+        <p>Decision logged this task: openEO acquisition + password-grant auth (2026-06-13). No further decision-log entry needed (version-consistency is covered within it).</p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <p><span class="badge badge-ok">approved → done (2026-06-13)</span> — 29 tests, lint clean, AND **live-verified** with the developer's CDSE credentials: collection/bands confirmed (open Q1), a real AOI fetch (2023-06-01..06) and a clear-day render (2023-06-04) showed NO₂ elevated over the central steel corridor. Honest caveat: the field is diffuse/regional (sub-pixel facilities + Beijing-Tianjin-Hebei background), not a sharp per-plant peak; and the averaging kernel is not exposed by the openEO collection (deferred to an L2 path for fine attribution, NOX-003).</p>
+      </section>
+
+      <section id="notes">
+        <h2>Notes</h2>
+        <p>Q2 (auth) and Q3 (optical) resolved with the developer on 2026-06-13. Q1 (collection specifics) remains to be confirmed at first real fetch (T1), with sensible defaults in place.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

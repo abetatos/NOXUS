@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — CREA benchmark + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — CREA benchmark + validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>CREA benchmark ingestion + NO₂ activity-signal validation</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Source document</th> <td><code>conversation 2026-06-13 (developer)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-001</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-06-13</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Unresolved questions found while drafting the spec. Blocking questions must be answered before
+        implementation. Each non-blocking question carries a default that lets implementation proceed.</p>
+      </section>
+
+      <hr>
+
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table>
+          <thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">4</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking questions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span>
+            <span class="card-title">Does the NO₂ predictor artifact exist yet, or build validation against the contract?</span>
+            <span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>The NO₂ attribution stage (producing the per-period attributed Tangshan signal + coverage) is not yet implemented in the scaffold. Should validation be built and tested now against the defined parquet contract (with synthetic planted-signal/null fixtures), wiring to the real predictor once attribution lands? Or should this feature wait for attribution?</dd>
+            <dt>Why it matters</dt><dd>Determines whether this delivers a working, tested validation engine now (real end-to-end result deferred) or is sequenced after attribution.</dd>
+            <dt>Blocking</dt><dd>No (default below lets work proceed)</dd>
+            <dt>Default assumption if not answered</dt><dd>Build the validation engine now against the contract; prove correctness with synthetic planted-lead and planted-null fixtures; wire the real predictor (and produce the first real result) in a follow-up once attribution exists.</dd>
+            <dt>Affected files / sections</dt><dd>validation/*; design "External dependencies"</dd>
+            <dt>Related requirements</dt><dd>REQ-010, REQ-023, ERR-004</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>Pending</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span>
+            <span class="card-title">Meteorological covariate source/path</span>
+            <span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Which public reanalysis and access path for meteorological de-confounding (REQ-013) — ERA5 via the CDS API, or an ERA5 mirror on Google Earth Engine (already in the <code>geo</code> extra)?</dd>
+            <dt>Why it matters</dt><dd>Affects ingestion code and credentials; CDS needs an API key, GEE is already wired.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Use the ERA5 GEE mirror via the existing <code>geo</code> extra; abstract the meteo loader so the CDS path can be added later.</dd>
+            <dt>Affected files / sections</dt><dd>preprocess.residualize; design "External dependencies"</dd>
+            <dt>Related requirements</dt><dd>REQ-013</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>Pending</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span>
+            <span class="card-title">Add <code>statsmodels</code> as a dependency</span>
+            <span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>The econometric tests (ADF/KPSS, VAR/VECM, Granger) are most cleanly done with <code>statsmodels</code>. Approve adding it via <code>uv</code> (touches <code>uv.lock</code>)?</dd>
+            <dt>Why it matters</dt><dd><code>uv.lock</code> is committed for reproducibility; adding a dep is a deliberate change.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Add <code>statsmodels</code> (core, not an extra) via <code>uv add statsmodels</code>; pin in lockfile.</dd>
+            <dt>Affected files / sections</dt><dd><code>pyproject.toml</code>, <code>uv.lock</code></dd>
+            <dt>Related requirements</dt><dd>REQ-012, REQ-021, REQ-022, REQ-023</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>Pending</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id err">Q4</span>
+            <span class="card-title">Policy-curtailment calendar source</span>
+            <span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>How are Tangshan production-curtailment periods sourced for the exogenous control (REQ-013) — hand-curated from CREA/Mysteel reporting into a small committed CSV, or derived programmatically?</dd>
+            <dt>Why it matters</dt><dd>Curtailments are a strong confounder; their encoding affects results and reproducibility.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Start with a small committed, dated, hand-curated curtailment-periods CSV under <code>data/derived/</code>, citing sources; revisit automation later.</dd>
+            <dt>Affected files / sections</dt><dd>preprocess.residualize; config</dd>
+            <dt>Related requirements</dt><dd>REQ-013</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>Pending</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move questions here after the developer answers them.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Move non-blocking questions here if the developer explicitly defers them.</p></section>
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>If any question becomes <strong>Blocking: Yes</strong> and <strong>Decision: Pending</strong>, do not implement.</li>
+            <li>Only non-blocking questions remain, so the task may be marked <code>spec_ready</code>; all assumptions are explicit.</li>
+            <li>Do not answer product, security, data, billing, or architecture questions silently.</li>
+            <li>When the developer answers, update this file and reflect the decision in the other spec files.</li>
+            <li>Before moving to <code>human_approved</code>, verify no blocking question remains pending.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

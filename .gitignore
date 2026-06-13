@@ -46,3 +46,19 @@ data/raw/
 *.nc
 *.tif
 *.tiff
+# Rendered verification imagery (generated from downloaded NO2) — do not publish.
+data/derived/verification/
+# NO2-derived analysis products (cube + interim AOI series, footprint signal, activity index)
+# — derived from downloaded data; not published (NOX-003 NFR-004).
+data/derived/no2/
+# ERA5 reanalysis snapshots (dated NetCDF subsets of the public ARCO-ERA5 store) — reproducible,
+# not committed (NOX-003 T12). Also matched by data/raw/ and *.nc above; kept explicit for clarity.
+data/raw/era5/
+# Downloaded archives (e.g. the GEM Global Iron & Steel Tracker zip) — never commit.
+*.zip
+
+# Literature PDFs — kept locally for reading, NOT redistributed (publisher copyright).
+# The bibliography (literature/references.bib) and literature/README.md ARE committed.
+literature/papers/
+# Text extracted from those PDFs (for source verification) — same copyright, keep local.
+literature/extracted/

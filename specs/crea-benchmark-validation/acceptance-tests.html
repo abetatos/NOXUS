@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — CREA benchmark + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — CREA benchmark + validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>CREA benchmark ingestion + NO₂ activity-signal validation</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Source document</th>  <td><code>conversation 2026-06-13 (developer)</code></td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-001</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-06-13</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Acceptance-level scenarios describing the observable behavior required for the feature to be
+        accepted. The implementer turns these into automated tests; the reviewer verifies coverage.</p>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <ul>
+          <li>Benchmark parsing tested against a committed fixture CSV reproducing the real hazards.</li>
+          <li>Statistical correctness tested with <em>synthetic</em> fixtures: a planted-lead dataset
+          (must detect the lead) and a planted-null dataset (must report no lead). No assertions on live,
+          non-deterministic data.</li>
+          <li>Error and CLI behavior tested directly.</li>
+        </ul>
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest unit + acceptance tests; deterministic fixtures (fixed seeds); no network in tests
+(fetch is mocked / fixture-backed).</code></pre>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/data/test_benchmark.py
+tests/validation/test_preprocess.py
+tests/validation/test_leadlag.py
+tests/validation/test_models.py
+tests/validation/test_oos.py
+tests/cli/test_cli.py
+tests/fixtures/crea_wind_sample.csv</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001..003,005,006</span></td><td>AT1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-004 / EDGE-001</span></td><td>AT-EDGE-1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-010..013</span></td><td>AT2</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-020..022</span></td><td>AT3</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-023,024</span></td><td>AT3, AT4</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-025</span></td><td>AT5</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header"><span class="req-id">AT1</span>
+            <span class="card-title">Benchmark ingest produces a clean tidy parquet</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-001, REQ-002, REQ-003, REQ-005, REQ-006</dd>
+            <dt>Scenario</dt><dd>Ingest from the fixture CSV.</dd>
+            <dt>Preconditions</dt><dd><code>tests/fixtures/crea_wind_sample.csv</code> present.</dd>
+            <dt>Action</dt><dd>Run load_benchmark + emit_benchmark (or <code>noxus ingest-benchmark --from-snapshot</code>).</dd>
+            <dt>Expected result</dt><dd>Parquet has columns <code>date,value,source,snapshot_date</code>; Tangshan column selected by name; rows sorted ascending and de-duplicated on date; configured auxiliary series retained.</dd>
+            <dt>Negative expectations</dt><dd>No positional-index column selection; no metadata header rows leak into data.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_benchmark.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header"><span class="req-id">AT2</span>
+            <span class="card-title">Preprocessing aligns, deseasonalizes, gates stationarity, residualizes</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011, REQ-012, REQ-013</dd>
+            <dt>Scenario</dt><dd>Synthetic NO₂ + benchmark with known seasonal term, trend, and a meteo covariate.</dd>
+            <dt>Preconditions</dt><dd>Coverage column present; some weeks below threshold.</dd>
+            <dt>Action</dt><dd>Run align_series, deseasonalize, stationarity_gate, residualize.</dd>
+            <dt>Expected result</dt><dd>Series aligned to weekly; sub-threshold weeks masked NA; seasonal term removed; ADF/KPSS reported and the model track chosen accordingly; meteo covariate's contribution removed from the NO₂ residual.</dd>
+            <dt>Negative expectations</dt><dd>Sub-threshold weeks are not aggregated from too few observations.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_preprocess.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header"><span class="req-id">AT3</span>
+            <span class="card-title">Planted lead is detected end-to-end</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-020, REQ-021, REQ-022, REQ-023</dd>
+            <dt>Scenario</dt><dd>Synthetic data where benchmark = f(NO₂ at lag k) + noise.</dd>
+            <dt>Preconditions</dt><dd>Fixed seed.</dd>
+            <dt>Action</dt><dd>Run CCF, Granger, model fit, and OOS skill.</dd>
+            <dt>Expected result</dt><dd>CCF peak at lag k; Granger significant after correction; model coefficient at lag k significant; OOS AR+NO₂ RMSE &lt; AR RMSE with a significant Diebold–Mariano statistic.</dd>
+            <dt>Negative expectations</dt><dd>No spurious peak at lag 0 when the true lead is k.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_oos.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header"><span class="req-id">AT4</span>
+            <span class="card-title">Null is reported honestly</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-023, REQ-024, NFR-003</dd>
+            <dt>Scenario</dt><dd>Synthetic independent NO₂ and benchmark (no relationship).</dd>
+            <dt>Preconditions</dt><dd>Fixed seed.</dd>
+            <dt>Action</dt><dd>Run the full validation and inspect the summary.</dd>
+            <dt>Expected result</dt><dd><code>leads_oos = false</code>; DM not significant; the plain-language summary states no lead was found and lists method/stationarity/covariates/lags/coverage threshold.</dd>
+            <dt>Negative expectations</dt><dd>The summary does not present an in-sample correlation as evidence of a lead.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_oos.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header"><span class="req-id">AT5</span>
+            <span class="card-title">Reconstruction robustness path is isolated</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-025</dd>
+            <dt>Scenario</dt><dd>Run default path, then <code>--robustness reconstructed</code>.</dd>
+            <dt>Preconditions</dt><dd>A reconstructed predictor fixture available.</dd>
+            <dt>Action</dt><dd>Execute both; compare outputs.</dd>
+            <dt>Expected result</dt><dd>A comparison artifact reports whether the conclusion changes; default-path results are byte-identical whether or not the reconstructed input exists.</dd>
+            <dt>Negative expectations</dt><dd>Reconstructed series never substitutes into the default (production) predictor.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/validation/test_oos.py</code></dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+        <div class="card" id="at-edge-1">
+          <div class="card-header"><span class="req-id edge">AT-EDGE-1</span>
+            <span class="card-title">0.00 placeholders and trailing spaces handled</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-004, EDGE-001, EDGE-002</dd>
+            <dt>Scenario</dt><dd>Fixture rows with <code>0.00</code> on non-reporting dates and values like <code>"96.81 "</code>.</dd>
+            <dt>Preconditions</dt><dd>Fixture present.</dd>
+            <dt>Action</dt><dd>Run load_benchmark.</dd>
+            <dt>Expected result</dt><dd>All <code>0.00</code> in the Tangshan column become <code>NA</code>; trailing-space values coerce to the correct float; no zero enters any downstream aggregation.</dd>
+            <dt>Negative expectations</dt><dd>Zeros are not averaged into weekly means.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_benchmark.py</code></dd>
+          </dl></div>
+        </div>
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header"><span class="req-id err">AT-ERR-1</span>
+            <span class="card-title">Source/column/sample/dependency failures are clear</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>ERR-001, ERR-002, ERR-003, ERR-004</dd>
+            <dt>Scenario</dt><dd>(a) unreachable/empty source; (b) CSV missing the Tangshan header; (c) overlap shorter than min length; (d) missing NO₂ predictor input.</dd>
+            <dt>Preconditions</dt><dd>Mocked fetch and crafted fixtures.</dd>
+            <dt>Action</dt><dd>Invoke ingest/validate for each case.</dd>
+            <dt>Expected result</dt><dd>(a) fails without clobbering an existing snapshot; (b) error names expected header + lists found; (c) refuses stats, reports insufficient data; (d) actionable missing-dependency message.</dd>
+            <dt>Negative expectations</dt><dd>No partial/corrupt parquet; no silent column fallback.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_benchmark.py</code>, <code>tests/validation/test_oos.py</code></dd>
+          </dl></div>
+        </div>
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+        <div class="card" id="at-reg-1">
+          <div class="card-header"><span class="req-id">AT-REG-1</span>
+            <span class="card-title">CLI wiring is additive and config-driven</span>
+            <span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt><dd>Existing <code>noxus --help</code> / console script keeps working.</dd>
+            <dt>Related requirements</dt><dd>REQ-030</dd>
+            <dt>Scenario</dt><dd>Invoke new subcommands and <code>--help</code>.</dd>
+            <dt>Preconditions</dt><dd>Package installed via <code>uv sync</code>.</dd>
+            <dt>Action</dt><dd>Run <code>noxus ingest-benchmark --help</code> and <code>noxus validate --help</code>.</dd>
+            <dt>Expected result</dt><dd>Subcommands exist, read config values, expose documented flags.</dd>
+            <dt>Negative expectations</dt><dd>No change to unrelated CLI behavior.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div>
+        </div>
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> Main success path (ingest → validate → summary) covered.</li>
+          <li><input type="checkbox" disabled> Zero-as-missing edge covered.</li>
+          <li><input type="checkbox" disabled> Invalid input / error cases covered.</li>
+          <li><input type="checkbox" disabled> Null-reporting behavior covered.</li>
+          <li><input type="checkbox" disabled> Reconstruction isolation (non-goal) protected.</li>
+          <li><input type="checkbox" disabled> Tests feasible with current setup (synthetic fixtures, mocked fetch).</li>
+          <li><input type="checkbox" disabled> No acceptance test depends on hidden assumptions.</li>
+          <li><input type="checkbox" disabled> Unresolved behavior listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests must map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behavior absent from the brief or approved assumptions.</li>
+            <li>If a test needs an unresolved decision, update <code>open-questions.html</code>.</li>
+            <li>Create automated tests from this document where feasible.</li>
+            <li>The reviewer must verify implemented tests cover this document.</li>
+            <li>Statistical tests use deterministic synthetic fixtures, not live data.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

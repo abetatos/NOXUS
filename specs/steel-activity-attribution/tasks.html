@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Steel-sector NO₂ activity signal + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — Steel-sector NO₂ activity signal + validation</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark progress with a status class on the <code>&lt;li&gt;</code>
+        (<code>done</code> / <code>in-progress</code> / <code>blocked</code>). Do not start until the task
+        is <code>human_approved</code>.</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Add <code>SignalConfig</code> + <code>ValidationConfig</code> (REQ-050).</strong></div>
+            <div class="task-item-body">In <code>noxus/config/run.py</code>: footprint radius_km, active-status set, background ring inner/outer km, ERA5 vars + regression form, deseason method (default yoy-double-diff), heating-season definition, curtailment source, lag window, anchor/index base, attributable_cap (0.30–0.43), paths. Frozen dataclasses matching existing style.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Tests: synthetic cube + facility CSV fixtures (basis for AT1–AT6).</strong>
+            <em>(phase 1: synthetic weekly cube + facility CSV fixtures; phase 2: synthetic-ERA5
+            (tests/data/test_era5.py), planted-meteo/planted-seasonal (tests/signal/conftest.py),
+            planted-signal/planted-null (tests/validation/conftest.py) fixtures added)</em></div>
+            <div class="task-item-body">Small weekly cube (known coords/values + coverage), a facility CSV with an operating cell, a retired row, and a co-located duplicate; a synthetic ERA5 field; planted-signal and planted-null index/benchmark pairs.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Implement footprint sampling + status filter + dedup (REQ-001/002).</strong></div>
+            <div class="task-item-body"><code>load_facilities</code> + <code>footprint_mask</code> in <code>noxus/attribution/source.py</code>; select in-radius cells around operating facilities; dedup co-located cells (EDGE-001); per-period footprint mean over valid cells (AT1).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Implement regional background + correction (REQ-003/004).</strong></div>
+            <div class="task-item-body"><code>background_ring</code> + <code>footprint_signal</code>; subtract/normalise; clip geometry to AOI; propagate coverage; no interpolation; empty ring → ERR-003 (AT2). Emit <code>steel_footprint_signal.parquet</code>.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>ERA5 ingest from the Copernicus CDS (REQ-010).</strong></div>
+            <div class="task-item-body">New <code>noxus/data/era5.py</code>: <code>ingest_era5</code> retrieves a server-side AOI/era/overpass-hour subset from the CDS (<code>reanalysis-era5-single-levels</code> via <code>cdsapi</code>; <code>CDSAPI_KEY</code> from <code>.env</code>) → dated <code>.nc</code> snapshot under <code>data/raw/era5/</code> (gitignored); <code>era5_footprint_series</code> aggregates to footprint + frequency at the overpass window. CDS path verified live 2026-06-13. Network mocked in tests (<code>_cds_fetch</code>).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Implement meteorological regress-out (REQ-011).</strong></div>
+            <div class="task-item-body"><code>regress_out_meteo</code> in <code>noxus/signal/index.py</code>; configurable form (linear residualisation default, LOESS optional); record the form; residual recovers planted activity (AT3).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>Implement deseasonalisation + confounder terms (REQ-020/021/022).</strong></div>
+            <div class="task-item-body"><code>deseasonalize</code> with default yoy-double-diff; explicit heating-season structural term (not just removed) per Wen 2024; curtailment exogenous control per Li 2024; record method + terms (AT4).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Implement relative index + attributable cap (REQ-030/031).</strong></div>
+            <div class="task-item-body"><code>build_index</code>: normalise to anchor/z-score (unitless); record cap (0.30–0.43, Wen 2024); no absolute tonnage. Emit <code>steel_activity_index.parquet</code> (AT5).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Revive validation: align + sign + r/p + lead-lag (REQ-040/041/042).</strong></div>
+            <div class="task-item-body"><code>noxus/validation/preprocess.py</code> (align to weekly, coverage screening) + implement <code>leadlag.py</code> (<code>verify_sign</code>, <code>correlate</code> Pearson r+p+CI, <code>lead_lag</code> CCF peak). Reuse the NOX-001 design; reconcile contracts. Recover sign/lag on planted signal; null on planted null (AT6).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Report incl. null + bar classification (REQ-043/044).</strong></div>
+            <div class="task-item-body"><code>noxus/validation/report.py</code>: machine-readable <code>steel_validation_results.json</code> + plain-language summary stating the conclusion (lead/concurrent/null), r/p with CIs, sign, and classification vs the r≈0.5–0.75 bar (AT6/AT7).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Error handling (ERR-001..004).</strong></div>
+            <div class="task-item-body">Missing cube/benchmark/ERA5 messages; degenerate geometry (no facility in extent / empty ring); short-overlap refusal (AT-ERR-1).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T12</span>
+            <strong>gitignore new outputs + dependency wiring (NFR-004).</strong></div>
+            <div class="task-item-body">Add <code>data/raw/era5/</code> and NO₂-derived signal/index outputs to <code>.gitignore</code>; add approved deps via <code>uv</code> (<code>scipy</code>, <code>statsmodels</code>, <code>cdsapi</code>; <code>xarray</code>/<code>h5netcdf</code> already present).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T13</span>
+            <strong>Wire CLI <code>attribute</code>/<code>index</code>/<code>validate</code> (+ optional <code>ingest-era5</code>) (REQ-050).</strong></div>
+            <div class="task-item-body">Connect the existing placeholder subcommands to the real functions; config-driven; existing subcommands unchanged (AT-REG-1).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T14</span>
+            <strong>Run validation (AC-008).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T15</span>
+            <strong>Real end-to-end run on the acquired data + docs + decisions.</strong></div>
+            <div class="task-item-body">Run the full chain on the real cube + benchmark + ERA5 once available; record the actual r/p/sign and the honest conclusion (incl. null) in <code>history.html</code>; update docs (project map, data-access, methods note); propose decisions (paradigm, ERA5 source, footprint/background geometry, deseason method). Tune footprint radius + thresholds against real coverage (open questions).</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Requirements covered by tests (incl. planted-null).</li>
+          <li><input type="checkbox" disabled> Tests + lint pass.</li>
+          <li><input type="checkbox" disabled> Relative index only — no absolute tonnage; cap recorded.</li>
+          <li><input type="checkbox" disabled> Sign verified empirically; null reported honestly.</li>
+          <li><input type="checkbox" disabled> Meteo + heating-season + curtailment controls present &amp; recorded.</li>
+          <li><input type="checkbox" disabled> No interpolation across cloud gaps (coverage screening propagated).</li>
+          <li><input type="checkbox" disabled> ERA5 + NO₂-derived outputs gitignored; credentials by var name only.</li>
+          <li><input type="checkbox" disabled> Flux divergence kept out of scope (NOX-004).</li>
+          <li><input type="checkbox" disabled> Reviewer (deep-review) approved traceability; decisions proposed.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

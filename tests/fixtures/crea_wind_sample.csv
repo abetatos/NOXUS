@@ -1,0 +1,14 @@
+#ERROR!,,,
+Name,China: Tangshan: Operating Rate of Blast Furnaces,China: Estimated Daily Average Output: Pig Iron,China: Blast Furnace Starting Rate (247)
+Frequency,Week,Every Day,Week
+Unit,%,10000 tons/day,%
+ID,S5711217,S5715685,C1925068
+Time Period,2018-03-02:2026-06-12,2018-03-02:2026-06-12,2018-03-02:2026-06-12
+Source,China United Steel Network,China United Steel Network,Wind
+Update,2026-06-12,2026-06-12,2026-06-12
+2018-03-02,70.50 ,0.00 ,72.10
+2018-03-09,71.20 ,0.00 ,73.00
+2018-03-12,0.00 ,229.00 ,0.00
+2018-03-16,72.80 ,0.00 ,74.50
+2018-03-16,73.10 ,0.00 ,74.90
+2018-03-23,0.00 ,231.00 ,0.00

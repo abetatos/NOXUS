@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — Steel-sector NO₂ activity signal</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — Steel-sector NO₂ activity signal + validation</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Unresolved questions surfaced for the developer. All are non-blocking — each has a default that lets implementation proceed — but several materially affect interpretation and should be confirmed at approval. The locked scope (paradigm, meteo-in-scope, footprint, flux divergence deferred) is not re-opened.</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">6</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">0</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">Footprint radius / definition and background-ring geometry</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What radius (km) defines the facility footprint, and what inner/outer radii (or AOI-minus-footprint) define the regional background ring? At ~5 km native resolution a facility spans ~1 cell, so the footprint is a small neighbourhood.</dd>
+            <dt>Why it matters</dt><dd>Too small → noisy/empty footprint; too large → background-dominated, diluting the signal (Parubets 2025 scale warning; Kim 2023 background separation).</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Footprint = cells within ~10 km of an operating facility; background = annular ring ~20–50 km around the cluster, inside the AOI, excluding footprint cells. Tune both against the real coverage/signal and report sensitivity.</dd>
+            <dt>Affected files / sections</dt><dd><code>footprint_mask</code>, <code>background_ring</code>; SignalConfig; REQ-002, REQ-003</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">Compositing frequency to validate at</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Validate at weekly (matching the NOX-002b cube + CREA BF operating rate), or also at monthly (matching crude-steel output)? How is the alignment to CREA's exact cadence handled?</dd>
+            <dt>Why it matters</dt><dd>Morris &amp; Zhang found monthly reliable, daily noisy; the CREA BF rate is weekly while crude-steel output is monthly — frequency choice changes power and the comparable benchmark.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Weekly default (cube + BF operating rate); monthly configurable as a robustness view against crude-steel output.</dd>
+            <dt>Affected files / sections</dt><dd><code>align_series</code>; ValidationConfig; REQ-040</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">ERA5 variables / levels and regression form</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd><strong>Source — RESOLVED (2026-06-13):</strong> ERA5 is ingested <strong>only</strong> from the Copernicus CDS (<code>reanalysis-era5-single-levels</code>), subsetting the AOI/era/overpass-hour <em>server-side</em> (only ~MB transferred; verified live, 42 KB for a 3-day subset). The anonymous ARCO-ERA5 Zarr store was considered and <strong>rejected</strong>: its chunk-1 layout downloads a full global field per timestep (~30–760 GB for the 2019→present AOI series), the wrong access pattern here. CDS needs a free account credential (<code>CDSAPI_KEY</code> in <code>.env</code>, by reference only) + one-time licence acceptance. <strong>Still open:</strong> which ERA5 fields (10 m u/v wind, boundary-layer height, 2 m temperature, others?) at which level, aggregated to which time window (overpass ~13:30 local vs daily mean), and what regression form — linear residualisation vs LOESS high-frequency filtering (Mao 2025)?</dd>
+            <dt>Why it matters</dt><dd>This is the dominant weekly-ventilation confounder; the wrong variable set or form leaves weather in the signal or over-removes activity.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>u10, v10, blh at the overpass window; linear residualisation as default with LOESS available; record the form. Refine in T5.</dd>
+            <dt>Affected files / sections</dt><dd><code>era5_footprint_series</code>, <code>regress_out_meteo</code>; SignalConfig; REQ-010, REQ-011</dd>
+            <dt>Decision</dt><dd><span class="badge badge-ok">Source resolved (Copernicus CDS; ARCO rejected)</span> <span class="badge badge-pending">Variables/form pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id err">Q4</span><span class="card-title">Deseasonalisation method of record</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd><strong>RESOLVED (2026-06-13, real sensitivity run):</strong> default changed to <code>yoy</code> (single year-over-year change). The 2026-06-13 battery showed <code>yoy-double-diff</code> <strong>erased</strong> the signal on this weekly series (r≈0 — over-aggressive, as Kim 2023 warned), while <code>yoy</code>/<code>stl</code> preserved the faint positive activity signal after the secular trend is removed. All four methods (<code>yoy</code>/<code>stl</code>/<code>yoy-double-diff</code>/<code>none</code>) remain selectable for replicability; monthly &gt; weekly. The heating-season term is applied as a structural covariate before deseasonalisation. See <code>docs/preliminary-results.html</code>.</dd>
+            <dt>Why it matters</dt><dd>The choice is decisive for whether a clean sector correlation emerges (Kim 2023). Double-differencing erased it here.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>n/a — resolved to <code>yoy</code>.</dd>
+            <dt>Affected files / sections</dt><dd><code>deseasonalize</code>; SignalConfig; REQ-020, REQ-021</dd>
+            <dt>Decision</dt><dd><span class="badge badge-ok">Resolved — default yoy (double-diff demoted)</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header"><span class="req-id err">Q5</span><span class="card-title">Minimum valid-coverage threshold (inherited from NOX-002b Q2)</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What per-period and per-cell minimum-coverage thresholds apply to the footprint and background before a week is usable? NOX-002b Q2 left these to tune on the real coverage distribution.</dd>
+            <dt>Why it matters</dt><dd>Too strict drops weeks (already a short sample); too loose biases the footprint from a few clear pixels. Coverage is non-random (cloud correlates with season/weather).</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Inherit the NOX-002b default (weekly period ≥25% valid days; cell ≥1 valid overpass) and tune jointly once the full fetch + cube exist.</dd>
+            <dt>Affected files / sections</dt><dd><code>footprint_signal</code>, <code>align_series</code>; ValidationConfig; REQ-004, REQ-040</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span> — couple with NOX-002b Q2.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q6">
+          <div class="card-header"><span class="req-id err">Q6</span><span class="card-title">Curtailment calendar source + validation depth</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>(a) What is the public source/format for the Tangshan production-curtailment calendar (REQ-022; assumption A7)? (b) Does v1 stop at Pearson r + lead-lag, or also include the NOX-001 pseudo-real-time OOS + Diebold–Mariano engine (assumption A5)?</dd>
+            <dt>Why it matters</dt><dd>(a) Without a curtailment control the indicator can invert (Li 2024). (b) In-sample r over-claims; OOS skill is the stronger test but is heavier and may be premature for v1.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>(a) Assemble a best-effort calendar from public CREA reporting; if unavailable, proxy with the CREA BF-starting-rate aux series and document the limitation. (b) v1 leads with r + lead-lag; OOS/DM deferred unless the developer requests it.</dd>
+            <dt>Affected files / sections</dt><dd><code>deseasonalize</code> (curtailment control), validation engine; REQ-022, REQ-042, REQ-043</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="note-on-related-questions">
+        <h2>Note on related upstream questions</h2>
+        <p>The averaging-kernel / raw-L2 question from NOX-002a (its Q1) is <strong>not handled here</strong>;
+        it belongs to the deferred flux-divergence phase (NOX-004), which needs the raw L2 swath path. v1
+        uses the openEO gridded cube as delivered by NOX-002b.</p>
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move here after answers.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Averaging kernel / raw L2 path → NOX-004. Flux-divergence attribution → NOX-004.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>All questions are non-blocking with defaults → the spec can reach <code>spec_ready</code>, but Q3/Q6 affect interpretation — confirm at approval.</li>
+          <li>Couple Q1/Q5 tuning to the real coverage distribution (after the full NOX-002a fetch).</li>
+          <li>Do not silently decide ERA5 variables/form or the curtailment source — update this file when answered.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

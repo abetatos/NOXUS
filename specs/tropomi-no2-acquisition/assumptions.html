@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — TROPOMI NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — TROPOMI NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>tropomi-no2-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-002a</code></td></tr>
+        <tr><th>Source document</th><td><code>conversation 2026-06-13</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit, reviewable assumptions behind this spec.</p></section>
+      <hr>
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table><thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody><tr><td>Low</td><td style="text-align:right">2</td></tr><tr><td>Medium</td><td style="text-align:right">3</td></tr><tr><td>High</td><td style="text-align:right">0</td></tr></tbody></table>
+        <p><strong>Blocking assumptions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">Signal is cluster/sub-cluster level, not per-factory</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>At TROPOMI's ~5.5×3.5 km footprint a steel plant is sub-pixel, and 14 of 26 operating plants have a neighbour within one pixel (median spacing 3.5 km), so NO₂ resolves clusters/sub-clusters, not individual plants.</dd>
+            <dt>Reason</dt><dd>Computed from the facilities CSV (nearest-neighbour distances) on 2026-06-13.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>Sets expectations for attribution (NOX-003); doesn't change acquisition. Overstating resolution would mislead later claims.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-011 (verification framing)</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">OFFL + RPRO give a version-consistent record</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Using RPRO for early years + OFFL for recent dates yields a homogeneous series; the v1→v2 algorithm change would otherwise create a spurious step.</dd>
+            <dt>Reason</dt><dd>Documented S5P reprocessing; flagged by Mao/Kim. Per-observation version is tracked (REQ-002).</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>A residual version step could be mistaken for activity change; mitigated by tracking/flagging version.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-002, EDGE-002</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">qa_value ≥ 0.75 default</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The default QA threshold is 0.75 (van Geffen/Beirle recommendation); ≥0.5 (Kim) is available with justification.</dd>
+            <dt>Reason</dt><dd>Standard for tropospheric NO₂; configurable.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Configurable; re-runnable.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-003</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">Acquire at 0.25° AOI buffer; derive tighter by clipping</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Acquisition uses the default 0.25° AOI; the 0.10° variant is derived later by clipping, so both buffers are testable from one acquisition.</dd>
+            <dt>Reason</dt><dd>Same overpasses regardless of buffer; only per-overpass pixel count differs.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Minor re-fetch if a larger buffer is later wanted.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-001</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Store L2 per-overpass here; grid later</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>This task keeps per-overpass L2-detail (incl. averaging kernel); gridding/oversampling and temporal compositing are NOX-002b.</dd>
+            <dt>Reason</dt><dd>Preserves control for Beirle-style attribution; keeps tasks small.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If openEO only returns pre-gridded output, the L2-kernel detail may be limited (ties to open Q1).</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-004</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="accepted-assumptions"><h2>Accepted assumptions</h2><p>Move here after explicit acceptance.</p></section>
+      <hr>
+      <section id="rejected-or-replaced-assumptions"><h2>Rejected or replaced assumptions</h2><p>Move here when rejected/replaced.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Do not implement while a blocking assumption is pending (none here).</li>
+          <li>Assumptions are not approved until the developer accepts them.</li>
+          <li>If implementation needs a new assumption, stop and update this file.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

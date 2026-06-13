@@ -11,5 +11,135 @@
     "rejected",
     "blocked"
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "id": "NOX-001",
+      "title": "CREA benchmark ingestion (Tangshan blast-furnace operating rate)",
+      "slug": "crea-benchmark-validation",
+      "description": "Ingest the Tangshan blast-furnace operating-rate benchmark from CREA's public WIND-sourced CSV: fetch, version a dated snapshot, parse (skip metadata headers, select the column by exact name), clean 0.00->NA, and emit a tidy parquet series plus retained auxiliary steel series. SCOPE NOTE: the spec also designed a validation/correlation module, but implementing it was premature because the NO2 predictor (attribution stage) does not exist yet to validate against. Validation was reverted to a scaffold and deferred to NOX-003 (post-attribution); the design remains recorded in the spec for reuse.",
+      "sdd": true,
+      "status": "done",
+      "spec_path": "specs/crea-benchmark-validation/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/crea-benchmark-validation/review.html",
+        "note": "Delivered scope: benchmark ingestion only. Validation modules reverted on 2026-06-13 as premature (no predictor yet)."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "README.md",
+        "literature/references.bib",
+        ".claude/context/project-map.md"
+      ],
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-002a",
+      "title": "TROPOMI NO2 acquisition + AOI subset + QA (via openEO)",
+      "slug": "tropomi-no2-acquisition",
+      "description": "Acquire Sentinel-5P/TROPOMI L2 tropospheric NO2 over the Tangshan AOI for the TROPOMI era (2019-01 -> present) using openEO server-side spatial subsetting (not full-granule download: ~3,734 overpasses x ~609 MB = ~2.2 TB avoided -> ~0.2-1 GB kept). Use OFFL + RPRO for a version-consistent record and track the processor version per observation; apply the QA filter (qa_value >= 0.75 default); retain tropospheric NO2 column, qa, cloud fraction, averaging kernel, geolocation, precision per overpass; track per-period valid-coverage fraction; idempotent/resumable. Includes a verification step: on clear-sky high-NO2 days, render the NO2 field over the AOI with facility locations overlaid (and an optional optical thumbnail) to confirm enhancements co-locate with the steel sub-clusters. Gridding/compositing is NOX-002b; attribution is NOX-003.",
+      "sdd": true,
+      "status": "done",
+      "spec_path": "specs/tropomi-no2-acquisition/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/tropomi-no2-acquisition/review.html",
+        "note": "29 tests, ruff clean. Live-verified 2026-06-13 with developer CDSE creds: SENTINEL_5P_L2 collection confirmed (1 band/request, time dim 't', no qa_value/kernel -> gridded; cloud-based filtering); fetched 2023-06-01..06 over the AOI and rendered 2023-06-04 -> NO2 elevated over the central steel corridor (diffuse/regional, consistent with sub-pixel + BTH background). Averaging kernel deferred to a future L2 path (NOX-003). See open Q1."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "docs/data-access.md",
+        ".claude/context/project-map.md",
+        "README.md"
+      ],
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-002b",
+      "title": "TROPOMI NO2 gridding + temporal compositing (analysis-ready cube)",
+      "slug": "tropomi-no2-gridding",
+      "description": "Assemble the per-overpass AOI NO2 from NOX-002a (already on a regular ~0.05x0.035 deg openEO grid) into a time-stacked, temporally-composited, coverage-screened analysis-ready cube in data/derived: harmonize overpasses onto a common grid, composite to a configured frequency (weekly default; monthly optional) by mean over valid cells, track per-cell and per-period valid-coverage, and apply the minimum-coverage threshold (cloud decision 2026-06-13) without interpolation. Because openEO already delivers a gridded product, this is harmonization + compositing, NOT swath oversampling (Beirle-style fine oversampling needs the raw L2 path, deferred to NOX-003). Also emits an interim AOI-mean weekly NO2 series (spatial mean, explicitly pre-attribution) matching the validation predictor contract, to enable a first end-to-end smoke of the validation engine. NO2-derived outputs are gitignored (not published). Resolution: native ~5 km (decision A, 2026-06-13) — adequate for the cluster signal.",
+      "sdd": true,
+      "status": "done",
+      "spec_path": "specs/tropomi-no2-gridding/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/tropomi-no2-gridding/review.html",
+        "note": "36 tests, ruff clean. Ran on the real (partial) store: weekly cube (232 slots) + interim AOI-mean series (76 rows), gitignored. Re-run 'noxus grid' after the full fetch completes; tune coverage thresholds (Q2) then."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        ".claude/context/project-map.md",
+        ".gitignore",
+        "decisions/architecture-decisions.md"
+      ],
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-003",
+      "title": "Steel-sector NO2 activity signal + validation vs CREA (relative-index attribution, v1)",
+      "slug": "steel-activity-attribution",
+      "description": "Derive a steel-sector activity signal for Tangshan from the gridded NO2 cube (NOX-002b) and validate it against the CREA blast-furnace operating-rate benchmark (NOX-001). v1 uses the RELATIVE-INDEX / cluster paradigm (Kim 2023), NOT flux divergence (Beirle, deferred to NOX-004). Pipeline: sample cells on a footprint around the steel facilities (data/derived/tangshan_steel_facilities.csv) rather than a flat AOI mean; subtract/normalize a regional background; apply meteorological normalization by ingesting ERA5 wind/PBL and regressing it out (Mao 2025 / Li 2024 approach) -- decided 2026-06-13 to mitigate the dominant weekly-ventilation confounder; deseasonalize (YoY/double-differencing or anchor normalization); emit a relative activity index; validate vs CREA with Pearson r + p-values and lead/lag tests; this revives the validation/correlation module deferred from NOX-001. REQUIREMENTS to treat explicitly: heating/non-heating confounder (steel NO2 share 42.5%->29.1%, SciRep 2024), policy/curtailment confounder (Li 2024), empirical sign verification for Tangshan (Montgomery 2018), attributable-fraction cap (~30-43%), relative (not absolute) signal due to TROPOMI low bias (-23..-33%). Success bar: r ~ 0.5-0.75 on deseasonalized series; honest NULL is an acceptable outcome (Morris&Zhang 2019). NO2-derived outputs gitignored.",
+      "sdd": true,
+      "status": "done",
+      "spec_path": "specs/steel-activity-attribution/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-13"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-06-13",
+        "report": "specs/steel-activity-attribution/review.html",
+        "note": "Approved-with-nits across phase 1 (T1-T4), phase 2 (T5-T14) and the post-review ERA5->CDS delta; all nits (N1-N3, D1-D2) resolved. 90 tests, ruff clean. ERA5 source = Copernicus CDS (server-side AOI subset, per-year requests; ARCO rejected). Deseason default = yoy (double-diff demoted). First real end-to-end run produced an HONEST NEAR-NULL: raw levels negative (retrofit decoupling, Li 2024); after yoy detrending monthly r~0.19 (peak +0.29 at lag +6 mo), below the 0.5-0.75 bar -> valid reported null (Montgomery/Morris&Zhang). See docs/preliminary-results.html."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "docs/data-access.md",
+        ".claude/context/project-map.md",
+        "README.md",
+        "literature/references.bib",
+        "docs/preliminary-results.html"
+      ],
+      "follow_ups": "Optional v2 / follow-ups (not blocking done): model the retrofit trend explicitly (Li 2024 activity/policy/meteo decomposition); flux-divergence point-source attribution (NOX-004); public curtailment calendar (Q6a); re-run the full chain after the complete TROPOMI fetch and tune footprint/coverage thresholds.",
+      "created": "2026-06-13"
+    },
+    {
+      "id": "NOX-004",
+      "title": "Flux-divergence point-source attribution (Beirle) -- deferred phase",
+      "slug": "flux-divergence-attribution",
+      "description": "DEFERRED future phase (decided 2026-06-13, phased-hybrid). Point-source NOx attribution via NO2 flux divergence (Beirle 2021/2023): flux = TVCD x ERA5 wind, divergence isolates the local source term, with chemical-loss and plume-height corrections (PAL product, v2). Requires a RAW L2 swath acquisition path (NOX-002a delivered the openEO gridded product, not raw swath needed for fine oversampling) plus ERA5 winds. Known to resolve poorly in high-background / complex-wind regions like industrial NE China -- expected to be hard at Tangshan; that risk is the reason it is a separate phase after the relative-index v1 (NOX-003) establishes whether any signal exists.",
+      "sdd": true,
+      "status": "blocked",
+      "blocked_reason": "Needs a raw L2 swath acquisition path + ERA5; sequenced after NOX-003 establishes signal feasibility.",
+      "spec_path": "specs/flux-divergence-attribution/",
+      "approval": {
+        "human_approved": false
+      },
+      "created": "2026-06-13"
+    }
+  ]
 }

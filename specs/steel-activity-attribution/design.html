@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Steel-sector NO₂ activity signal + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Steel-sector NO₂ activity signal + validation vs CREA</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Four pipeline stages, each behind a small data contract so each is testable in isolation, ending
+        in the revived validation engine. The chain realises the <strong>relative-index / cluster
+        paradigm</strong> (Kim 2023), <strong>not</strong> flux divergence (Beirle; deferred to NOX-004).</p>
+        <ol>
+          <li><strong>Attribution / footprint sampling</strong> (<code>noxus/attribution/source.py</code>):
+          read the NOX-002b weekly cube + facility CSV; build a footprint mask around operating facilities;
+          estimate a regional background from an annular ring; emit a per-period background-corrected
+          footprint signal with propagated coverage.</li>
+          <li><strong>Meteorological normalisation</strong> (new <code>noxus/data/era5.py</code> ingest +
+          residualisation in <code>noxus/signal/</code>): ingest ERA5 wind/PBL from the Copernicus CDS
+          (server-side AOI subset) to a dated snapshot; aggregate to the footprint + frequency; regress it out of the footprint signal.</li>
+          <li><strong>Index construction</strong> (<code>noxus/signal/index.py</code>): deseasonalise
+          (with an explicit heating-season term and curtailment exogenous control), normalise to a
+          relative index, record the attributable-fraction cap.</li>
+          <li><strong>Validation</strong> (<code>noxus/validation/</code>): align to CREA, verify the sign,
+          compute Pearson r + p, cross-correlation/lead-lag, emit results + a plain-language summary that
+          reports the null and classifies against the r≈0.5–0.75 bar.</li>
+        </ol>
+        <p>The validation stage <strong>revives the module reverted in NOX-001</strong>. The NOX-001
+        design specified a heavier econometric engine (STL/calendar deseasonalisation, ADF/KPSS
+        stationarity gate, VAR/VECM, pseudo-real-time OOS + Diebold–Mariano). For NOX-003 v1 the
+        <strong>headline tests are Pearson r + p and lead/lag</strong> as the task mandates; the heavier
+        OOS/DM machinery from NOX-001 is reusable but is treated as an <em>optional extension</em> here so
+        v1 first establishes whether any correlation exists at all (see Risks).</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="250" viewBox="0 0 720 250" aria-label="Steel activity signal data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="20" width="150" height="46" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="40" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">NO₂ cube (NOX-002b)</text>
+            <text x="83" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">weekly · no2+coverage</text>
+            <rect x="8" y="78" width="150" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="96" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">facilities.csv</text>
+            <text x="83" y="111" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">lat/lon/status</text>
+            <rect x="8" y="134" width="150" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="152" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">ERA5 (CDS)</text>
+            <text x="83" y="167" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">wind + PBL</text>
+            <rect x="8" y="190" width="150" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="208" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">CREA benchmark</text>
+            <text x="83" y="223" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">BF operating rate</text>
+
+            <line x1="158" y1="100" x2="196" y2="100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="198" y="60" width="160" height="80" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="278" y="82" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">footprint sample</text>
+            <text x="278" y="98" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ background subtract</text>
+            <text x="278" y="113" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ meteo regress-out</text>
+            <text x="278" y="128" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ deseasonalise</text>
+            <line x1="158" y1="156" x2="196" y2="120" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+
+            <line x1="358" y1="100" x2="396" y2="100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="398" y="74" width="140" height="52" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="468" y="96" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">relative index</text>
+            <text x="468" y="111" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ attrib-cap</text>
+
+            <line x1="538" y1="100" x2="576" y2="100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="158" y1="212" x2="576" y2="120" stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrowhead)"/>
+            <rect x="578" y="70" width="134" height="60" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="645" y="90" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#14532d">validate vs CREA</text>
+            <text x="645" y="105" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">sign · r/p · lead-lag</text>
+            <text x="645" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">→ report (incl. null)</text>
+            <text x="360" y="245" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">Dashed: the CREA benchmark feeds the validation engine.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Implements the scaffold modules <code>noxus/attribution/source.py</code> (footprint + background),
+        <code>noxus/signal/index.py</code> (meteo regress-out, deseasonalise, index), and the
+        <code>noxus/validation/</code> package (revived: alignment, sign, r/p, lead-lag, report). Adds
+        <code>noxus/data/era5.py</code> for ERA5 ingest and config in <code>noxus/config/run.py</code>.
+        Wires the existing <code>attribute</code>/<code>index</code>/<code>validate</code> CLI subcommands.
+        Reads the gitignored <code>data/derived/no2/</code> cube + committed
+        <code>data/derived/tangshan_steel_facilities.csv</code> + benchmark parquet; writes a new
+        gitignored ERA5 snapshot store and NO₂-derived signal/index outputs.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/attribution/source.py</code></td><td>implement</td><td>Footprint mask, background ring, background-corrected footprint signal (REQ-001..004).</td></tr>
+            <tr><td><code>noxus/data/era5.py</code></td><td>new</td><td>ERA5 ingest from the Copernicus CDS (server-side AOI subset) → dated snapshot; AOI/footprint aggregation (REQ-010).</td></tr>
+            <tr><td><code>noxus/signal/index.py</code></td><td>implement</td><td>Meteo regress-out, deseasonalise (+ heating term, curtailment control), relative index + cap (REQ-011,020,021,022,030,031).</td></tr>
+            <tr><td><code>noxus/validation/preprocess.py</code></td><td>new</td><td>Align index↔benchmark to common freq; coverage screening (REQ-040). Reuses NOX-001 design.</td></tr>
+            <tr><td><code>noxus/validation/leadlag.py</code></td><td>implement</td><td>Sign check, Pearson r + p, cross-correlation/lead-lag (REQ-041,042). Revives the NOX-001 scaffold.</td></tr>
+            <tr><td><code>noxus/validation/report.py</code></td><td>new</td><td>Results artifact + plain-language summary incl. null + bar classification (REQ-043,044).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>SignalConfig</code> + <code>ValidationConfig</code> (footprint, background, ERA5 vars/form, deseason method, lag window, cap, paths) (REQ-050).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>attribute</code>/<code>index</code>/<code>validate</code> to real functions; optional <code>ingest-era5</code> (REQ-050).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>ERA5 snapshot store + NO₂-derived signal/index outputs (NFR-004).</td></tr>
+            <tr><td><code>pyproject.toml</code></td><td>maybe</td><td>Add stats deps (<code>statsmodels</code>/<code>scipy</code>) and the CDS client (<code>cdsapi</code>); <code>xarray</code>/<code>h5netcdf</code> already present — developer-approved 2026-06-13.</td></tr>
+            <tr><td><code>tests/…</code></td><td>new</td><td>Synthetic-cube + planted-signal/planted-null fixtures.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/gridding.py</code> (NOX-002b)</td><td>Cube consumed read-only via its contract.</td></tr>
+            <tr><td><code>noxus/data/tropomi.py</code> (NOX-002a)</td><td>Acquisition not touched here.</td></tr>
+            <tr><td><code>noxus/data/benchmark.py</code> (NOX-001)</td><td>Benchmark consumed read-only via its parquet contract.</td></tr>
+            <tr><td><code>data/derived/tangshan_steel_facilities.csv</code></td><td>Input of record; read-only.</td></tr>
+            <tr><td><code>.env</code>, credential files</td><td>Protected; CDS credential <code>CDSAPI_KEY</code> read from <code>.env</code> by variable name only, never read/logged/committed.</td></tr>
+            <tr><td>Flux-divergence / raw-L2 modules</td><td>NOX-004; out of scope here.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob suggestion):</strong>
+        <code>noxus/attribution/**</code>, <code>noxus/signal/**</code>, <code>noxus/validation/**</code>,
+        <code>noxus/data/era5.py</code>, <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>,
+        <code>tests/**</code>, <code>.gitignore</code>, <code>pyproject.toml</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/attribution/source.py
+def load_facilities(csv: Path, active_status: set[str]) -> pd.DataFrame: ...
+def footprint_mask(cube: xr.Dataset, facilities: pd.DataFrame,
+                   radius_km: float) -> xr.DataArray: ...           # bool mask, dedup cells
+def background_ring(cube: xr.Dataset, footprint: xr.DataArray,
+                    inner_km: float, outer_km: float) -> xr.DataArray: ...
+def footprint_signal(cube: xr.Dataset, footprint, background,
+                     mode: str = "subtract") -> pd.DataFrame:       # date, no2_footprint, no2_bg,
+                                                                    #   no2_corrected, valid_coverage
+
+# noxus/data/era5.py
+def ingest_era5(cfg: SignalConfig, snapshot_dir: Path) -> Path: ...           # CDS server-side AOI subset -> dated .nc snapshot
+def era5_footprint_series(snapshot: Path, footprint, freq: str) -> pd.DataFrame:  # u10,v10,blh,...
+
+# noxus/signal/index.py
+def regress_out_meteo(signal: pd.Series, meteo: pd.DataFrame, form: str) -> pd.Series: ...
+def deseasonalize(s: pd.Series, method: str, heating_season: pd.Series,
+                  curtailment: pd.Series) -> pd.Series: ...
+def build_index(corrected_meteo_free: pd.Series, anchor: str,
+                attributable_cap: tuple[float, float]) -> pd.DataFrame:  # date, index_value, ...
+
+# noxus/validation/
+def align_series(index, benchmark, freq, min_coverage) -> pd.DataFrame: ...
+def verify_sign(index, benchmark) -> SignResult: ...
+def correlate(index, benchmark) -> CorrResult:        # pearson_r, p_value, n, ci
+def lead_lag(index, benchmark, max_lag) -> CCFResult: # peak_lag, peak_r, bounds
+def report(...) -> ReportArtifacts:                   # machine + plain-language; null + bar
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+steel_footprint_signal.parquet   # date, no2_footprint, no2_bg, no2_corrected, valid_coverage
+steel_activity_index.parquet     # date, index_value (relative/unitless), valid_coverage
+                                 #   attrs: footprint_radius_km, background_geom, meteo_form,
+                                 #          deseason_method, attributable_cap, processor_versions
+
+# data/raw/era5/  (gitignored)
+era5_<YYYY-MM-DD>.nc             # u10, v10, blh (+ configured vars) over AOI, dated snapshot (CDS subset)
+
+# data/derived/  (small summary — committable if it holds NO results field, only stats)
+steel_validation_results.json    # sign, pearson_r, p_value, ci, peak_lag, bar_class,
+                                 #   conclusion ("lead" | "concurrent" | "null"), config_echo
+steel_validation_summary.txt     # plain-language, states the null explicitly
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus ingest-era5                       # fetch ERA5 snapshot from the Copernicus CDS (cached)
+uv run noxus attribute                         # footprint sample + background -> footprint signal
+uv run noxus index                             # meteo regress-out + deseason + relative index
+uv run noxus validate                          # align + sign + r/p + lead-lag -> report (incl. null)
+uv run noxus index --no-meteo                  # skip meteo regress-out; deseason method is config-only
+uv run noxus validate --max-lag 8              # widen the lead-lag window
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored raw store <code>data/raw/era5/</code> (dated NetCDF snapshots) and new
+        gitignored derived NO₂ products under <code>data/derived/no2/</code> (footprint signal, index).
+        A small <code>data/derived/steel_validation_*</code> stats summary (no raw NO₂ field) may be
+        committed for the record. No database.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>This task adds a new external data dependency (ERA5 via the Copernicus CDS) and new Python
+        deps, so current-docs verification is required at implementation (not optional). To verify
+        before/while implementing:</p>
+        <table>
+          <thead><tr><th>External system / dependency</th><th>Docs to check (source, date)</th><th>Version constraints</th><th>Deprecated APIs avoided</th><th>Compatibility notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>ERA5 via Copernicus CDS</strong></td><td>The <em>new</em> <code>cds.climate.copernicus.eu/api</code> endpoint (legacy CDS API retired 2024–2025) via <code>cdsapi</code>, dataset <code>reanalysis-era5-single-levels</code>; server-side AOI subset. <strong>Verified live 2026-06-13</strong>: request accepted→successful, 42 KB for a 3-day AOI subset. Used by Beirle v2 / Mao 2025.</td><td>pin <code>cdsapi</code> via uv</td><td>Avoid the deprecated legacy CDS endpoint and old <code>cdsapi</code> URL/key format.</td><td>Free account + one-time licence acceptance required. Credential <code>CDSAPI_KEY</code> (+ optional <code>CDSAPI_URL</code>) read from <code>.env</code> by name only, never read/logged (protected area). Snapshots once; analysis reads only the snapshot.</td></tr>
+            <tr><td><strong>ERA5 request variables</strong></td><td>CDS request (long) names: <code>10m_u_component_of_wind</code> (u10), <code>10m_v_component_of_wind</code> (v10), <code>boundary_layer_height</code> (blh); optionally <code>2m_temperature</code>. CDS returns the short names in the NetCDF.</td><td>—</td><td>—</td><td>Hourly native; request the overpass-window hours (~05 UTC over Tangshan) and composite to weekly.</td></tr>
+            <tr><td><strong>statsmodels / scipy</strong></td><td>Verify current API for Pearson r (<code>scipy.stats.pearsonr</code> returns CI in recent versions), CCF, and any regression used.</td><td>pin via uv</td><td>Avoid deprecated kwargs.</td><td>Dependency approval pending (open question). NOX-001 already proposed <code>statsmodels</code>.</td></tr>
+            <tr><td>NOX-002b cube / NOX-001 benchmark</td><td>Internal contracts (verified in their specs).</td><td>n/a</td><td>n/a</td><td>Consumed read-only.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>One authenticated egress: ERA5 from the Copernicus CDS, using a free account credential read
+        from the environment / <code>.env</code> (<code>CDSAPI_KEY</code>, optional <code>CDSAPI_URL</code>;
+        ~/.cdsapirc as fallback) <strong>by variable name only — never read, logged, or committed</strong>
+        (protected-area policy). No other secrets; no remote mutations; NO₂-derived outputs and ERA5
+        snapshots are gitignored (not published).</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (attribution/signal/validation implemented; new ERA5 store),
+        <code>docs/data-access.md</code> (ERA5 access via the Copernicus CDS), a <code>docs/</code> methods note
+        (footprint+background, meteo regress-out, deseasonalisation, validation + the null/bar policy),
+        <code>.gitignore</code>, and possibly <code>references.bib</code> (ERA5) /
+        <code>README.md</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Footprint sampling</strong>: synthetic cube with known cell coordinates + a small
+          facility CSV (incl. a retired row and a co-located duplicate) → assert the mask selects exactly
+          the in-radius operating cells, dedup works, footprint value = manual mean (AT1).</li>
+          <li><strong>Background</strong>: planted background field → corrected signal equals manual
+          (footprint − ring); empty ring raises ERR-003 (AT2).</li>
+          <li><strong>Meteo regress-out</strong>: signal = activity + β·wind + noise (synthetic ERA5) →
+          residual recovers activity to tolerance; form recorded (AT3).</li>
+          <li><strong>Deseasonalise / confounders</strong>: planted seasonal term removed; heating-season
+          indicator + curtailment control present and recorded (AT4).</li>
+          <li><strong>Index</strong>: output is normalised/unitless, cap recorded, no absolute tonnage (AT5).</li>
+          <li><strong>Validation — planted signal &amp; planted null</strong>: benchmark = f(index at lag k)
+          + noise → recover sign, lag k, r in band; independent series → r≈0, p n.s., reports the null.
+          This is the headline determinism guarantee (AT6).</li>
+          <li><strong>Errors</strong>: missing cube/benchmark/ERA5; degenerate geometry; short sample
+          (AT-ERR-1).</li>
+          <li><strong>CLI</strong>: subcommands wired, config-driven, existing commands unchanged (AT-REG-1).</li>
+        </ul>
+        <p>Statistical correctness is tested via planted-signal and planted-null synthetic fixtures, never
+        by asserting on live data (which is non-deterministic). No network in tests (ERA5 mocked/synthetic).</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). Optional static diagnostic plot (deseasonalised index vs benchmark) for eyeballing only.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <p><strong>High-risk-category note for the reviewer:</strong> this task is a large, cross-cutting
+        feature that revives a reverted module and adds a new authenticated external data dependency
+        (ERA5 via the Copernicus CDS; credential handled by reference only).
+        The reviewer should apply the deep-review escalation ladder
+        (<code>reference/deep-review-policy.md</code>): scrutinise the statistical claims (no p-hacking
+        across the many configurable knobs), the relative-not-absolute discipline, the null-reporting path,
+        and the credential handling.</p>
+        <ul>
+          <li><strong>Confounding residue.</strong> Meteorology, heating-season source-share shift
+          (42.5%→29.1%, Wen 2024), and curtailments may not be fully removed; residual confounding can
+          masquerade as — or mask — a real signal. Mitigation: explicit controls (REQ-021/022), report
+          sensitivity to the covariate/knob set.</li>
+          <li><strong>Researcher degrees of freedom.</strong> Footprint radius, background geometry,
+          meteo form, deseason method and lag window are all tunable → risk of selecting a config that
+          manufactures a positive r. Mitigation: fix defaults before looking at the correlation, record
+          the full config in provenance, report the null honestly (NFR-003, Morris &amp; Zhang 2019).</li>
+          <li><strong>Sign instability.</strong> The NO₂↔activity sign is not fixed (Montgomery 2018);
+          v1 must verify it empirically (REQ-041) and accept a negative/insignificant outcome.</li>
+          <li><strong>Short / cloud-gapped sample.</strong> 2019→present weekly with coverage screening
+          limits power and lag orders. Mitigation: cap lags, report CIs/power, ERR-004 on too-short
+          overlap.</li>
+          <li><strong>Low bias + source mixing.</strong> TROPOMI −23…−33% in polluted air (Kondragunta
+          2021) and steel only ~30–43% of the column (Wen 2024) → strictly relative index, cap recorded
+          (REQ-030/031). <strong>Rejected:</strong> any absolute steel-tonnage claim.</li>
+          <li><strong>Paradigm risk (designed-around).</strong> The relative-index v1 may itself produce a
+          null; that is the explicit reason flux divergence is a <em>separate later phase</em> (NOX-004),
+          gated on whether v1 finds any signal. <strong>Rejected here:</strong> flux divergence / raw-L2
+          oversampling (out of scope, deferred).</li>
+          <li><strong>Validation depth trade-off.</strong> v1 leads with Pearson r + lead-lag per the task;
+          the heavier NOX-001 OOS+Diebold–Mariano engine is reusable but deferred to keep v1 focused on
+          "does a correlation exist at all". Risk: in-sample r alone over-claims → mitigated by the sign
+          check, CIs, null reporting, and the r≈0.5–0.75 bar classification.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: implements scaffold modules and new ERA5 ingest behind existing/new CLI subcommands;
+        no existing behaviour changes (the scaffolds currently only raise <code>NotImplementedError</code>).
+        Rollback = revert the feature branch and delete the gitignored ERA5 snapshots + NO₂-derived
+        signal/index outputs. If a new dependency proves problematic, it is removed and the affected
+        subcommand disabled, leaving NOX-001/002 intact.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOXUS — Preliminary result: steel NO₂ activity signal vs CREA</title>
+<style>
+  :root{--ink:#1b1f24;--muted:#5b6570;--line:#e3e7ec;--soft:#f6f7f9;--accent:#1f6feb;
+        --p1:#b3261e;--ok:#1a7f37;--warn:#9a3412;--warnbg:#fff4ed;--okbg:#eef8f0;--maxw:980px;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  header{padding:42px 0 24px;border-bottom:1px solid var(--line)}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{margin:8px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em}
+  h2{margin:34px 0 10px;font-size:21px}
+  h3{margin:22px 0 6px;font-size:16px}
+  p.lead{color:var(--muted);font-size:16.5px;max-width:760px}
+  .meta{color:#8a939d;font-size:13px;margin-top:12px}
+  figure{margin:18px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  figure img{width:100%;display:block}
+  figcaption{padding:10px 14px;font-size:13.5px;color:var(--muted);background:var(--soft);border-top:1px solid var(--line)}
+  .callout{border:1px solid #c5dcfb;background:#eaf2ff;border-radius:10px;padding:16px 18px;margin:18px 0}
+  .callout.warn{border-color:#f0d6c4;background:var(--warnbg)}
+  .callout.ok{border-color:#c5e6cf;background:var(--okbg)}
+  .callout h3{margin:0 0 6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:14px 0}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid #eef1f4}
+  th{background:var(--soft);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  td.neg{color:var(--p1);font-weight:700} td.pos{color:var(--ok);font-weight:700}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:.88em;background:var(--soft);padding:1px 5px;border-radius:4px}
+  pre{background:#0b1320;color:#d6e2f0;padding:14px 16px;border-radius:8px;overflow:auto;font-size:13px}
+  ul li{margin:5px 0}
+  footer{margin:40px 0;border-top:1px solid var(--line);padding-top:16px;color:#8a939d;font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="kicker">NOXUS · NOX-003 · preliminary result</span>
+  <h1>Does the Tangshan steel cluster's satellite NO₂ track blast-furnace activity?</h1>
+  <p class="lead">A first real, end-to-end run of the relative-index pipeline (TROPOMI NO₂ → steel-facility
+  footprint → background subtraction → ERA5 meteo control → deseasonalisation → relative index) validated
+  against the CREA blast-furnace operating rate, 2019–2026. The headline: the raw signal is dominated by a
+  policy-driven decline, and only a weak, below-bar activity signal survives detrending.</p>
+  <div class="meta">Generated 2026-06-13 · footprint radius 5 km (84 cells) · weekly cube (389 wks) · ERA5 via Copernicus CDS · benchmark CREA BF operating rate.
+  Reproduce: <code>uv run python analysis/preliminary_signal.py</code>. <strong>Preliminary — not the final NOX-003 result.</strong></div>
+</div></header>
+
+<div class="wrap">
+
+  <div class="callout warn">
+    <h3>One-sentence conclusion</h3>
+    <p>In Tangshan, satellite NO₂ over the steel cluster is dominated by a <strong>policy/technology-driven
+    decline</strong> (NO₂ falls while the blast-furnace rate holds — the Li 2024 confounder); after removing
+    that secular trend a <strong>faint, correctly-signed activity signal</strong> appears (monthly year-over-year
+    <strong>r ≈ 0.19, peak +0.29 at lag +6 mo</strong>) but stays <strong>below the literature bar (0.5–0.75)</strong>.
+    This is an honest, mechanistically-explained near-null — a valid project outcome (Montgomery 2018; Morris &amp; Zhang 2019),
+    not a pipeline failure.</p>
+  </div>
+
+  <h2>1 · The raw signal has the wrong sign — a secular decoupling</h2>
+  <p>At the level (no detrending), the footprint NO₂ and the BF operating rate are <strong>negatively</strong>
+  correlated (weekly r = −0.20, monthly r = −0.35, both significant). NO₂ declines across 2019–2026 while the
+  BF rate holds: the ultra-low-emission retrofit of Chinese steel cut NO₂ <em>per unit of output</em>, decoupling
+  the column from production exactly as Li 2024 documented for China's 2020–2022 NOₓ decline. This is a
+  confounder, not inverse causation.</p>
+  <figure><img src="figures/preliminary/fig1_decoupling.png" alt="NO2 level vs BF rate over time">
+    <figcaption>Fig 1 — Monthly NO₂ footprint (red, left) vs CREA BF operating rate (blue, right). The opposing
+    trends produce a spurious negative level correlation: NO₂ trends down (retrofits), the BF rate does not.</figcaption></figure>
+
+  <h2>2 · Detrending flips the sign positive — but only faintly</h2>
+  <p>Removing the annual cycle and secular trend with a year-over-year change recovers the <strong>expected
+  positive co-movement</strong>. It is weak and monthly &gt; weekly (Morris &amp; Zhang: weekly is noisy).</p>
+  <figure><img src="figures/preliminary/fig2_detrended.png" alt="yoy-detrended overlay">
+    <figcaption>Fig 2 — Standardised year-over-year change: NO₂ (red) vs BF rate (blue). A faint positive
+    co-movement emerges once the decoupling trend is removed.</figcaption></figure>
+  <figure><img src="figures/preliminary/fig3_scatter.png" alt="scatter yoy">
+    <figcaption>Fig 3 — Monthly yoy scatter with OLS fit: r ≈ 0.19 (p ≈ 0.10, n = 78). Positive but below the
+    0.5–0.75 bar a clean sector link would clear (Kim 2023; Kondragunta 2021).</figcaption></figure>
+  <figure><img src="figures/preliminary/fig4_leadlag.png" alt="lead-lag profile">
+    <figcaption>Fig 4 — Cross-correlation profile (monthly yoy): a peak of ≈ 0.29 at lag +6 months (NO₂ leading),
+    near the white-noise band — suggestive, not robustly significant.</figcaption></figure>
+
+  <h2>3 · The deseasonalisation method is decisive</h2>
+  <p>The first attempt used aggressive double-differencing and saw a flat null — an artefact, exactly as Kim 2023
+  warned (they used seasonal adjustment, not double-diff). Year-over-year and STL preserve the faint signal;
+  double-diff erases it. The default was changed from <code>yoy-double-diff</code> to <code>yoy</code>.</p>
+  <figure><img src="figures/preliminary/fig5_methods.png" alt="method comparison">
+    <figcaption>Fig 5 — Pearson r by deseasonalisation × frequency (no meteo). <code>none</code> = negative
+    (decoupling); <code>yoy</code>/<code>stl</code> = weak positive; <code>yoy-double-diff</code> = ≈0 (over-aggressive).
+    Shaded band = the literature target 0.5–0.75.</figcaption></figure>
+
+  <table>
+    <thead><tr><th>freq</th><th>meteo</th><th>deseason</th><th>n</th><th>r</th><th>p</th><th>peak lag·r</th></tr></thead>
+    <tbody>
+      <tr><td>weekly</td><td>no</td><td>none</td><td>377</td><td class="neg">−0.195</td><td>1.3e-4</td><td>4 · −0.27</td></tr>
+      <tr><td>weekly</td><td>no</td><td>yoy</td><td>325</td><td class="pos">+0.108</td><td>0.051</td><td>−8 · 0.13</td></tr>
+      <tr><td>weekly</td><td>no</td><td>stl</td><td>377</td><td>−0.006</td><td>0.91</td><td>—</td></tr>
+      <tr><td>weekly</td><td>no</td><td>yoy-double-diff</td><td>322</td><td>0.005</td><td>0.93</td><td>—</td></tr>
+      <tr><td>monthly</td><td>no</td><td>none</td><td>90</td><td class="neg">−0.351</td><td>7.0e-4</td><td>−6 · −0.50</td></tr>
+      <tr><td>monthly</td><td>no</td><td>yoy</td><td>78</td><td class="pos">+0.190</td><td>0.095</td><td>+6 · +0.29</td></tr>
+      <tr><td>monthly</td><td>no</td><td>stl</td><td>90</td><td class="pos">+0.133</td><td>0.21</td><td>+6 · +0.20</td></tr>
+      <tr><td>monthly</td><td>no</td><td>yoy-double-diff</td><td>77</td><td>0.036</td><td>0.76</td><td>—</td></tr>
+      <tr><td>monthly</td><td>yes</td><td>yoy</td><td>78</td><td class="pos">+0.189</td><td>0.098</td><td>+6 · +0.29</td></tr>
+      <tr><td>monthly</td><td>yes</td><td>stl</td><td>90</td><td class="pos">+0.152</td><td>0.15</td><td>+6 · +0.23</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--muted);font-size:14px">Meteo regress-out (ERA5 wind + boundary-layer height) barely moves the
+  result here — at monthly aggregation the dominant confounder is the secular trend, not week-to-week ventilation.</p>
+
+  <h2>4 · Footprint radius: tighter is better</h2>
+  <p>The signal is strongest at a tight footprint (5 km, 84 cells, r ≈ 0.19) and decays to ≈ 0 by 15 km (448 cells)
+  as background dilutes the steel term — consistent with the Kim/Parubets warning that source isolation, not maximal
+  coverage, matters. (The 15 km placeholder used in the very first run was diluting the signal.)</p>
+  <figure><img src="figures/preliminary/fig6_radius.png" alt="radius sensitivity">
+    <figcaption>Fig 6 — Footprint-radius sensitivity (monthly yoy). Smaller radius → stronger (still weak) signal.</figcaption></figure>
+
+  <div class="callout">
+    <h3>How this sits against the literature</h3>
+    <ul>
+      <li><strong>Li 2024</strong> — China's 2020–2022 NOₓ decline was policy-led, not activity-led. Our negative
+      level correlation is the same signature: retrofit-driven NO₂ decline decoupled from output.</li>
+      <li><strong>Kim 2023</strong> — raw column correlation is insignificant; signal needs source isolation +
+      seasonal adjustment; r ≈ 0.55–0.71 for a clean sector link. We confirm the raw/double-diff null and the
+      detrending sensitivity, but land below their band.</li>
+      <li><strong>Wen 2024</strong> — steel is only 30–43 % of Tangshan NO₂ (and seasonally varying); a hard cap on
+      how much of the column is attributable.</li>
+      <li><strong>Montgomery 2018 / Morris &amp; Zhang 2019</strong> — the link is not universal and results are
+      heterogeneous; reporting a well-explained null is legitimate.</li>
+    </ul>
+  </div>
+
+  <h2>5 · What could still move the needle (next)</h2>
+  <ul>
+    <li><strong>Model the retrofit trend explicitly</strong> (Li 2024 activity/policy/meteo decomposition) instead of
+    differencing it away — may sharpen the activity component rather than discard it.</li>
+    <li><strong>Flux-divergence point-source attribution</strong> (Beirle; deferred NOX-004) to isolate steel emitters
+    from the &gt;50 % non-steel background the footprint−ring still mixes in.</li>
+    <li>Confirm robustness at monthly with STL + an explicit curtailment calendar (Q6a).</li>
+  </ul>
+
+  <div class="callout ok">
+    <h3>Reproducibility</h3>
+    <p>Every execution mode is preserved and config-selectable (deseason ∈ {yoy, stl, yoy-double-diff, none};
+    frequency ∈ {weekly, monthly}; meteo on/off; footprint radius). Regenerate this entire page's figures + tables:</p>
+    <pre>uv run noxus ingest-benchmark      # CREA BF operating rate -> parquet
+uv run noxus grid                  # TROPOMI NO2 weekly cube
+uv run noxus ingest-era5           # ERA5 (Copernicus CDS, server-side AOI subset)
+uv run python analysis/preliminary_signal.py   # battery + figures -> docs/figures/preliminary/</pre>
+    <p style="margin:8px 0 0">Inputs (NO₂ cube, ERA5 snapshot, derived index) are gitignored; the figures, tables
+    and this page are committed as the publishable result.</p>
+  </div>
+
+  <footer>
+    NOXUS preliminary result · 2026-06-13 · figures: <code>docs/figures/preliminary/</code> · data: <code>analysis/preliminary_signal.py</code>.
+    Caveats: weekly cube is partial-to-present; footprint radius/coverage thresholds untuned beyond this sweep;
+    curtailment control not yet applied; meteo at overpass window only. Numbers are preliminary.
+  </footer>
+</div>
+</body>
+</html>

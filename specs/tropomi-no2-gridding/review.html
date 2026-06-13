@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — TROPOMI NO₂ gridding</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — TROPOMI NO₂ gridding + temporal compositing</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Feature slug</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Reviewer</th><td>reviewer (inline)</td></tr>
+        <tr><th>Review status</th><td><span class="badge badge-ok">approved — ran on real partial store</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Implemented?</th><th>Tested?</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002/005</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>gridding.load_overpass_cube</code>/<code>composite</code>/<code>build_cube</code>; <code>test_weekly_cube_equals_manual_means</code>, <code>test_build_cube_writes_outputs</code></td></tr>
+            <tr><td><span class="req-id">REQ-003/004</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td>coverage layer + cell/period threshold, no interpolation; <code>test_coverage_and_threshold_masking_no_interpolation</code></td></tr>
+            <tr><td><span class="req-id">REQ-010/011</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>aoi_mean_series</code> + <code>kind=naive_aoi_mean_pre_attribution</code>; <code>test_aoi_mean_series_is_spatial_mean_and_labelled</code></td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td>CLI <code>grid</code>; <code>test_grid_builds_cube_from_store</code></td></tr>
+            <tr><td><span class="req-id">ERR-001/002</span></td><td class="ok">Yes</td><td class="ok">Yes</td><td><code>GriddingError</code>; <code>test_empty_store_raises</code>, <code>test_grid_mismatch_raises</code></td></tr>
+            <tr><td><span class="req-id">NFR-002</span></td><td class="ok">Yes</td><td class="ok">n/a</td><td><code>data/derived/no2/</code> gitignored</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <pre><code>uv run pytest        # 36 passed
+uv run ruff check .  # All checks passed!
+uv run noxus grid    # real partial store -> cube: 232 weekly periods; interim AOI series 76 rows
+                     #   (2019-01-06..2023-06-11; gaps where the fetch hasn't reached yet)</code></pre>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <div class="collapsible-section"><button class="collapse-btn" type="button"><span class="arrow">▾</span> Blocking findings</button>
+          <div class="collapse-body"><p><code>None</code>.</p></div></div>
+        <div class="collapsible-section"><button class="collapse-btn" type="button"><span class="arrow">▾</span> Non-blocking findings</button>
+          <div class="collapse-body">
+            <div class="req-row edge"><span class="req-id edge">NBK-1</span><span>The real cube is <strong>partial</strong> (the full fetch is still running): 232 weekly slots span 2019→2023-06 but only ~76 weeks currently have enough coverage. Re-run <code>noxus grid</code> after the fetch completes to fill the cube — idempotent, just rebuilds.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-2</span><span>Compositing not oversampling (native ~5 km) — recorded as a decision (2026-06-13). Cloud-band per-pixel coverage is lower than NO₂; coverage/threshold use NO₂ validity, cloud is context.</span></div>
+            <div class="req-row edge"><span class="req-id edge">NBK-3</span><span>The interim AOI-mean series is a naive spatial mean (labelled <code>kind=naive_aoi_mean_pre_attribution</code>); it is NOT attribution and must not be presented as the predictor (that is NOX-003).</span></div>
+          </div></div>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <table><thead><tr><th>Decision</th><th>Selected</th></tr></thead>
+        <tbody><tr><td><span class="badge badge-warning">required</span></td><td>☑</td></tr><tr><td><span class="badge badge-ok">not required</span></td><td>☐</td></tr></tbody></table>
+        <table><thead><tr><th>Target</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>.claude/context/project-map.md</code> (gridding + grid command)</td><td class="ok">Updated</td></tr>
+          <tr><td><code>.gitignore</code> (<code>data/derived/no2/</code>)</td><td class="ok">Updated</td></tr>
+          <tr><td><code>decisions/architecture-decisions.md</code> (native res / compositing)</td><td class="ok">Added</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <p><span class="badge badge-ok">approved → done (2026-06-13)</span> — 36 tests, lint clean, and run on the real (partial) store: weekly cube + interim AOI-mean series produced and gitignored. Follow-up (not blocking): re-run <code>noxus grid</code> once the full fetch finishes; tune coverage thresholds (Q2) against the complete coverage distribution.</p>
+      </section>
+
+      <section id="notes">
+        <h2>Notes</h2>
+        <p>Q1 (resolution) resolved as A (native ~5 km). Q2 (thresholds) and Q3 (emit interim series)
+        accepted with defaults on 2026-06-13.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

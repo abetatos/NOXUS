@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — TROPOMI NO₂ gridding</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — TROPOMI NO₂ gridding</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-002b</code></td></tr>
+        <tr><th>Feature slug</th><td><code>tropomi-no2-gridding</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark complete with <code>class="done"</code> on the <code>&lt;li&gt;</code>.</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Add <code>GriddingConfig</code> (REQ-020).</strong></div>
+            <div class="task-item-body">freq (default W), min_coverage (period + cell), target grid (default native), raw_dir, out_dir.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Tests: synthetic per-overpass store fixture.</strong></div>
+            <div class="task-item-body">Write a few NetCDFs with known values/dates + manifest; basis for AT1-AT3.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Implement <code>load_overpass_cube</code> (REQ-001).</strong></div>
+            <div class="task-item-body">Read via manifest; stack on common grid; resample to target only if grids differ (ERR-002 if irreconcilable).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Implement <code>composite</code> + coverage + threshold (REQ-002/003/004).</strong></div>
+            <div class="task-item-body">resample(time=freq).mean() over valid; coverage per cell/period; mask below min_coverage; no interpolation.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Implement <code>aoi_mean_series</code> (REQ-010/011).</strong></div>
+            <div class="task-item-body">Spatial mean over valid cells per period; predictor-contract columns; "naive, not attribution" label in attrs.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Implement <code>build_cube</code> + write outputs (REQ-005).</strong></div>
+            <div class="task-item-body">Write NetCDF cube + parquet series to <code>data/derived/no2/</code> with provenance.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>gitignore NO₂ outputs (NFR-002).</strong></div>
+            <div class="task-item-body">Add <code>data/derived/no2/</code> to <code>.gitignore</code>.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Error handling (ERR-001/002).</strong></div>
+            <div class="task-item-body">Empty store message; irreconcilable-grid error.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Wire CLI <code>grid</code> (REQ-020) + smoke test.</strong></div>
+            <div class="task-item-body">Config-driven; CLI smoke on the synthetic store.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Run validation (AC-005).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Real cube on the acquired store + docs.</strong></div>
+            <div class="task-item-body">Build the cube from <code>data/raw/tropomi</code> once the fetch has enough data; update project map / .gitignore / docs; propose decision (compositing-not-oversampling).</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Requirements covered by tests.</li>
+          <li><input type="checkbox" disabled> Tests + lint pass.</li>
+          <li><input type="checkbox" disabled> No interpolation across cloud gaps (cloud decision).</li>
+          <li><input type="checkbox" disabled> NO₂ outputs gitignored (not published).</li>
+          <li><input type="checkbox" disabled> Interim AOI series clearly labelled pre-attribution.</li>
+          <li><input type="checkbox" disabled> Reviewer approved traceability; docs decision recorded.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

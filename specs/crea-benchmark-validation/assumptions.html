@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — CREA benchmark + validation</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — CREA benchmark + validation</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>CREA benchmark ingestion + NO₂ activity-signal validation</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>crea-benchmark-validation</code></td></tr>
+          <tr><th>Source document</th> <td><code>conversation 2026-06-13 (developer)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-001</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-06-13</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records assumptions made while converting the discussion into this spec. They are explicit and
+        reviewable; accept, correct, or remove each before implementation.</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table>
+          <thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">3</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">3</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header"><span class="req-id">A1</span>
+            <span class="card-title">Analysis frequency is weekly</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The common analysis frequency is weekly, matching the CREA Tangshan operating-rate cadence; NO₂ is aggregated up to weekly.</dd>
+            <dt>Reason</dt><dd>Benchmark is weekly; weekly maximizes overlapping observations given the short TROPOMI record (2018→).</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>Monthly would more than halve sample size and weaken power; sub-weekly is impossible for the benchmark.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-010</dd>
+            <dt>Related design sections</dt><dd>Technical summary; preprocess.align_series</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a2">
+          <div class="card-header"><span class="req-id">A2</span>
+            <span class="card-title">Tangshan BF operating rate is the primary benchmark</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The headline dependent variable is <code>China: Tangshan: Operating Rate of Blast Furnaces</code>; national crude-steel and daily pig-iron are secondary/robustness controls.</dd>
+            <dt>Reason</dt><dd>It is the only series geolocated to the study cluster; matches the project's single-cluster framing.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Would change the dependent variable, but the pipeline is column-agnostic.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-003, REQ-006</dd>
+            <dt>Related design sections</dt><dd>Interfaces (Schema)</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header"><span class="req-id">A3</span>
+            <span class="card-title">0.00 means "not reported", not a real zero</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>In the CREA CSV, <code>0.00</code> in the Tangshan operating-rate column is a placeholder for dates where the weekly series does not report (the file is the union of daily and weekly cadences) and must be treated as <code>NA</code>.</dd>
+            <dt>Reason</dt><dd>A 0% blast-furnace operating rate for the whole cluster is physically implausible; inspection on 2026-06-13 showed interleaved 0.00 rows on non-reporting dates.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If a genuine 0 ever occurred it would be dropped; acceptable given implausibility. Treating placeholders as real zeros would badly bias the series.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-004, EDGE-001</dd>
+            <dt>Related design sections</dt><dd>parse + clean</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a4">
+          <div class="card-header"><span class="req-id">A4</span>
+            <span class="card-title">CREA CSV snapshot is the source-of-record</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>We treat a dated, committed snapshot of the CREA CSV as the reproducible source-of-record, rather than scraping CREA HTML or licensing a commercial API.</dd>
+            <dt>Reason</dt><dd>The CSV is public, clean, contains the exact series, and is far more stable than HTML scraping; commercial APIs violate the public/free constraint.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If the sheet disappears, future refreshes break — but committed snapshots preserve reproducibility of past results.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-001, NFR-001, NFR-002</dd>
+            <dt>Related design sections</dt><dd>Risks and trade-offs</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a5">
+          <div class="card-header"><span class="req-id">A5</span>
+            <span class="card-title">STL is the default deseasonalization</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Default deseasonalization is STL, with calendar dummies as a configurable alternative.</dd>
+            <dt>Reason</dt><dd>STL handles evolving seasonality and is standard; the method is recorded per run (REQ-011).</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Method is configurable; switching is cheap.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-011</dd>
+            <dt>Related design sections</dt><dd>preprocess.deseasonalize</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header"><span class="req-id">A6</span>
+            <span class="card-title">Single-cluster, single-benchmark scope</span>
+            <span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>This feature targets Tangshan only and one benchmark series; multi-cluster generalization is out of scope.</dd>
+            <dt>Reason</dt><dd>Matches the project's stated single-cluster framing; keeps the spec small.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>None now; design keeps AOI and column configurable for later reuse.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-030</dd>
+            <dt>Related design sections</dt><dd>Project map references</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+      <section id="accepted-assumptions"><h2>Accepted assumptions</h2><p>Move assumptions here after the developer explicitly accepts them.</p></section>
+      <hr>
+      <section id="rejected-or-replaced-assumptions"><h2>Rejected or replaced assumptions</h2><p>Move assumptions here when the developer rejects or replaces them.</p></section>
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>.</li>
+            <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
+            <li>If an assumption affects security, permissions, deletion, billing, public API, or irreversible migrations, prefer moving it to <code>open-questions.html</code>.</li>
+            <li>If implementation needs a new assumption, stop and update this file.</li>
+            <li>If assumptions contradict <code>requirements.html</code> or <code>design.html</code>, stop and ask.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

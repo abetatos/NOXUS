@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Steel-sector NO₂ activity signal</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Steel-sector NO₂ activity signal + validation</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>steel-activity-attribution</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-003</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit, reviewable assumptions behind this spec. The scope decisions (relative-index paradigm; meteo in scope; footprint sampling; flux divergence deferred) were developer-locked 2026-06-13 and are recorded as accepted, not re-opened here.</p></section>
+      <hr>
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table><thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody><tr><td>Low</td><td style="text-align:right">2</td></tr><tr><td>Medium</td><td style="text-align:right">4</td></tr><tr><td>High</td><td style="text-align:right">1</td></tr></tbody></table>
+        <p><strong>Blocking assumptions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-low" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">Relative-index paradigm for v1 (locked)</span><span class="badge badge-ok">Accepted</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>v1 uses the relative-index / cluster-attribution blueprint (Kim 2023); flux divergence (Beirle) is deferred to NOX-004.</dd>
+            <dt>Reason</dt><dd>Developer-locked decision 2026-06-13; flux divergence needs raw L2 and resolves poorly in high-background NE China.</dd>
+            <dt>Risk level</dt><dd>Low (decision locked)</dd>
+            <dt>Impact if wrong</dt><dd>n/a — explicitly chosen; NOX-004 revisits.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>Summary, REQ-030</dd>
+            <dt>Developer decision</dt><dd>Accepted 2026-06-13</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Footprint sampling beats a flat AOI mean</span><span class="badge badge-ok">Accepted</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Sampling cells on a facility footprint + subtracting a regional background isolates the cluster signal better than the naive AOI mean (NOX-002b interim series).</dd>
+            <dt>Reason</dt><dd>Developer-locked 2026-06-13; Kim 2023 "isolate source from background".</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>At ~5 km native resolution the footprint may still be background-dominated; tune radius/geometry (open questions) and report sensitivity.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-002, REQ-003</dd>
+            <dt>Developer decision</dt><dd>Accepted 2026-06-13</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">ERA5 (Copernicus CDS) is the meteo normalisation source</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>ERA5 10 m wind + boundary-layer height is sufficient for the meteo regress-out, ingested to a dated snapshot from the Copernicus CDS (<code>reanalysis-era5-single-levels</code>, server-side AOI subset). Exact variables/levels and regression form are open questions.</dd>
+            <dt>Reason</dt><dd>Developer-locked that meteo is in scope (2026-06-13); ERA5 is the standard public reanalysis used by Beirle v2 / Mao 2025. Source set to CDS (2026-06-13): ARCO chunk-1 downloads full global fields per timestep (~30–760 GB for the AOI series), so CDS server-side subsetting (~MB) is the right access pattern. Free CDS account credential read by name from <code>.env</code>; one-time licence acceptance required.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If ERA5 access/latency or variable choice is wrong, meteo control is weakened; mitigated by snapshotting and configurable variable set.</dd>
+            <dt>Blocks implementation</dt><dd>No (default variable set assumed; refine in T5)</dd>
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011</dd>
+            <dt>Developer decision</dt><dd>Pending (variables/form)</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">Active-status filter on facilities</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Only facilities with <code>status ∈ {operating, operating pre-retirement}</code> define the footprint; <code>retired</code>/<code>cancelled</code> are excluded. The CSV is a static snapshot (status as-of compile date, not time-varying).</dd>
+            <dt>Reason</dt><dd>Retired/cancelled plants should not contribute current NOₓ; the CSV has no per-date status history.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>A plant retired mid-record (or restarted) would bias the footprint over part of the window; static status is a known limitation to note in the report.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-001</dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Validation leads with Pearson r + lead-lag (NOX-001 OOS deferred)</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>v1's headline tests are Pearson r + p and cross-correlation/lead-lag (as the task states). The heavier NOX-001 engine (ADF/KPSS, VAR/VECM, pseudo-real-time OOS + Diebold–Mariano) is reusable but treated as an optional extension, not required for v1.</dd>
+            <dt>Reason</dt><dd>The task specifies r + p-values + lead/lag; v1 first establishes whether any correlation exists before investing in OOS skill testing.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>In-sample r can over-claim; mitigated by the sign check, CIs, null reporting and the r-bar classification. If the developer wants OOS/DM in v1, scope expands.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-042, REQ-043, REQ-044</dd>
+            <dt>Developer decision</dt><dd>Pending — confirm v1 stops at r + lead-lag or includes OOS/DM.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">NO₂-derived signal/index + ERA5 are gitignored</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Footprint signal, index, and ERA5 snapshots are gitignored (derived from downloaded data); only a small stats-only validation summary may be committed.</dd>
+            <dt>Reason</dt><dd>Consistent with the NOX-002b no-publish-downloaded-data decision.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Remove the ignore rule if publishing is later desired.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>NFR-004</dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-high" id="a7">
+          <div class="card-header"><span class="req-id">A7</span><span class="card-title">A curtailment calendar is obtainable as a public series</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Tangshan production-curtailment periods can be assembled from public CREA/Mysteel-style reporting into an exogenous control series at weekly resolution.</dd>
+            <dt>Reason</dt><dd>Required to control the policy confounder (Li 2024); curtailments are widely reported for Tangshan.</dd>
+            <dt>Risk level</dt><dd>High — if no clean public calendar exists, the policy control is degraded to a coarse proxy.</dd>
+            <dt>Impact if wrong</dt><dd>Without it the indicator can invert (controls cut NOₓ while output rises). Mitigation: if unavailable, document the gap and report results as conditional; possibly use the CREA BF-starting-rate aux series as a proxy.</dd>
+            <dt>Blocks implementation</dt><dd>No (degrades gracefully) — but materially affects interpretation.</dd>
+            <dt>Related requirements</dt><dd>REQ-022</dd>
+            <dt>Developer decision</dt><dd>Pending — confirm the curtailment source.</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="accepted-assumptions"><h2>Accepted assumptions</h2><p>A1, A2 accepted via the developer scope lock (2026-06-13).</p></section>
+      <hr>
+      <section id="rejected-or-replaced-assumptions"><h2>Rejected or replaced assumptions</h2><p>Rejected: flat-AOI-mean as the predictor (replaced by footprint sampling, A2); absolute steel-tonnage attribution (replaced by relative index, REQ-030); flux-divergence attribution in v1 (deferred to NOX-004).</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>No blocking assumptions; none pending blocks implementation, but A3/A5/A7 affect interpretation — confirm with the developer at approval.</li>
+          <li>Do not re-open the locked scope (A1, A2, meteo-in-scope, footprint).</li>
+          <li>If implementation needs a new assumption, stop and update this file.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

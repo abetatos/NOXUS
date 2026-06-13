@@ -93,7 +93,85 @@
 
     <!-- INSERT-ENTRY-HERE -->
 
-    <p style="color: var(--c-text-muted); font-style: italic;">No entries yet.</p>
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-warning">in progress</span>
+        <span class="entry-title">NOX-003 — Steel NO₂ activity signal + validation (preliminary real result)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>in_progress — code complete (T1–T14) + reviewed; first real end-to-end run done. Final close (T15: docs + decisions + re-review of the ERA5 change) pending.</dd>
+        <dt>Spec</dt>              <dd><code>specs/steel-activity-attribution/</code></dd>
+        <dt>Preliminary result</dt><dd><strong><code>docs/preliminary-results.html</code></strong> (with figures). Pipeline: TROPOMI NO₂ → steel-facility footprint (5 km) → background ring → ERA5 meteo regress-out → deseasonalise → relative index → validate vs CREA BF operating rate, 2019–2026.</dd>
+        <dt>Finding</dt>           <dd><strong>Honest near-null with a clear confounder.</strong> Raw levels: NO₂ <em>negatively</em> correlated with the BF rate (monthly r=−0.35) — a policy/retrofit-driven NO₂ decline decoupled from output (Li 2024). After year-over-year detrending the sign flips <em>positive</em> but weak (monthly r≈0.19, peak +0.29 at lag +6 mo), <strong>below the 0.5–0.75 literature bar</strong> (Kim 2023). Tighter footprint (5 km) beats 15 km; double-differencing erases the signal (Kim warning).</dd>
+        <dt>Decisions</dt>        <dd>ERA5 source = <strong>Copernicus CDS</strong> (server-side AOI subset) — ARCO-ERA5 Zarr considered and rejected (chunk-1 downloads global fields, ~30–760 GB). Deseasonalisation default <strong>yoy</strong> (double-diff demoted; stl/none kept). Both recorded in <code>decisions/architecture-decisions.md</code> + spec Q3/Q4.</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/data/era5.py</code> (CDS-only ingest), <code>noxus/signal/index.py</code> (yoy/stl methods), <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>, <code>noxus/validation/*</code>; <code>analysis/preliminary_signal.py</code> (reproducible); <code>docs/preliminary-results.html</code> + <code>docs/figures/preliminary/*</code>; tests across <code>tests/{data,signal,validation,cli}/</code>; deps scipy/statsmodels/cdsapi (gcsfs/zarr removed with ARCO).</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 90 passed; <code>uv run ruff check .</code> → clean. CDS path verified live (42 KB / 3-day probe; full era 8148 hourly steps, 3.8 MB).</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approve-with-nits</span> phase 1 (T1–T4) &amp; phase 2 (T5–T14); nits fixed. <strong>ERA5 source switch (CDS-only) is post-review → re-review of that change pending at T15.</strong></dd>
+        <dt>Follow-ups</dt>        <dd>T15: model the retrofit trend explicitly (Li 2024); flux-divergence NOX-004; curtailment calendar (Q6a); then mark done. Result may stand as a publishable honest null (Montgomery/Morris&amp;Zhang).</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-002b — TROPOMI NO₂ gridding / temporal compositing</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — ran on the real (partial) store</dd>
+        <dt>Spec</dt>              <dd><code>specs/tropomi-no2-gridding/</code></dd>
+        <dt>Summary</dt>          <dd>Composite the NOX-002a per-overpass NO₂ (already on the ~5 km openEO grid) into an analysis-ready weekly cube: stack overpasses → weekly mean over valid cells → coverage layer + minimum-coverage threshold (no interpolation) → NetCDF cube + an interim AOI-mean series (naive spatial mean, labelled pre-attribution). Because openEO delivers a gridded product, this is temporal compositing, not swath oversampling.</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/data/gridding.py</code> (new), <code>noxus/config/run.py</code> (GriddingConfig), <code>noxus/config/__init__.py</code>, <code>noxus/cli/main.py</code> (grid), <code>tests/data/test_gridding.py</code> + CLI test, <code>.gitignore</code> (data/derived/no2/), project map, decisions.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 36 passed; <code>uv run ruff check .</code> → clean; <code>noxus grid</code> on the real partial store → cube (232 weekly slots) + AOI series (76 rows).</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> — see <code>review.html</code></dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13</dd>
+        <dt>Docs updated</dt>      <dd>project map, .gitignore, decision (native res / compositing-not-oversampling)</dd>
+        <dt>Decisions recorded</dt><dd>Native ~5 km; gridding = temporal compositing, not swath oversampling; fine ~1 km deferred to L2 (2026-06-13)</dd>
+        <dt>Follow-ups</dt>        <dd>Re-run <code>noxus grid</code> after the full 2019→2026 fetch completes; tune coverage thresholds (Q2). Next: NOX-003 attribution (the real predictor; may need the L2 path).</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-002a — TROPOMI NO₂ acquisition (openEO)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — live-verified 2026-06-13 (real AOI fetch + clear-day render reviewed)</dd>
+        <dt>Spec</dt>              <dd><code>specs/tropomi-no2-acquisition/</code></dd>
+        <dt>Summary</dt>          <dd>Acquire S5P L2 NO₂ over the Tangshan AOI via openEO server-side subsetting (avoids ~2.2 TB → ~0.2–1 GB), auth from <code>.env</code> by CDSE password grant with interactive fallback; QA ≥ 0.75; per-overpass store with coverage + processor version; resumable manifest. Verification module renders NO₂-over-AOI with facility overlay on clear high-NO₂ days (optional Sentinel-2 thumbnail). Network/openEO behind a Fetcher seam so the logic is unit-tested without credentials.</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/data/tropomi.py</code> (implemented), <code>noxus/data/verify_no2.py</code> (new), <code>noxus/config/run.py</code> (AcquisitionConfig), <code>noxus/config/__init__.py</code>, <code>noxus/cli/main.py</code> (fetch + verify-no2), tests under <code>tests/data</code>/<code>tests/cli</code>, <code>pyproject.toml</code>/<code>uv.lock</code> (openeo, matplotlib, h5netcdf, h5py), <code>docs/data-access.md</code>, project map, README status.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 29 passed; <code>uv run ruff check .</code> → clean (openEO + auth mocked).</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved (live-verified)</span> — see <code>review.html</code></dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13</dd>
+        <dt>Docs updated</dt>      <dd>docs/data-access.md (openEO acquisition + commands), project map, README status</dd>
+        <dt>Decisions recorded</dt><dd>openEO acquisition + password-grant auth (2026-06-13, architecture-decisions.md)</dd>
+        <dt>Follow-ups</dt>        <dd>Acquire the full 2019→2026 record (<code>noxus fetch</code>, batched/resumable). Next features: NOX-002b gridding/compositing; NOX-003 attribution (will need an L2 path with averaging kernel — not exposed by the openEO collection). Q1 noted: no qa_value/kernel via openEO; cloud-based filtering used.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-001 — CREA benchmark ingestion</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done (scope reduced — see note)</dd>
+        <dt>Spec</dt>              <dd><code>specs/crea-benchmark-validation/</code></dd>
+        <dt>Summary</dt>           <dd>Ingest the weekly Tangshan blast-furnace operating-rate benchmark from CREA's public WIND-sourced CSV: dated snapshot → parse (skip metadata headers, select column by exact name) → clean 0.00→NA → tidy parquet + retained auxiliary steel series.</dd>
+        <dt>Scope note</dt>        <dd>The spec also designed a validation/correlation engine and it was initially implemented, but that was <strong>premature</strong>: the NO₂ predictor (attribution stage) does not exist yet, so there was nothing real to validate (it only ran on synthetic fixtures). On 2026-06-13 the validation modules were <strong>reverted to scaffold</strong> at the developer's request; the design remains recorded in the spec for reuse. Validation is deferred to a post-attribution task (NOX-003).</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/data/benchmark.py</code> (implemented), <code>noxus/config/run.py</code> (new, BenchmarkConfig), <code>noxus/config/__init__.py</code>, <code>noxus/cli/main.py</code> (ingest-benchmark), <code>tests/data/test_benchmark.py</code> + <code>tests/cli/test_cli.py</code> + fixture, README, <code>literature/references.bib</code>, <code>.claude/context/project-map.md</code>. (Reverted: validation modules, statsmodels dep, docs/validation-methods.md — net-zero on pyproject/uv.lock.)</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 13 passed; <code>uv run ruff check .</code> → clean; CLI verified: <code>noxus ingest-benchmark --from-snapshot</code> writes the tidy parquet.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> (benchmark ingestion; see <code>review.html</code>)</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13 (spec approved before implementation)</dd>
+        <dt>Docs updated</dt>      <dd>README (Data sources + provenance), references.bib (crea_steel_benchmark), project map</dd>
+        <dt>Decisions recorded</dt><dd>Cloud-handling (2026-06-13), benchmark source-of-record (entry A), OOS Diebold–Mariano standard (entry B, recorded as a forward-looking principle) — all in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Follow-ups</dt>        <dd>Next: <strong>NO₂ attribution</strong> (the predictor — fetch TROPOMI + flux-divergence). Then NOX-003: rebuild the validation engine from the recorded design and run it against the real predictor.</dd>
+      </dl>
+    </div>
   </section>
 
 </body>
