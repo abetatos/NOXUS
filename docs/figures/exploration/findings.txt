@@ -1,0 +1,47 @@
+DEEP EXPLORATION — findings
+============================================================
+
+[1] Inferred NO2->BF lag (peak |r| cross-correlation):
+  weekly  no2_level  lag0 r=-0.22 | best lag +4 r=-0.28 (NO2 leads, SIG)
+  weekly  no2_resid  lag0 r=+0.07 | best lag -3 r=+0.10 (BF leads, SIG)
+  weekly  no2_yoy    lag0 r=+0.10 | best lag -8 r=+0.11 (BF leads, SIG)
+  weekly  no2_stl    lag0 r=-0.03 | best lag -14 r=-0.08 (BF leads, ns)
+  monthly no2_level  lag0 r=-0.38 | best lag -6 r=-0.50 (BF leads, SIG)
+  monthly no2_resid  lag0 r=+0.13 | best lag -1 r=+0.18 (BF leads, ns)
+  monthly no2_yoy    lag0 r=+0.16 | best lag +6 r=+0.24 (NO2 leads, SIG)
+  monthly no2_stl    lag0 r=+0.09 | best lag +6 r=+0.19 (NO2 leads, ns)
+
+[2] Strongest correlations at lag 0 (monthly, |r|>=0.3, excl. self):
+  crude_steel  ~ pig_iron      r=+0.95
+  ret_BHP      ~ ret_RIO       r=+0.85
+  no2_level    ~ no2_resid     r=+0.78
+  ret_RIO      ~ ret_VALE      r=+0.76
+  no2_resid    ~ no2_stl       r=+0.75
+  no2_resid    ~ no2_yoy       r=+0.73
+  no2_stl      ~ no2_yoy       r=+0.71
+  ret_BHP      ~ ret_VALE      r=+0.70
+  ret_SLX      ~ ret_VALE      r=+0.64
+  no2_level    ~ no2_yoy       r=+0.59
+  no2_level    ~ no2_stl       r=+0.57
+  bf_start_247 ~ pig_iron      r=+0.56
+  ret_BHP      ~ ret_SLX       r=+0.55
+  bf_start_247 ~ crude_steel   r=+0.51
+  ret_RIO      ~ ret_SLX       r=+0.48
+
+[3] Economy linkage (steel driver -> miner abnormal return, peak lead-lag):
+  weekly  no2_resid  -> ret_VALE lag -3 r=-0.15 (return leads)
+  weekly  bf_change  -> ret_SLX  lag +6 r=-0.14 (driver leads)
+  weekly  no2_resid  -> ret_SLX  lag -6 r=-0.12 (return leads)
+  weekly  bf_change  -> ret_VALE lag -6 r=+0.12 (return leads)
+  weekly  bf_change  -> ret_BHP  lag -7 r=-0.11 (return leads)
+  weekly  bf_change  -> ret_RIO  lag -5 r=+0.10 (return leads)
+  weekly  no2_resid  -> ret_BHP  lag -6 r=-0.09 (return leads)
+  weekly  no2_resid  -> ret_RIO  lag +1 r=-0.09 (driver leads)
+  monthly no2_resid  -> ret_SLX  lag -1 r=-0.30 (return leads)
+  monthly no2_resid  -> ret_RIO  lag +3 r=+0.26 (driver leads)
+  monthly bf_change  -> ret_SLX  lag +0 r=-0.24 (coincident)
+  monthly no2_resid  -> ret_VALE lag +3 r=+0.24 (driver leads)
+  monthly bf_change  -> ret_VALE lag +0 r=-0.20 (coincident)
+  monthly no2_resid  -> ret_BHP  lag -6 r=-0.17 (return leads)
+  monthly bf_change  -> ret_BHP  lag -6 r=+0.17 (return leads)
+  monthly bf_change  -> ret_RIO  lag +1 r=-0.13 (driver leads)
