@@ -1,0 +1,82 @@
+{
+  "n_overlap": 358,
+  "corr_n": 358,
+  "sign": "indeterminate",
+  "sign_significant": false,
+  "pearson_r": 0.07163018161100743,
+  "p_value": 0.17627794490570695,
+  "ci_low": -0.032259820695718526,
+  "ci_high": 0.17398888967406834,
+  "peak_lag": -3,
+  "peak_r": 0.11162059045476919,
+  "ccf_lags": [
+    -8,
+    -7,
+    -6,
+    -5,
+    -4,
+    -3,
+    -2,
+    -1,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "ccf_values": [
+    0.014667906999546789,
+    0.013063394635951684,
+    0.052976015144369185,
+    0.06518079099593228,
+    0.08855160969721523,
+    0.11162059045476919,
+    0.10211263884959094,
+    0.08302776951136841,
+    0.0716301816110074,
+    0.0600458656772945,
+    0.02969351445803427,
+    -0.0030335604667401134,
+    0.009512590349549191,
+    0.046223313614512214,
+    0.0442300234851528,
+    0.03061998473727081,
+    0.06415292852318011
+  ],
+  "ccf_sig_bound": 0.10358921882601123,
+  "success_bar": [
+    0.5,
+    0.75
+  ],
+  "bar_class": "below-bar",
+  "conclusion": "null",
+  "config_echo": {
+    "deseason_method": "harmonic",
+    "structural_terms": [
+      "heating_season"
+    ],
+    "meteo_form": "linear",
+    "meteo_covariates": [
+      "u10",
+      "v10",
+      "blh",
+      "wind_speed"
+    ],
+    "curtailment_control": "crea (NOT applied \u2014 calendar absent, deferred T15/Q6a)",
+    "footprint_geometry": 5.0,
+    "background_geometry": [
+      25.0,
+      60.0
+    ],
+    "attributable_cap": [
+      0.3,
+      0.43
+    ],
+    "max_lag": 8,
+    "freq": "W"
+  }
+}

@@ -1,0 +1,20 @@
+Steel-sector NO2 activity index — validation vs CREA blast-furnace operating rate
+==============================================================================
+NULL: no usable lead/correlation between the index and the benchmark after controls. This is a valid, designed-for outcome (Morris & Zhang 2019), not a pipeline failure.
+
+Sign (empirically verified, not assumed): indeterminate (significant=False).
+Pearson r = 0.072  (p = 0.176, n = 358, 95% CI [-0.032, 0.174]).
+Cross-correlation peak: lag -3, r = 0.112 (white-noise band +/-0.104).
+  NOTE: peak chosen over 17 lags; the band is per-lag and NOT corrected for that multiplicity, so the peak r is optimistic. The null/usable decision below relies on the lag-0 sign test, not the selected peak.
+Success bar (Kim 2023 / Kondragunta 2021): r ~ 0.50-0.75  -> classification: below-bar.
+
+Config echo (every knob that could move the result):
+  deseason_method      : harmonic
+  structural_terms     : ['heating_season']
+  meteo_form           : linear
+  meteo_covariates     : ['u10', 'v10', 'blh', 'wind_speed']
+  curtailment_control  : crea (NOT applied — calendar absent, deferred T15/Q6a)
+  footprint_geometry   : 5.0
+  background_geometry  : [25.0, 60.0]
+  lag_window           : +/-8
+  attributable_cap     : [0.3, 0.43] (ceiling on the steel share of the column; the index is RELATIVE, not absolute tonnage)

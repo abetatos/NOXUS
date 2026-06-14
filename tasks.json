@@ -152,7 +152,7 @@
         "history.html",
         ".claude/context/project-map.md"
       ],
-      "follow_ups": "Data-gated / non-blocking: (T10) full-series re-run + footprint-radius/coverage-threshold tuning after the complete TROPOMI fetch + 'noxus grid' rebuild (closes NOX-003 Q1/Q5, NOX-002b Q2) -> the full-series number is the go/no-go gate for NOX-005; (T11) optional standalone methods note on the intensity model; change-point/segmented trend for step-change retrofits (EDGE-103); curtailment calendar (Q6a).",
+      "follow_ups": "RESOLVED 2026-06-14 (full-series arbiter, see history): rebuilt the complete cube (389 wks) + ran harmonic-K1 -> weak/null on average (weekly r=0.07, monthly 0.13) but regime-dependent (rolling-18mo peak r=0.76 @2023-06); catalyst null. The full series does not rescue the signal. Remaining: regime-conditioned modelling, flux divergence (NOX-005), or a multi-overpass sensor (GEMS, next spec). Q1/Q5 coverage tuning still open but low-priority.",
       "scope": [
         "noxus/signal/**",
         "noxus/validation/report.py",

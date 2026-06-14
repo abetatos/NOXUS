@@ -1,13 +1,13 @@
 {
-  "n_no2_events": 25,
-  "n_surge": 15,
-  "n_drop": 10,
+  "n_no2_events": 27,
+  "n_surge": 16,
+  "n_drop": 11,
   "production": {
     "n_production_events": 47,
     "n_matched": 4,
-    "precision": 0.16,
+    "precision": 0.14814814814814814,
     "recall": 0.0851063829787234,
-    "false_discovery_rate": 0.84,
+    "false_discovery_rate": 0.8518518518518519,
     "median_lead_days": -2.0,
     "lead_ci_days": [
       -2.0,
@@ -19,43 +19,43 @@
     "by_instrument": [
       {
         "instrument": "BHP",
-        "n_events": 25,
-        "car_mean": 0.0014069774045403704,
-        "car_ci_low": -0.013856720592926223,
-        "car_ci_high": 0.014417548729645902,
-        "hit_rate": 0.44
+        "n_events": 27,
+        "car_mean": 0.0007559235052555143,
+        "car_ci_low": -0.013596170707167317,
+        "car_ci_high": 0.011996422382151806,
+        "hit_rate": 0.48148148148148145
       },
       {
         "instrument": "RIO",
-        "n_events": 25,
-        "car_mean": 0.004542147093733293,
-        "car_ci_low": -0.00709088165106138,
-        "car_ci_high": 0.015443784816421101,
-        "hit_rate": 0.44
+        "n_events": 27,
+        "car_mean": 0.004382102203151379,
+        "car_ci_low": -0.007421472711934573,
+        "car_ci_high": 0.013966229209811007,
+        "hit_rate": 0.4074074074074074
       },
       {
         "instrument": "SLX",
-        "n_events": 25,
-        "car_mean": -0.008761721123733145,
-        "car_ci_low": -0.023053671792383802,
-        "car_ci_high": 0.004749481353533173,
-        "hit_rate": 0.44
+        "n_events": 27,
+        "car_mean": -0.00792659412714992,
+        "car_ci_low": -0.021742749613090986,
+        "car_ci_high": 0.004090383263927278,
+        "hit_rate": 0.4074074074074074
       },
       {
         "instrument": "VALE",
-        "n_events": 25,
-        "car_mean": -0.0021087484045661186,
-        "car_ci_low": -0.02383173134486554,
-        "car_ci_high": 0.01803882520648123,
-        "hit_rate": 0.44
+        "n_events": 27,
+        "car_mean": -0.0019717138744868145,
+        "car_ci_low": -0.022659289928054153,
+        "car_ci_high": 0.015742893844682297,
+        "hit_rate": 0.48148148148148145
       }
     ],
-    "n_events_tested": 25,
+    "n_events_tested": 27,
     "n_instruments": 4,
     "verdict": "market_null"
   },
   "conclusion": "null",
-  "multiplicity_n_tests": 100,
+  "multiplicity_n_tests": 108,
   "config_echo": {
     "detector": "zscore",
     "z_thresh": 2.0,
@@ -69,7 +69,7 @@
       "SLX"
     ],
     "market_benchmark": "ACWI",
-    "meteo_screen": true,
+    "meteo_screen": false,
     "freq": "W"
   }
 }

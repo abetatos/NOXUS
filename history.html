@@ -95,6 +95,21 @@
 
     <div class="entry">
       <div class="entry-header">
+        <span class="entry-date">2026-06-14</span>
+        <span class="badge badge-ok">milestone</span>
+        <span class="entry-title">Full-series arbiter run — harmonic-K1 on the complete cube (closes NOX-003.1 T10)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>What</dt>             <dd>Rebuilt the weekly cube from the complete overpass store (389 weeks, 2019→2026; the earlier "partial" was intra-week cloud coverage, not a truncated series) and ran the full chain with the method of record — <strong>harmonic-K1</strong> (5 km footprint, ERA5 meteo) — plus the catalyst. This is the long-deferred "full-fetch arbiter" (NOX-003.1 T10).</dd>
+        <dt>Validation</dt>       <dd>Continuous: <strong>weak/null on average</strong> (weekly r=0.07 p=0.18 n=358; monthly r=0.13) but <strong>regime-dependent</strong> — rolling-18mo peak <strong>r≈0.76 at 2023-06</strong> (above the 0.5–0.75 bar), breaking down in 2024.</dd>
+        <dt>Catalyst</dt>         <dd>NULL — 27 NO₂ events, 4/47 production matched (precision 0.15, recall 0.09, lead −2 d); market CARs for BHP/RIO/VALE/SLX straddle zero.</dd>
+        <dt>Conclusion</dt>       <dd>The full series does <strong>not</strong> rescue the signal: with TROPOMI (1 overpass/day, ~40% steel mean-share, no exploitable weekly cycle) the Tangshan steel signal is <strong>real but intermittent</strong> — strong when curtailments dominate the variance (2023), invisible otherwise; the event/catalyst marker is null. Remaining levers: regime-conditioned modelling, flux divergence (NOX-005), or a multi-overpass sensor (GEMS). Result artifacts: <code>data/derived/steel_validation_results.json</code>, <code>catalyst_results.json</code>.</dd>
+        <dt>Decisions</dt>        <dd>No new code (a run on existing methods). Closes the NOX-003.1 T10 follow-up.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
         <span class="entry-date">2026-06-13</span>
         <span class="badge badge-ok">done</span>
         <span class="entry-title">NOX-006 — Daily NO₂ aggregation + Prophet decomposition</span>
