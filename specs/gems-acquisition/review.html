@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — GEMS NO₂ acquisition + AOI clip + QA</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-007</code></td></tr>
+        <tr><th>Feature slug</th><td><code>gems-acquisition</code></td></tr>
+        <tr><th>Reviewer</th><td>—</td></tr>
+        <tr><th>Review status</th><td><span class="badge badge-rejected">blocked — not yet implemented</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Status</h2>
+        <p>Placeholder. The task is <strong>blocked</strong> by developer decision: the acquisition downloads
+        full granules (no server-side AOI subset) and is to be <strong>executed on a server-style machine in
+        the future</strong>. No implementation exists yet, so there is nothing to review. This file will be
+        filled in by the reviewer after the implementation runs (post-T1 go/no-go).</p>
+      </section>
+
+      <section id="feasibility-findings">
+        <h2>Feasibility findings (web research, 2026-06-14)</h2>
+        <table>
+          <thead><tr><th>Question</th><th>Finding</th></tr></thead>
+          <tbody>
+            <tr><td>Server-side AOI subset?</td><td><strong>No.</strong> NIER-ESC Open-API (<code>getFileDateList</code>/<code>getFileList</code>/<code>getFileItem</code>), SFTP and web all deliver <strong>full granules</strong>. Must clip client-side. <em>This is the central viability constraint.</em></td></tr>
+            <tr><td>Per-granule / mission volume</td><td><strong>Unmeasured</strong> (not publicly documented). Estimate order 10²–10³ MB/granule ⇒ ~1–4 TB transient over ~13k granules. <strong>Gated by the T1 spike</strong> — the reason the task is blocked.</td></tr>
+            <tr><td>Access &amp; auth</td><td>Free. Open-API key by application (~7-day approval), read from <code>GEMS_API_KEY</code> env var. Web cap 20 GB / 40 files per session ⇒ use Open-API/SFTP scripted + resumable.</td></tr>
+            <tr><td>Product (L2 NO₂)</td><td>NetCDF4/HDF5; <strong>tropospheric + total column</strong>, QA flag, <strong>averaging kernel</strong>, precision. Versions v2.x→v4.0.1 (pin operational <code>ver</code>). L3 daily/monthly exists but averages away the diurnal cycle ⇒ rejected.</td></tr>
+            <tr><td>Coverage start</td><td>Launched Feb-2020; reprocessed/operational tropospheric NO₂ from <strong>~Oct-2021</strong> (GMAP2021). ~4.7 yr, shorter than TROPOMI (2019→).</td></tr>
+            <tr><td>Resolution at Tangshan</td><td>Nominal ~3.5×8 km near nadir (Korea). Tangshan is off-nadir (~9.6° W of 128°E) and near the 45°N FOR edge ⇒ <strong>coarser</strong>; cluster-usable (≈ NOX-002b ~5 km), not per-plant. Measure at T1.</td></tr>
+            <tr><td>Cost/benefit</td><td>Does <strong>not</strong> change the ~40% mean-share ceiling on a levels estimator. <strong>Does</strong> revive the day-of-week source-separation lever (flat steel baseload vs cyclical traffic) that NOX-006 proved invisible to TROPOMI's single ~13:30 pass ⇒ a potential <em>variance-share</em> gain. Honest-null remains valid. Net: worth doing as a gated acquisition.</td></tr>
+          </tbody>
+        </table>
+        <p class="small">Sources: NIER-ESC Environmental Satellite Center (Open-API + data-access pages), eoPortal GEO-KOMPSAT-2, and GEMS L2 NO₂ v2.0/v3.0 validation literature (AMT 2024; ScienceDirect 2025).</p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <p><span class="badge badge-rejected">blocked</span> — spec complete and reviewable; execution deferred to a server-style machine. The developer moves NOX-007 to <code>human_approved</code> (and the build proceeds, starting with the T1 gate) when ready to run.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
