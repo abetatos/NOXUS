@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Spatial-scale sensitivity</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark progress with a status class on the <code>&lt;li&gt;</code>
+        (<code>done</code>/<code>in-progress</code>/<code>blocked</code>). Do not start until
+        <code>human_approved</code>. Additive — existing validation/gridding/CLI paths stay intact.</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Scale config (REQ-050).</strong></div>
+            <div class="task-item-body">In <code>noxus/config/run.py</code>: a <code>ScaleSweepConfig</code> (buffers, resolutions, bootstrap draws, FDR α, seed, block-length rule, paths). Existing config unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Cube scale ops + tests (REQ-001/002/003, AT1/AT2).</strong></div>
+            <div class="task-item-body">Add <code>clip_cube_to_region</code> (strict subset) and <code>coarsen_cube</code> (block-mean + coverage, realised spacing in <code>.attrs</code>; <code>boundary="trim"</code>) to <code>noxus/data/gridding.py</code>. Refuse finer-than-native (ERR-002). Tests on a synthetic cube: subset equality, exact block means, NaN blocks, realised spacing (EDGE-001).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Robust-significance module + tests (REQ-020/021/022/023, AT3/AT4).</strong></div>
+            <div class="task-item-body">New <code>noxus/validation/robust.py</code>: <code>effective_n</code> (first-order + Newey-West), <code>block_bootstrap_ci</code>, <code>block_permutation_p</code>, <code>robust_corr</code> → <code>RobustCorr</code>. Seeded. Tests: AR(1) null not over-rejected (false-positive ≈ α); planted lagged signal recovered (CI excludes 0, perm p &lt; α); n_eff clamp (EDGE-004). Promotes <code>analysis/autocorr_significance.py</code>.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Benjamini–Hochberg FDR + tests (REQ-030, AT5).</strong></div>
+            <div class="task-item-body"><code>bh_fdr(pvalues, alpha)</code> → (rejected, p_adj). Test vs a hand-computed reference vector; all-null family → ~no discoveries.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Sweep driver (REQ-010/011/040).</strong></div>
+            <div class="task-item-body">New <code>noxus/validation/scale.py</code>: <code>build_scales</code> (clip×coarsen) + <code>scale_sweep</code> — per scale re-derive the signal via the existing footprint/<code>deseasonalize</code> pathway (AOI-mean fallback + label when cells are too few, REQ-011/EDGE-002), align vs BF (<code>preprocess.align_series</code>), call <code>robust_corr</code> + <code>lead_lag</code>, assemble the tidy frame, apply FDR across the family. Drop empty scales with a recorded reason.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>CLI <code>scale-sweep</code> + gitignore (REQ-050, NFR-005).</strong></div>
+            <div class="task-item-body">Add the subcommand in <code>noxus/cli/main.py</code> (flags: buffers, resolutions, draws, seed, α); write <code>data/derived/scale_sensitivity.csv</code>. Gitignore per-scale NO₂-derived cubes/series. Existing commands unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>Figures + findings (REQ-041, AT6).</strong></div>
+            <div class="task-item-body">New <code>analysis/scale_sensitivity.py</code>: the extent×resolution scale grid (<code>r</code> + robust sig) and per-scale lead-lag curves → <code>docs/figures/exploration/</code>; write <code>scale_sensitivity_findings.txt</code>. Sweep determinism asserted (same seed → same table).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Real run + honest verdict (REQ-042, AT7).</strong></div>
+            <div class="task-item-body">Run the sweep on the real (full 389-wk) cube; state whether the Parubets pattern holds (coarse sig → fine lost/flipped) and whether the tight AOI rescues the signal. Report a null as a valid finding with the FDR/multiplicity caveat; no cherry-picked scale.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Validation (NFR-004/006, AC-008).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; confirm <code>correlate</code>/<code>lead_lag</code>/<code>verify_sign</code> + existing CLI unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Docs + decisions + history.</strong></div>
+            <div class="task-item-body">Exploration HTML scale-sensitivity section + grid figure; project map (new helpers); propose decision-log entries (robust-significance standard; scale finding); append <code>history.html</code>. Reviewer confirms targets.</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Clip = strict subset; coarsen = exact block-mean + coverage; no interpolation; realised spacing recorded.</li>
+          <li><input type="checkbox" disabled> Finer-than-native target refused (ERR-002).</li>
+          <li><input type="checkbox" disabled> AR(1) null: naïve over-rejects, robust tests hold ≈ α; planted signal recovered.</li>
+          <li><input type="checkbox" disabled> BH-FDR matches reference; all-null → ~no discoveries.</li>
+          <li><input type="checkbox" disabled> Sweep table has all REQ-040 columns; FDR across the family; deterministic under seed.</li>
+          <li><input type="checkbox" disabled> Scale-grid figure + findings; Parubets &amp; isolation verdicts stated; null framed honestly.</li>
+          <li><input type="checkbox" disabled> Existing validation/gridding/CLI contracts unchanged; per-scale NO₂-derived gitignored.</li>
+          <li><input type="checkbox" disabled> Tests + lint pass; reviewer approved.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

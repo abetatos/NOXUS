@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from noxus.config.region import DEFAULT_AOI_BUFFER_DEG
+from noxus.config.region import DEFAULT_AOI_BUFFER_DEG, TIGHT_AOI_BUFFER_DEG
 
 # Public, free source of record for the physical-output benchmark: CREA's WIND-sourced steel sheet,
 # exported as CSV. The Tangshan blast-furnace operating rate is one column among several steel
@@ -135,7 +135,18 @@ class SignalConfig:
     # "yoy" default (2026-06-13 sensitivity): removes annual cycle + secular retrofit trend (Li 2024)
     # while keeping year-over-year activity. "stl" / "yoy-double-diff" / "none" also available;
     # double-diff erased the signal on this weekly series, so it is no longer the default.
+    # "intensity-model" (NOX-003.1) models the secular intensity decline explicitly (CV-selected
+    # smooth trend; residual = activity proxy) instead of differencing blindly.
     deseason_method: str = "yoy"
+
+    # --- Explicit emission-intensity (decoupling) model (NOX-003.1, REQ-101/102) --------------
+    # Active only when deseason_method == "intensity-model". Smoothness (effective df) is chosen by
+    # cross-validation on the NO2 series ALONE (never against the benchmark, NFR-102).
+    intensity_estimator: str = "spline"  # "spline" (df = basis columns, exact) | "loess"
+    intensity_df_grid: tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
+    intensity_cv_folds: int = 5
+    intensity_criterion: str = "blocked-cv"  # "blocked-cv" (time-respecting) | "gcv" (spline only)
+    intensity_min_length: int = 24  # refuse to fit a trend on a shorter valid sample (ERR-101)
     # Heating season as (start_month, end_month) inclusive; Tangshan heating ~Nov 15 → Mar 15.
     heating_season_months: tuple[int, ...] = (11, 12, 1, 2, 3)
     # Source of the production-curtailment calendar exogenous control (REQ-022).
@@ -154,6 +165,26 @@ class SignalConfig:
     out_dir: Path = Path("data/derived/no2")
     footprint_signal_name: str = "steel_footprint_signal.parquet"
     index_name: str = "steel_activity_index.parquet"
+    # Intensity decomposition diagnostic (signal, s(t) trend, activity residual); NOX-003.1, REQ-104.
+    decomposition_name: str = "steel_intensity_decomposition.parquet"
+
+    # --- Prophet / harmonic deseasonalisation (NOX-006) ---------------------------------------
+    # Active when deseason_method == "prophet" (trend + yearly + weekly Fourier) or "harmonic"
+    # (annual Fourier on the intensity residual, dependency-free fallback). Prophet is lazy-imported.
+    prophet_growth: str = "linear"
+    prophet_changepoint_prior: float = 0.05  # trend flexibility (higher -> wigglier; Q1)
+    prophet_yearly_order: int = (
+        4  # annual Fourier order (reduced from Prophet's 10; K>=3 overfits, Q2)
+    )
+    prophet_weekly_order: int = (
+        3  # weekly (day-of-week) Fourier order — the source-separation handle
+    )
+    prophet_min_valid: int = 120  # refuse the fit below this many valid days (ERR-003)
+    harmonic_order: int = 1  # annual harmonics removed in the "harmonic" fallback (K=1 sweet spot)
+    # Daily NO2 products (NOX-006; gitignored, NO2-derived).
+    cube_daily_name: str = "no2_cube_d.nc"
+    footprint_daily_name: str = "steel_footprint_daily.parquet"
+    prophet_decomposition_name: str = "steel_prophet_decomposition.parquet"
 
 
 @dataclass(frozen=True)
@@ -176,3 +207,105 @@ class ValidationConfig:
     out_dir: Path = Path("data/derived")
     results_name: str = "steel_validation_results.json"
     summary_name: str = "steel_validation_summary.txt"
+
+
+@dataclass(frozen=True)
+class ScaleSweepConfig:
+    """Configuration for the spatial-scale sensitivity sweep (NOX-008).
+
+    Sweeps two scale axes over the EXISTING analysis-ready cube and recomputes the NO2<->BF-rate
+    correlation at each scale with autocorrelation-robust, FDR-corrected significance. Both axes are
+    pure re-aggregations of the committed cube (clip = subset; coarsen = block-mean) — never
+    interpolation (REQ-001/002; native-resolution decision 2026-06-13). Defaults are fixed here so the
+    sweep is reproducible and no scale is selected to maximise the benchmark correlation (NFR-003).
+    """
+
+    # --- Scale axes ---------------------------------------------------------------------------
+    # AOI extent (buffer deg around the facility envelope): default wide vs tight (REQ-001).
+    buffers: tuple[float, ...] = (DEFAULT_AOI_BUFFER_DEG, TIGHT_AOI_BUFFER_DEG)
+    # Grid resolution targets: "native" keeps the cube; floats coarsen by block-mean to ~that deg
+    # spacing (Q1 resolved 2026-06-14: native, 0.10, 0.15, 0.25; mirrors Parubets + the 0.1->0.25 gap).
+    resolutions: tuple[object, ...] = ("native", 0.10, 0.15, 0.25)
+    # Deseasonalisation variants compared at each scale (reuse noxus.signal.index.deseasonalize).
+    variants: tuple[str, ...] = ("level", "intensity-model", "yoy", "stl")
+    # Frequencies to align/correlate at (weekly primary; monthly low-power, Q5).
+    freqs: tuple[str, ...] = ("W", "ME")
+
+    # --- Robust significance (REQ-020..022) ---------------------------------------------------
+    n_boot: int = 5000  # moving-block bootstrap draws for the CI of r
+    n_perm: int = 5000  # block-permutation null draws
+    seed: int = 20260614  # fixed RNG seed (NFR-001)
+    neff_order: str = "auto"  # "first" (Bayley-Hammersley) | "newey-west" | "auto" (report both)
+    # Moving-block length rule: round(n ** block_exponent), floored at block_floor (Q2).
+    block_exponent: float = 1.0 / 3.0
+    block_floor: int = 2
+
+    # --- Multiple testing (REQ-030) -----------------------------------------------------------
+    fdr_alpha: float = 0.05  # Benjamini-Hochberg level across the scale x variant x lag family
+
+    # --- Lead-lag + alignment (REQ-040) -------------------------------------------------------
+    max_lag: int = 8  # +/- lag window for the cross-correlation profile (periods)
+    min_overlap: int = 26  # refuse a scale below this many overlapping periods
+    # Coarse scales may leave too few cells for the footprint/background contrast -> AOI-mean
+    # fallback, labelled (REQ-011, EDGE-002). Require >= this many footprint cells to keep the contrast.
+    min_footprint_cells: int = 4
+
+    # --- Paths --------------------------------------------------------------------------------
+    cube_path: Path = Path("data/derived/no2/no2_cube_w.nc")
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "scale_sensitivity.csv"
+    figures_dir: Path = Path("docs/figures/exploration")
+    findings_name: str = "scale_sensitivity_findings.txt"
+
+
+# Default market instruments (NOX-004). Free/reproducible via yfinance: global miners + a steel ETF.
+# Chinese ferrous futures (SHFE rebar / DCE iron ore / coking coal) lack a clean free API (Q1) and are
+# left out of the default set — added behind a best-effort exchange-settlement snapshot when available.
+DEFAULT_MARKET_INSTRUMENTS = ("BHP", "RIO", "VALE", "SLX")
+MARKET_BENCHMARK = "ACWI"  # broad global-equity benchmark for abnormal-return computation
+
+
+@dataclass(frozen=True)
+class CatalystConfig:
+    """Configuration for the NO2 event catalyst (NOX-004).
+
+    Drives event detection → production-event matching → market event-study so every artifact is
+    reproducible from a recorded config (REQ-050). Detector + study defaults are fixed here so they are
+    chosen BEFORE looking at market returns (anti-overfitting / multiple-testing discipline, REQ-042).
+    """
+
+    # --- Event detection (REQ-002..005) -------------------------------------------------------
+    freq: str = "W"  # the residual cadence (weekly cube)
+    detector: str = "zscore"  # "zscore" (robust MAD-z) | "cusum" | "both"
+    z_thresh: float = 2.0  # |robust z| above which a residual deviation is an event
+    detect_min_periods: int = 12  # causal expanding baseline needs >= this many past points
+    min_coverage: float = 0.25  # event period coverage floor (inherited NOX-002b)
+    # Strengthened meteo control: reject an event explained by a same-sign ventilation anomaly.
+    meteo_screen: bool = True
+    ventilation_z: float = 1.5  # |ventilation-index z| above which weather is the likely cause
+
+    # --- Ground-truth production events (REQ-010..012) ----------------------------------------
+    bf_event_z: float = 1.5  # |robust z| of the weekly BF-rate change that marks a production event
+    curtailment_calendar: Path | None = None  # public MEE/CREA calendar (Q4); None => BF jumps only
+
+    # --- Matching + event study (REQ-020..033, 041, 042) -------------------------------------
+    match_window: int = 2  # periods within which an NO2 event matches a production event
+    study_window: int = 5  # +/- trading days for the market cumulative-abnormal-return window
+    overpass_latency_days: int = (
+        2  # overpass + processing latency before the first tradeable session
+    )
+    min_events: int = 5  # refuse the study below this many (confirmed) events (ERR-003)
+    instruments: tuple[str, ...] = DEFAULT_MARKET_INSTRUMENTS
+    market_benchmark: str = MARKET_BENCHMARK
+
+    # --- Paths --------------------------------------------------------------------------------
+    decomposition_path: Path = Path("data/derived/no2/steel_intensity_decomposition.parquet")
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    market_snapshot_dir: Path = Path("data/raw/market")
+    events_out: Path = Path("data/derived/no2/steel_no2_events.parquet")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "catalyst_results.json"
+    summary_name: str = "catalyst_summary.txt"

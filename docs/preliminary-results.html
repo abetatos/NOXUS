@@ -101,6 +101,7 @@
       <tr><td>monthly</td><td>no</td><td>yoy</td><td>78</td><td class="pos">+0.190</td><td>0.095</td><td>+6 · +0.29</td></tr>
       <tr><td>monthly</td><td>no</td><td>stl</td><td>90</td><td class="pos">+0.133</td><td>0.21</td><td>+6 · +0.20</td></tr>
       <tr><td>monthly</td><td>no</td><td>yoy-double-diff</td><td>77</td><td>0.036</td><td>0.76</td><td>—</td></tr>
+      <tr><td>monthly</td><td>no</td><td>intensity-model</td><td>90</td><td class="pos">+0.144</td><td>0.18</td><td>−1 · +0.19</td></tr>
       <tr><td>monthly</td><td>yes</td><td>yoy</td><td>78</td><td class="pos">+0.189</td><td>0.098</td><td>+6 · +0.29</td></tr>
       <tr><td>monthly</td><td>yes</td><td>stl</td><td>90</td><td class="pos">+0.152</td><td>0.15</td><td>+6 · +0.23</td></tr>
     </tbody>
@@ -114,6 +115,49 @@
   coverage, matters. (The 15 km placeholder used in the very first run was diluting the signal.)</p>
   <figure><img src="figures/preliminary/fig6_radius.png" alt="radius sensitivity">
     <figcaption>Fig 6 — Footprint-radius sensitivity (monthly yoy). Smaller radius → stronger (still weak) signal.</figcaption></figure>
+
+  <h2>5 · Modelling the intensity decline explicitly (NOX-003.1)</h2>
+  <p>Year-over-year differencing removes the retrofit trend <em>blindly</em>, and double-differencing over-removes
+  it (Fig 5). NOX-003.1 instead models the secular emission-intensity decline <strong>explicitly</strong>: it fits a
+  smoothness-controlled trend <code>s(t)</code> to the footprint signal and takes the <strong>residual as the activity
+  proxy</strong> — the Li 2024 activity / intensity decomposition. The trend smoothness (effective degrees of freedom)
+  is chosen by <strong>cross-validation on the NO₂ series alone; the benchmark is never consulted</strong>, so the
+  detrending cannot be tuned to manufacture a correlation (the central anti-p-hacking guard).</p>
+  <figure><img src="figures/preliminary/fig7_decomposition.png" alt="intensity decomposition">
+    <figcaption>Fig 7 — Decomposition: NO₂ level (red) = secular intensity trend <code>s(t)</code> (blue, the
+    CV-selected retrofit decline) + activity residual (green). The trend <em>is</em> the decoupling — reported, not
+    discarded.</figcaption></figure>
+
+  <p>The result <strong>confirms the decoupling and reproduces the yoy finding without the arbitrariness</strong>:
+  CV picks a near-linear trend (df = 2), and the residual tracks the BF rate at monthly <strong>r ≈ 0.14
+  (peak ≈ 0.19)</strong> — comparable to yoy (0.19), still below the 0.5–0.75 bar. The raw levels stay at r = −0.35.</p>
+  <figure><img src="figures/preliminary/fig9_levels_vs_residual.png" alt="levels vs residual">
+    <figcaption>Fig 9 — The two signs side by side: <strong>LEVELS</strong> r = −0.35 (decoupling — NO₂ falls as the
+    BF rate holds) vs <strong>RESIDUAL</strong> r ≈ +0.14 (activity, after removing <code>s(t)</code>). The negative
+    levels sign is a finding, not a failed correlation.</figcaption></figure>
+
+  <p>The smoothness-sensitivity sweep is the honesty check: the residual correlation is <strong>highest at minimal
+  detrending</strong> (df = 2) and <strong>decays monotonically toward zero as the trend grows wigglier</strong>
+  (df = 10) — the over- vs under-smoothing trade-off, with the CV-selected df marked. There is no robust high-df
+  plateau: the activity signal is real but weak and lives in the low-frequency band the trend competes for, and
+  <strong>no df choice manufactures a spurious correlation</strong>.</p>
+  <figure><img src="figures/preliminary/fig8_smoothness_sweep.png" alt="smoothness sensitivity">
+    <figcaption>Fig 8 — Residual r vs trend degrees of freedom (monthly). CV-selected df dashed; literature band
+    shaded. Monotone decay, no high-df plateau.</figcaption></figure>
+  <table>
+    <thead><tr><th>trend df</th><th>residual r</th><th>residual p</th><th>peak lag·r</th><th>levels r</th></tr></thead>
+    <tbody>
+      <tr><td>2 (CV)</td><td class="pos">+0.144</td><td>0.18</td><td>−1 · +0.18</td><td class="neg">−0.351</td></tr>
+      <tr><td>3</td><td class="pos">+0.135</td><td>0.20</td><td>+6 · +0.17</td><td class="neg">−0.351</td></tr>
+      <tr><td>4</td><td class="pos">+0.124</td><td>0.24</td><td>+6 · +0.16</td><td class="neg">−0.351</td></tr>
+      <tr><td>6</td><td>+0.090</td><td>0.40</td><td>—</td><td class="neg">−0.351</td></tr>
+      <tr><td>10</td><td>+0.036</td><td>0.74</td><td>—</td><td class="neg">−0.351</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--muted);font-size:14px">The explicit model's value is methodological honesty, not a higher
+  number: it removes the “which difference filter?” degree of freedom, and shows the activity signal is robustly
+  present-but-weak while the decoupling is robustly strong — on the still-partial series. The full-series re-run
+  (REQ-120/121) remains the go/no-go test for whether a longer sample clears the bar.</p>
 
   <div class="callout">
     <h3>How this sits against the literature</h3>
@@ -130,19 +174,22 @@
     </ul>
   </div>
 
-  <h2>5 · What could still move the needle (next)</h2>
+  <h2>6 · What could still move the needle (next)</h2>
   <ul>
-    <li><strong>Model the retrofit trend explicitly</strong> (Li 2024 activity/policy/meteo decomposition) instead of
-    differencing it away — may sharpen the activity component rather than discard it.</li>
-    <li><strong>Flux-divergence point-source attribution</strong> (Beirle; deferred NOX-004) to isolate steel emitters
+    <li><strong>Full-series re-run</strong> (NOX-003.1 REQ-120/121) — the cube here is partial; a longer sample is the
+    real test of whether the explicit-intensity residual clears the bar, and the gate for whether NOX-005 is worth it.</li>
+    <li><strong>Change-point / segmented intensity trend</strong> — the smooth <code>s(t)</code> mis-fits discrete
+    retrofit step-changes; a segmented trend may sharpen the residual further.</li>
+    <li><strong>Flux-divergence point-source attribution</strong> (Beirle; deferred NOX-005) to isolate steel emitters
     from the &gt;50 % non-steel background the footprint−ring still mixes in.</li>
-    <li>Confirm robustness at monthly with STL + an explicit curtailment calendar (Q6a).</li>
+    <li>Confirm robustness with an explicit curtailment calendar (Q6a).</li>
   </ul>
 
   <div class="callout ok">
     <h3>Reproducibility</h3>
-    <p>Every execution mode is preserved and config-selectable (deseason ∈ {yoy, stl, yoy-double-diff, none};
-    frequency ∈ {weekly, monthly}; meteo on/off; footprint radius). Regenerate this entire page's figures + tables:</p>
+    <p>Every execution mode is preserved and config-selectable (deseason ∈ {yoy, stl, yoy-double-diff,
+    <strong>intensity-model</strong>, none}; frequency ∈ {weekly, monthly}; meteo on/off; footprint radius; trend
+    smoothness grid). Regenerate this entire page's figures + tables:</p>
     <pre>uv run noxus ingest-benchmark      # CREA BF operating rate -> parquet
 uv run noxus grid                  # TROPOMI NO2 weekly cube
 uv run noxus ingest-era5           # ERA5 (Copernicus CDS, server-side AOI subset)

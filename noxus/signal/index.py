@@ -108,6 +108,7 @@ def deseasonalize(
     curtailment: pd.Series | None = None,
     *,
     period: int = 52,
+    cfg=None,
 ) -> pd.Series:
     """Deseasonalise ``s`` and model the heating-season + curtailment confounders (REQ-020/021/022).
 
@@ -121,6 +122,11 @@ def deseasonalize(
       - ``"yoy-double-diff"`` (Kondragunta 2021): year-prior subtraction then first-difference. Removes
         the trend most aggressively; demonstrably over-aggressive on this weekly series (kept for
         robustness comparison, not the default).
+      - ``"intensity-model"`` (NOX-003.1): fit an explicit smoothness-controlled secular intensity
+        trend ``s(t)`` and return the residual as the activity proxy (Li 2024 decomposition). The
+        smoothness is chosen by cross-validation on the NO2 series alone — never against the benchmark
+        (NFR-102). Parameters come from ``cfg`` (a ``SignalConfig``); defaults are used if ``cfg`` is
+        ``None``. The selected df/criterion/estimator/cv_score are recorded in ``Series.attrs``.
       - ``"none"``: pass the series through (still applies the structural controls below).
 
     ``period`` defaults to 52 (weekly); use 12 for monthly. The **heating-season** term and
@@ -131,6 +137,7 @@ def deseasonalize(
     preserved (no interpolation, except internally to fit STL).
     """
     s = s.astype(float)
+    intensity_attrs: dict = {}
     if method == "yoy":
         deseasoned = s.diff(period)
         applied = "yoy"
@@ -147,13 +154,44 @@ def deseasonalize(
     elif method == "yoy-double-diff":
         deseasoned = s.diff(period).diff(1)
         applied = "yoy-double-diff"
+    elif method == "intensity-model":
+        from noxus.signal.intensity import fit_intensity_trend
+
+        kw = _intensity_kwargs(cfg)
+        fit = fit_intensity_trend(s, **kw)
+        deseasoned = fit.residual.copy()
+        applied = "intensity-model"
+        intensity_attrs = {
+            "intensity_df": fit.df,
+            "intensity_criterion": fit.criterion,
+            "intensity_estimator": fit.estimator,
+            "intensity_cv_score": fit.cv_score,
+        }
+    elif method == "prophet":
+        from noxus.signal.prophet_deseason import prophet_deseason
+
+        fit = prophet_deseason(s, **_prophet_kwargs(cfg))
+        deseasoned = fit.residual.reindex(s.index)
+        applied = "prophet"
+        intensity_attrs = {
+            "prophet_weekly_amplitude": fit.weekly_amplitude,
+            "prophet_variance_removed": fit.variance_removed,
+            "prophet_params": fit.params,
+        }
+    elif method == "harmonic":
+        from noxus.signal.prophet_deseason import harmonic_deseason
+
+        k = cfg.harmonic_order if cfg is not None else 1
+        deseasoned = harmonic_deseason(s, k=k).reindex(s.index)
+        applied = "harmonic"
+        intensity_attrs = {"harmonic_order": k}
     elif method == "none":
         deseasoned = s.copy()
         applied = "none"
     else:
         raise ValueError(
             f"Unknown deseasonalisation method {method!r} "
-            "(use 'yoy'/'stl'/'yoy-double-diff'/'none')."
+            "(use 'yoy'/'stl'/'yoy-double-diff'/'intensity-model'/'prophet'/'harmonic'/'none')."
         )
 
     terms: list[str] = []
@@ -171,7 +209,34 @@ def deseasonalize(
     deseasoned = deseasoned.rename("index_deseasonalized")
     deseasoned.attrs["deseason_method"] = applied
     deseasoned.attrs["structural_terms"] = terms
+    deseasoned.attrs.update(intensity_attrs)
     return deseasoned
+
+
+def _intensity_kwargs(cfg) -> dict:
+    """Pull intensity-model parameters from ``cfg`` (a ``SignalConfig``), or fall back to defaults."""
+    if cfg is None:
+        return {}
+    return {
+        "estimator": cfg.intensity_estimator,
+        "df_grid": cfg.intensity_df_grid,
+        "cv_folds": cfg.intensity_cv_folds,
+        "criterion": cfg.intensity_criterion,
+        "min_length": cfg.intensity_min_length,
+    }
+
+
+def _prophet_kwargs(cfg) -> dict:
+    """Pull Prophet parameters from ``cfg`` (a ``SignalConfig``), or fall back to defaults (NOX-006)."""
+    if cfg is None:
+        return {}
+    return {
+        "growth": cfg.prophet_growth,
+        "changepoint_prior": cfg.prophet_changepoint_prior,
+        "yearly_order": cfg.prophet_yearly_order,
+        "weekly_order": cfg.prophet_weekly_order,
+        "min_valid_days": cfg.prophet_min_valid,
+    }
 
 
 def _residualize_on_terms(y: pd.Series, terms: pd.DataFrame) -> pd.Series:
@@ -236,7 +301,16 @@ def build_index(
     df.attrs["anchor"] = anchor_label
     df.attrs["attributable_cap"] = list(attributable_cap)
     # Carry provenance forward from upstream stages so the index is fully self-describing.
-    for key in ("meteo_form", "meteo_covariates", "deseason_method", "structural_terms"):
+    for key in (
+        "meteo_form",
+        "meteo_covariates",
+        "deseason_method",
+        "structural_terms",
+        "intensity_df",
+        "intensity_criterion",
+        "intensity_estimator",
+        "intensity_cv_score",
+    ):
         if key in corrected_meteo_free.attrs:
             df.attrs[key] = corrected_meteo_free.attrs[key]
     return df
@@ -326,7 +400,13 @@ def build_activity_index(cfg=None, *, use_meteo: bool = True) -> Path:
         method=cfg.deseason_method,
         heating_season=heating,
         curtailment=curtailment,
+        cfg=cfg,
     )
+
+    # NOX-003.1: when the explicit intensity model runs, emit the decomposition (signal, trend,
+    # residual) as a reportable diagnostic — the secular trend *is* the decoupling (REQ-104).
+    if cfg.deseason_method == "intensity-model":
+        _write_intensity_decomposition(series, deseasoned, cfg, out_dir)
 
     df = build_index(deseasoned, anchor=cfg.index_anchor, attributable_cap=cfg.attributable_cap)
     df["valid_coverage"] = fp["valid_coverage"].to_numpy()
@@ -340,6 +420,36 @@ def build_activity_index(cfg=None, *, use_meteo: bool = True) -> Path:
         "curtailment_applied": curtailment is not None,
     }
     return write_index(df, out_dir / cfg.index_name, extra_provenance=extra)
+
+
+def _write_intensity_decomposition(
+    signal: pd.Series, deseasoned: pd.Series, cfg, out_dir: Path
+) -> Path:
+    """Emit the intensity decomposition diagnostic: signal, s(t) trend, activity residual (REQ-104).
+
+    Recomputes the trend deterministically from ``signal`` (same CV-selected smoothness as the index
+    run) so the secular intensity decline is recorded as a standalone, reportable series — it is the
+    decoupling itself, not discarded. Written under the gitignored derived NO2 directory.
+    """
+    from noxus.signal.intensity import fit_intensity_trend
+
+    fit = fit_intensity_trend(signal, **_intensity_kwargs(cfg))
+    decomp = pd.DataFrame(
+        {
+            "date": pd.to_datetime(signal.index),
+            "signal": signal.to_numpy(dtype=float),
+            "trend_s_t": fit.trend.to_numpy(dtype=float),
+            "residual_activity": fit.residual.to_numpy(dtype=float),
+        }
+    ).reset_index(drop=True)
+    decomp.attrs.update(
+        intensity_df=fit.df,
+        intensity_criterion=fit.criterion,
+        intensity_estimator=fit.estimator,
+        intensity_cv_score=fit.cv_score,
+    )
+    out_path = out_dir / cfg.decomposition_name
+    return write_index(decomp, out_path)
 
 
 def _latest_era5_snapshot(snapshot_dir: Path) -> Path:

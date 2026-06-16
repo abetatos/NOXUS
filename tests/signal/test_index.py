@@ -176,3 +176,32 @@ def test_build_activity_index_no_meteo_end_to_end(tmp_path, planted_seasonal_ser
     prov = I.read_index_provenance(out)
     assert prov["deseason_method"] == "yoy"  # the new default (double-diff erased the signal)
     assert "heating_season" in prov["structural_terms"]
+
+
+def test_build_activity_index_intensity_model_emits_decomposition(tmp_path, planted_decomposition):
+    # NOX-003.1: the intensity-model path emits the decomposition diagnostic + records the selected df.
+    from dataclasses import replace
+
+    signal, *_ = planted_decomposition
+    cfg = replace(SignalConfig(out_dir=tmp_path), deseason_method="intensity-model")
+    fp = pd.DataFrame(
+        {
+            "date": signal.index,
+            "no2_footprint": signal.to_numpy() + 4.0,
+            "no2_bg": np.full(len(signal), 4.0),
+            "no2_corrected": signal.to_numpy(),
+            "valid_coverage": np.full(len(signal), 0.9),
+        }
+    )
+    fp.to_parquet(tmp_path / cfg.footprint_signal_name, index=False)
+
+    out = I.build_activity_index(cfg, use_meteo=False)
+    prov = I.read_index_provenance(out)
+    assert prov["deseason_method"] == "intensity-model"
+    assert "intensity_df" in prov
+    assert prov["intensity_estimator"] == "spline"
+
+    decomp_path = tmp_path / cfg.decomposition_name
+    assert decomp_path.exists()  # the s(t) diagnostic is emitted (REQ-104)
+    decomp = pd.read_parquet(decomp_path)
+    assert {"signal", "trend_s_t", "residual_activity"} <= set(decomp.columns)

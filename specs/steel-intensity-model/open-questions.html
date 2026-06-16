@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — Steel emission-intensity (decoupling) model</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Non-blocking questions for the developer. Each has a default that lets implementation proceed. Q4 (full-fetch readiness) affects only whether REQ-120/121 land now or as a recorded follow-up.</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">4</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">0</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">Trend estimator + smoothness-selection criterion</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Which smoother — penalised regression spline, LOWESS, or a GAM trend (STL-trend as a baseline) — and which CV criterion (blocked k-fold time-series CV vs GCV vs AIC)?</dd>
+            <dt>Why it matters</dt><dd>On a short, autocorrelated series the criterion changes the selected df and hence the residual.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Penalised regression spline; blocked time-series CV (gap-respecting folds) as the criterion; LOWESS available as an alternative; record the choice. Refine in T3.</dd>
+            <dt>Affected</dt><dd><code>fit_intensity_trend</code>; SignalConfig; REQ-101, REQ-102</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">New dependency for the smoother?</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>If a clean df-controllable spline / GAM isn't ergonomic in the present <code>scipy</code>/<code>statsmodels</code>, may a single dependency (e.g. <code>pygam</code>) be added?</dd>
+            <dt>Why it matters</dt><dd>Project policy: no new dependency without developer approval; <code>uv.lock</code> changes only with reason.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Stay dependency-free with <code>scipy.interpolate.UnivariateSpline</code> / <code>statsmodels</code> LOWESS; only propose a dep with explicit approval.</dd>
+            <dt>Affected</dt><dd><code>pyproject.toml</code>, <code>uv.lock</code>; REQ-101, NFR-106</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">Heating-season sensitivity as an interaction?</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>NOX-003 added a structural heating-season term. Should v3.1 also model the season-dependent steel <em>sensitivity</em> (share 42.5%→29.1%, Wen 2024) as a season×activity interaction, beyond the structural term?</dd>
+            <dt>Why it matters</dt><dd>The column's sensitivity to steel changes by season; a single coefficient mis-specifies it.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Keep the NOX-003 structural term; add the interaction as an optional, recorded extension and report whether it changes the residual correlation. Do not let it become a new degree of freedom tuned to the benchmark.</dd>
+            <dt>Affected</dt><dd><code>deseasonalize</code> / intensity model; REQ-104</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id err">Q4</span><span class="card-title">Is the complete TROPOMI fetch ready for the full re-run?</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Has the complete TROPOMI acquisition (NOX-002a) finished so the cube can be rebuilt for REQ-120/121, or is it still partial?</dd>
+            <dt>Why it matters</dt><dd>The full-series number is the real test of whether the intensity model clears the r≈0.5–0.75 bar; it also gates the NOX-005 go/no-go.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Build + test the methodology on synthetic + the current partial cube now; run REQ-120/121 as the final step when the fetch completes, recording the full-series result as a follow-up if needed (A4, AC-106).</dd>
+            <dt>Affected</dt><dd><code>noxus grid</code> rebuild; REQ-120, REQ-121; T10</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move here after answers.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Change-point / segmented trend for step-change retrofits (EDGE-103) → future. Flux divergence / raw-L2 → NOX-005.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>All questions are non-blocking → the spec can reach <code>spec_ready</code>, but confirm Q4 at approval (it sets whether the full re-run lands now).</li>
+          <li>Never select trend smoothness against the benchmark (NFR-102) — answer Q1 with that constraint intact.</li>
+          <li>Do not add a dependency (Q2) silently — update this file when answered.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

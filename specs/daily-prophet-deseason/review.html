@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Daily NO₂ + Prophet</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Daily NO₂ aggregation + Prophet decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Reviewed</th><td><code>2026-06-13</code></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Status</h2>
+        <p>Implementation review of the daily-Prophet feature. 133 tests pass, <code>ruff</code> clean,
+        real daily run executed on the partial cube.</p>
+      </section>
+      <section id="findings"><h2>Findings</h2>
+        <ul>
+          <li><strong>Determinism (AC-003) ✅</strong> — MAP / <code>uncertainty_samples=0</code>; refit reproduces the residual (test).</li>
+          <li><strong>Observed-only residual (AC-002) ✅</strong> — Prophet's gap interpolation never emitted; residual length = valid-day count (test).</li>
+          <li><strong>Component recovery + weekday diagnostic (AC-002/004) ✅</strong> — planted trend/weekly recovered; flat-weekly → ~0 amplitude (tests).</li>
+          <li><strong>Lazy import + harmonic fallback (AC-007) ✅</strong> — package imports without prophet; ERR-002 actionable; harmonic method works (tests, no prophet needed).</li>
+          <li><strong>No-publish ✅</strong> — daily cube/footprint/decomposition gitignored (<code>data/derived/no2/</code>).</li>
+          <li><strong>Honest marginal value ✅</strong> — reported as a <em>null</em>: weekly flat (0.5% variance), daily-Prophet best-regime r=0.65 &lt; harmonic-K1 0.78; no quarterly/four-month cycle. harmonic-K1 stays method of record.</li>
+          <li><strong>Partial (non-blocking):</strong> the causal rolling-refit function (<code>prophet_deseason_causal</code>) exists but its no-look-ahead guard test (AC-006) and the catalyst re-run on the Prophet residual (REQ-031) were <em>not</em> exercised — deliberately deferred, because the result is a null marginal value so no lead/market claim is being made from the Prophet residual. To revisit only if a future (multi-overpass) sensor revives the weekly lead.</li>
+        </ul>
+      </section>
+      <section id="decision"><h2>Decision</h2><p><span class="badge badge-ok">approved</span> — core feature delivered,
+        tested, and the empirical question answered honestly (null marginal value; harmonic-K1 method of
+        record). Non-blocking follow-ups: causal-guard test + catalyst re-run, only if the weekly lever is
+        revived with a geostationary/multi-overpass sensor.</p></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

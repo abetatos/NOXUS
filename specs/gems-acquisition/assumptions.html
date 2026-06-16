@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — GEMS NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>gems-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-007</code></td></tr>
+        <tr><th>Source document</th><td><code>conversation 2026-06-14 + web research</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-14</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit, reviewable assumptions behind this spec. Most are <strong>verified by web research</strong> (Jun 2026); the open numeric unknown (download volume) is gated by the T1 spike.</p></section>
+      <hr>
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table><thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody><tr><td>Low</td><td style="text-align:right">2</td></tr><tr><td>Medium</td><td style="text-align:right">4</td></tr><tr><td>High</td><td style="text-align:right">1</td></tr></tbody></table>
+        <p><strong>Blocking assumptions present:</strong></p><pre><code>Yes — A2 (download volume) gates the build; resolved by the T1 measurement spike.</code></pre>
+      </section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">No server-side AOI subset; clip client-side</span><span class="badge badge-ok">Verified</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The NIER-ESC channels (Open-API, SFTP, web) deliver full granules; there is no bbox/AOI request, so we download full granules and clip the Tangshan AOI client-side.</dd>
+            <dt>Reason</dt><dd>NIER-ESC Open-API docs (<code>getFileDateList</code>/<code>getFileList</code>/<code>getFileItem</code>) expose no spatial-subset parameter; web download is "up to 20 GB / 40 files". Verified via web research 2026-06-14.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If a subset endpoint exists, the download burden collapses and the gate (A2) is moot — a pleasant surprise to confirm at T1.</dd>
+            <dt>Blocks implementation</dt><dd>No (it defines the design)</dd>
+            <dt>Related requirements</dt><dd>REQ-001, NFR-003</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-high" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Full-mission download volume is feasible on a server-class machine</span><span class="badge badge-pending">Pending — gated by T1</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Downloading full granules (~8 scans/day × ~4.7 yr ≈ ~13k granules), clipped-then-deleted, is feasible on a server-style machine within a configured budget. Per-granule size is unmeasured (estimated order 10²–10³ MB ⇒ ~1–4 TB transient).</dd>
+            <dt>Reason</dt><dd>Per-granule byte size is not publicly documented; only the field-of-regard extent and pixel size are known. This is the central feasibility unknown and the reason the task is <strong>blocked</strong> for later server execution.</dd>
+            <dt>Risk level</dt><dd>High</dd>
+            <dt>Impact if wrong</dt><dd>If the measured volume exceeds budget → <strong>no-go</strong> (ERR-004); the loop is not built. Mitigations: scoped date windows, clip-then-delete, resumable batching.</dd>
+            <dt>Blocks implementation</dt><dd><strong>Yes</strong> — resolved by the T1 spike (REQ-000) before T2+.</dd>
+            <dt>Related requirements</dt><dd>REQ-000, ERR-004, NFR-003/005</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Defer execution to a server-style machine (2026-06-14).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Diurnal sampling can lift steel's variance share (not levels)</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>~8 daytime scans/day resolve the day-of-week cycle, letting source separation (flat steel baseload vs cyclical traffic) raise steel's <em>variance</em> share — the lever NOX-006 proved invisible to TROPOMI's single ~13:30 pass (weekly term flat, 0.5% variance).</dd>
+            <dt>Reason</dt><dd>NOX-006 follow-up note explicitly points to a multi-overpass/geostationary sensor; GEMS is that sensor.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If Tangshan's weekly traffic cycle is too weak to separate, the gain does not materialise → honest-null (valid outcome). Does <strong>not</strong> change the ~40% mean-share ceiling on a levels estimator regardless.</dd>
+            <dt>Blocks implementation</dt><dd>No (it is the downstream thesis, NOX-009; acquisition stands alone)</dd>
+            <dt>Related requirements</dt><dd>REQ-002, REQ-012</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">Tangshan resolves usably despite off-nadir geometry</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Tangshan (39.6°N, 118.4°E), ~9.6° west of the 128°E sub-satellite point and near the 45°N north edge of the field of regard, is imaged at <strong>~10 km</strong> effective footprint — coarser than the 3.5×8 km nominal but still cluster-usable (≈ NOX-002b's ~5 km adequacy decision).</dd>
+            <dt>Reason</dt><dd>Nominal 3.5×8 km is near nadir (Korea); the L3 product is documented at ~5 km over Korea and ~10 km elsewhere (NIER NO₂ page), and off-nadir + high latitude degrade it further at Tangshan. GEMS' gain is diurnal frequency, not spatial resolution. Effective footprint to be confirmed from the granule geolocation at T1.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If the pixel is much coarser than expected, the cluster signal blurs into BTH background — still cluster-level, never per-plant.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-000(c), EDGE-004</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Tropospheric column + product-recommended QA default</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The primary field is the tropospheric NO₂ column (total kept if present); the default QA filter is the product-recommended good-quality threshold, configurable. Exact field/QA names confirmed at T1.</dd>
+            <dt>Reason</dt><dd>Mirrors the TROPOMI choice; GEMS L2 exposes tropospheric + total + QA + kernel per the validation literature.</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>Configurable; re-runnable.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-004, REQ-005</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">Pin one product version; track per scan</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A single operational <code>ver</code> is pinned for a homogeneous record; the v2.x→v4.0.1 landscape would otherwise introduce a spurious step. Per-scan version is recorded and discontinuities flagged.</dd>
+            <dt>Reason</dt><dd>Same version-consistency discipline adopted for TROPOMI (OFFL+RPRO + per-observation version).</dd>
+            <dt>Risk level</dt><dd>Low</dd>
+            <dt>Impact if wrong</dt><dd>A residual version step could be mistaken for activity change; mitigated by tracking/flagging.</dd>
+            <dt>Blocks implementation</dt><dd>No</dd>
+            <dt>Related requirements</dt><dd>REQ-003, EDGE-002</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a7">
+          <div class="card-header"><span class="req-id">A7</span><span class="card-title">A stable-weather autumn window is the right test for a weekly component</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A few months of <strong>September–October</strong> (primary 2023; optional 2024 replication) under near-constant meteorology are sufficient and ideal to detect whether a weekly NO₂ component exists, with Chinese public holidays (esp. Golden Week 1–7 Oct) masked from the weekday profile.</dd>
+            <dt>Reason</dt><dd>Early autumn in the North China Plain is post-monsoon + pre-heating-season: most stable/persistent weather (low synoptic noise → weekly cycle not swamped), no residential-heating NO₂ confounder (steel+traffic dominate → cleaner separation), low cloud (balanced GEMS coverage across weekdays and ~8 daily scans), good 39.6°N sun angle. Same-season two-year replication holds climate constant while adding robustness. 2023 overlaps the strongest TROPOMI-era regime. See Q5.</dd>
+            <dt>Risk level</dt><dd>Medium</dd>
+            <dt>Impact if wrong</dt><dd>If a few autumn months are too short for a stable weekday profile, extend to the same window in more years (still climate-controlled) before widening seasons. If the weekly cycle is genuinely absent (steel baseload dominates, weak traffic cycle) → honest-null (valid outcome).</dd>
+            <dt>Blocks implementation</dt><dd>No (sets the default scope; full mission stays opt-in)</dd>
+            <dt>Related requirements</dt><dd>REQ-009, REQ-008, REQ-002</dd>
+            <dt>Review status</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt><dd>Adopted 2026-06-14 (scoped autumn window, not full mission).</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="accepted-assumptions"><h2>Accepted assumptions</h2><p>Move here after explicit acceptance.</p></section>
+      <hr>
+      <section id="rejected-or-replaced-assumptions"><h2>Rejected or replaced assumptions</h2><p>Move here when rejected/replaced.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Task is <strong>blocked</strong> by developer decision (server-run later) — do not implement.</li>
+          <li>A2 (download volume) is a blocking assumption: resolve via the T1 spike before T2+.</li>
+          <li>If implementation needs a new assumption, stop and update this file.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

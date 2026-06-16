@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Steel emission-intensity (decoupling) model</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>All statistical behaviour is verified on <strong>synthetic planted fixtures</strong> (deterministic),
+        never on live data. The headline guarantees are: (1) the decomposition recovers a planted trend and
+        residual and reproduces the sign inversion, (2) smoothness is selected without the benchmark, and
+        (3) no smoothing choice manufactures a correlation on a planted-null. Network is never touched.</p>
+      </section>
+
+      <section id="tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at101">
+          <div class="card-header"><span class="req-id ac">AT101</span><span class="card-title">Planted decomposition → trend + residual + sign inversion</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-101 · AC-101</dd>
+            <dt>Given</dt><dd>A synthetic series <code>signal = activity + s_true(t) + β·meteo + noise</code> with a known smooth trend and a trend that dominates the variance.</dd>
+            <dt>When</dt><dd><code>fit_intensity_trend</code> runs (meteo already removed).</dd>
+            <dt>Then</dt><dd>The fitted <code>trend</code> matches <code>s_true</code> within tolerance; <code>residual</code> correlates with <code>activity</code>; <code>corr(levels, activity) &lt; 0</code> while <code>corr(residual, activity) &gt; 0</code>.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at102">
+          <div class="card-header"><span class="req-id ac">AT102</span><span class="card-title">CV selects smoothness without the benchmark</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-102 · AC-102 · NFR-102</dd>
+            <dt>Given</dt><dd>A planted trend of known smoothness.</dd>
+            <dt>When</dt><dd>Blocked time-series CV runs over the df grid.</dd>
+            <dt>Then</dt><dd>Selected df is near the planted smoothness; the selection path takes <strong>no benchmark argument</strong> (enforced by signature/test); selected df + criterion + cv_score are recorded.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at103">
+          <div class="card-header"><span class="req-id ac">AT103</span><span class="card-title">Sensitivity sweep + planted-null flatness</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-103 · AC-103</dd>
+            <dt>Given</dt><dd>(a) a planted-signal series; (b) an independent planted-null pair.</dd>
+            <dt>When</dt><dd><code>smoothness_sweep</code> runs across the df grid.</dd>
+            <dt>Then</dt><dd>It returns one row per df (residual_r/p, peak_lag, levels_r) with the CV point identifiable; on the planted-null, residual_r stays near 0 across <em>all</em> df (no df manufactures a correlation).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at104">
+          <div class="card-header"><span class="req-id ac">AT104</span><span class="card-title">Dual-sign + decoupling report with CIs</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-104 · REQ-110 · REQ-131 · AC-104</dd>
+            <dt>Given</dt><dd>A completed decomposition + validation run.</dd>
+            <dt>When</dt><dd>The report is generated.</dd>
+            <dt>Then</dt><dd>It emits the <code>s(t)</code> diagnostic series and states both levels_r and residual_r with p and CI, classifies vs the r≈0.5–0.75 bar, states the null when present, frames the negative levels term as decoupling, and emits no absolute tonnage.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at105">
+          <div class="card-header"><span class="req-id ac">AT105</span><span class="card-title">Regression: existing methods + CLI unchanged</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-140 · NFR-103 · AC-105</dd>
+            <dt>Given</dt><dd>The same config used by NOX-003 for <code>yoy</code>/<code>stl</code>/<code>yoy-double-diff</code>/<code>none</code>.</dd>
+            <dt>When</dt><dd><code>deseasonalize</code> and the CLI run.</dd>
+            <dt>Then</dt><dd>Outputs are identical to the NOX-003 baseline; <code>intensity-model</code> is selectable additively; default deseason remains <code>yoy</code>.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at106">
+          <div class="card-header"><span class="req-id ac">AT106</span><span class="card-title">Full-series re-run + radius/coverage tuning (data-gated)</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-120 · REQ-121 · AC-106</dd>
+            <dt>Given</dt><dd>The completed cube (or, if still partial, the tuning harness).</dd>
+            <dt>When</dt><dd>The chain runs on the longer series with the radius/coverage grids.</dd>
+            <dt>Then</dt><dd>Radius/coverage sensitivity tables are emitted and the resolved values recorded (closes NOX-003 Q1/Q5, NOX-002b Q2); if partial, the run is labelled partial and the full-series number is recorded as a follow-up (never presented as full — ERR-103).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at107">
+          <div class="card-header"><span class="req-id ac">AT107</span><span class="card-title">Analysis battery + figures extended; all modes runnable</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-130 · AC-107</dd>
+            <dt>Given</dt><dd>A run of <code>analysis/preliminary_signal.py</code>.</dd>
+            <dt>When</dt><dd>The battery executes.</dd>
+            <dt>Then</dt><dd>It produces the decomposition, smoothness-sweep and levels-vs-residual figures, and every existing execution mode still runs from the same script (no code removed).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-err-101">
+          <div class="card-header"><span class="req-id err">AT-ERR-101</span><span class="card-title">Error states</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>ERR-101 · ERR-102 · ERR-103</dd>
+            <dt>Given</dt><dd>(a) a too-short series; (b) a degenerate CV config (folds &gt; samples / empty df grid); (c) the require-complete-cube flag against a partial cube.</dd>
+            <dt>When</dt><dd>The intensity model / full re-run runs.</dd>
+            <dt>Then</dt><dd>Each raises an actionable error (state the minimum / the bad config / the command that completes the fetch) rather than emitting an over-fit trend or a mislabelled full result.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at108">
+          <div class="card-header"><span class="req-id ac">AT108</span><span class="card-title">Tests + lint green</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>AC-108 · NFR-106</dd>
+            <dt>Then</dt><dd><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-101</td><td>AT101</td></tr>
+            <tr><td>REQ-102</td><td>AT102</td></tr>
+            <tr><td>REQ-103</td><td>AT103</td></tr>
+            <tr><td>REQ-104 / REQ-110 / REQ-131</td><td>AT104</td></tr>
+            <tr><td>REQ-120 / REQ-121</td><td>AT106</td></tr>
+            <tr><td>REQ-130</td><td>AT107</td></tr>
+            <tr><td>REQ-140</td><td>AT105</td></tr>
+            <tr><td>ERR-101..103</td><td>AT-ERR-101</td></tr>
+            <tr><td>NFR-106</td><td>AT108</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

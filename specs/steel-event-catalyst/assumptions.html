@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Steel NO₂ event catalyst</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit assumptions behind the catalyst/event-marker paradigm. A1 is the load-bearing one — if production events are not detectable as NO₂ deviations, the whole approach reduces to a reported null (which is acceptable).</p></section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">Production events leave a detectable NO₂ footprint signature</span><span class="badge badge-blocking">Load-bearing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Discrete steel-production events (curtailment start/end, sudden shutdowns/restarts) produce NO₂ deviations over the footprint that are <strong>large relative to noise</strong> after intensity-detrending + meteo normalisation.</dd>
+            <dt>Why it matters</dt><dd>This is what makes the marker work. Catalysts live in the tails; if events don't move the residual beyond the noise band, there is nothing to detect.</dd>
+            <dt>If false</dt><dd>Precision/recall are low and the catalyst is a reported null — a valid outcome (NFR-004), and a cleaner result than the weak continuous correlation.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">The decoupling trend does not create sudden jumps</span><span class="badge badge-ok">Supported</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The secular emission-intensity decline (retrofits, Li 2024) is slow/smooth, so it does not generate the step changes the detector looks for; it is removed once via the NOX-003.1 residual.</dd>
+            <dt>Why it matters</dt><dd>The trend that killed the continuous correlation is therefore <em>not</em> a confounder for event detection.</dd>
+            <dt>If false</dt><dd>A sharp retrofit step (EDGE-103 of NOX-003.1) could be mis-detected as a drop event; the cause-tagging + calendar help separate policy from technology.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Meteorology is the dominant false-positive source on short windows</span><span class="badge badge-warning">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>On weekly/event timescales a stagnant-air week is the main way NO₂ spikes without a production change; the strengthened ventilation/stagnation control (REQ-005) removes most of it.</dd>
+            <dt>Why it matters</dt><dd>Event precision depends on rejecting weather spikes; this is why the cheap meteo upgrade — not flux-divergence — is the right lever.</dd>
+            <dt>If false</dt><dd>Residual meteo leakage inflates false positives; reported via the precision metric and the multiplicity discipline.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">A best-effort public curtailment calendar is assemblable</span><span class="badge badge-warning">Data</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Enough Tangshan curtailment episodes are publicly documented (MEE/CREA) to label production events; combined with BF-rate jumps (developer decision: both).</dd>
+            <dt>Why it matters</dt><dd>Ground truth quality bounds recall and cause-tagging.</dd>
+            <dt>If false</dt><dd>Fall back to BF-rate jumps alone and document the calendar gap (NOX-003 Q6a); recall is then defined against the benchmark only.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Free market data is sufficient for the headline study</span><span class="badge badge-warning">Data</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Global miners (BHP/RIO/VALE) + a steel ETF, from a free source, are enough to test the market hypothesis; Chinese ferrous futures are a desirable add-on, not a prerequisite.</dd>
+            <dt>Why it matters</dt><dd>Keeps the project's public/free-data constraint intact while still testing the catalyst.</dd>
+            <dt>If false</dt><dd>If only the ferrous futures carry the relationship and they are inaccessible, the market layer reports a null on the free instruments and flags ferrous as deferred (Q1).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">The tradeable edge is timeliness / gap-filling, not resolution</span><span class="badge badge-ok">Framing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The operating rate is already published weekly, so any edge comes from NO₂ being timelier than the vendor print or flagging events the survey smooths — not from finer resolution.</dd>
+            <dt>Why it matters</dt><dd>Sets the success criterion: a positive <em>lead vs publication</em>, not merely a correlation with an already-public number.</dd>
+            <dt>If false</dt><dd>If NO₂ does not lead the print, the market study is a null even if events are detectable — reported honestly.</dd>
+          </dl></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

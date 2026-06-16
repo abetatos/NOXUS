@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Daily NO₂ + Prophet</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Daily NO₂ aggregation + Prophet decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit assumptions behind the daily-Prophet path. A1 (the weekly cycle separates steel from traffic) is the load-bearing hypothesis; if it fails the gain is null — itself a reportable finding.</p></section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">The day-of-week cycle separates steel from traffic</span><span class="badge badge-blocking">Load-bearing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Steel is baseload (runs 24/7, ~flat across the week) while traffic/other NO₂ sources carry a real weekly cycle; so a Prophet <em>weekly</em> seasonal term captures mostly non-steel, and removing it raises steel's variance share in the residual.</dd>
+            <dt>Why it matters</dt><dd>This is the only temporal lever (short of flux divergence) that can beat the 40% mean-share ceiling.</dd>
+            <dt>If false</dt><dd>If the weekly cycle is weak or also carries steel structure, the gain over the harmonic residual is small/zero — reported honestly via the variance-removed + comparison (a valid null).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Daily coverage is weekday-unbiased</span><span class="badge badge-ok">Verified</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Cloud cover does not systematically remove particular weekdays, so the weekly term is not aliased by sampling.</dd>
+            <dt>Why it matters</dt><dd>A weekday-biased sample would put a spurious weekly cycle into the data.</dd>
+            <dt>If false</dt><dd>The weekly component is flagged unreliable. <strong>Checked 2026-06-13: balanced (Mon 290 … Sun 270)</strong> — holds.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Prophet's trend removes the emission-intensity decline</span><span class="badge badge-warning">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The piecewise-linear Prophet trend captures the secular retrofit-driven NO₂ decline as well as (or better than) the NOX-003.1 spline.</dd>
+            <dt>Why it matters</dt><dd>The "background reduction" must be removed so the residual is activity, not trend.</dd>
+            <dt>If false</dt><dd>Tune changepoint prior; compare to the intensity spline; report sensitivity (EDGE-004).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">Daily noise is tolerable</span><span class="badge badge-warning">Data</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>One overpass/day is noisier than a weekly composite, but 5–7× more points + Prophet's smoothing make the daily decomposition usable.</dd>
+            <dt>Why it matters</dt><dd>If per-day noise dominates, the weekly term is unidentifiable.</dd>
+            <dt>If false</dt><dd>Fall back to a 2–3-day rolling daily series, or to the weekly harmonic method.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">In-sample fit for diagnosis, causal refit for leads</span><span class="badge badge-ok">Discipline</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The full-series Prophet fit is acceptable for the comparison/diagnostic; any lead/market claim uses the causal rolling refit (REQ-032).</dd>
+            <dt>Why it matters</dt><dd>The in-sample fit uses future data — invalid for a tradeable lead.</dd>
+            <dt>If false</dt><dd>n/a — enforced by design + the guard test.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">SNR ceiling stands</span><span class="badge badge-ok">Inherited</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Prophet does not change the physics: a level estimator is still capped near √(variance share); the win, if any, is raising that share via source separation, consumed through the event/catalyst framing.</dd>
+            <dt>Why it matters</dt><dd>Sets honest expectations — Prophet sharpens, it does not manufacture signal.</dd>
+            <dt>If false</dt><dd>n/a.</dd>
+          </dl></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

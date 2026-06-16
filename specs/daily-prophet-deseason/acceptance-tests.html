@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Daily NO₂ + Prophet</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Daily NO₂ aggregation + Prophet decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-006</code></td></tr>
+        <tr><th>Feature slug</th><td><code>daily-prophet-deseason</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>Statistics verified on <strong>synthetic planted daily fixtures</strong>, deterministic, no
+        network. Prophet runs in MAP mode on small series (fast); the prophet-dependent tests skip with a
+        clear marker if prophet is unavailable, while the lazy-import + harmonic-fallback test always runs.</p>
+      </section>
+
+      <section id="tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header"><span class="req-id ac">AT1</span><span class="card-title">Daily compositing + coverage + weekday counts</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-001 · REQ-002 · AC-001</dd>
+            <dt>Given</dt><dd>A synthetic per-overpass set (or daily cube) with planted cloud gaps.</dd>
+            <dt>Then</dt><dd>The daily footprint has NaN on gap days (no interpolation); the valid-day fraction and per-weekday valid counts are emitted.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header"><span class="req-id ac">AT2</span><span class="card-title">Prophet recovers components + activity residual</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-010 · REQ-012 · AC-002</dd>
+            <dt>Given</dt><dd>A planted daily series <code>trend + yearly + weekly + activity + noise</code> with cloud gaps.</dd>
+            <dt>Then</dt><dd>The fitted trend/yearly/weekly match the planted components within tolerance; the residual correlates with the planted activity; the residual is present only on observed days.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header"><span class="req-id ac">AT3</span><span class="card-title">Determinism</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-011 · NFR-005 · AC-003</dd>
+            <dt>Then</dt><dd>Two fits on identical input/config (MAP, <code>uncertainty_samples=0</code>) yield identical residuals.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header"><span class="req-id ac">AT4</span><span class="card-title">Weekday source-separation diagnostic</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-020 · REQ-021 · AC-004</dd>
+            <dt>Given</dt><dd>(a) a planted weekly cycle; (b) a flat-weekly series.</dd>
+            <dt>Then</dt><dd>(a) the weekday amplitude + variance-removed are recovered; (b) the weekly amplitude is ≈0 — the diagnostic does not invent a cycle.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header"><span class="req-id ac">AT5</span><span class="card-title">Comparison + catalyst re-run</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-030 · REQ-031 · AC-005</dd>
+            <dt>Then</dt><dd>The Prophet residual flows through the existing compare contract (full/regime/lead-lag vs BF, alongside yoy/STL/intensity/harmonic) and through the NOX-004 catalyst (a decomposition parquet it can consume).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header"><span class="req-id ac">AT6</span><span class="card-title">Causal refit — no look-ahead</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-032 · NFR-003 · AC-006</dd>
+            <dt>Then</dt><dd>The rolling-refit residual at day <em>t</em> is unchanged when future days are appended (the in-sample full-fit residual, by contrast, does change — the test asserts the causal path is used for any lead claim).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header"><span class="req-id ac">AT7</span><span class="card-title">Lazy import + harmonic fallback</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>ERR-002 · NFR-007 · AC-007</dd>
+            <dt>Then</dt><dd>The package imports without prophet; selecting <code>method="prophet"</code> without it raises an actionable error; the harmonic method still works as the dependency-free fallback.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header"><span class="req-id ac">AT8</span><span class="card-title">Tests + lint</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>AC-008 · NFR-007</dd>
+            <dt>Then</dt><dd><code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-err-1">
+          <div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Error states</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>ERR-001 · ERR-003</dd>
+            <dt>Then</dt><dd>Missing overpass store → actionable error (run <code>noxus fetch</code>); too few valid days → refuse the Prophet fit and report insufficient data.</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-001 / 002</td><td>AT1</td></tr>
+            <tr><td>REQ-010 / 012</td><td>AT2</td></tr>
+            <tr><td>REQ-011</td><td>AT3</td></tr>
+            <tr><td>REQ-020 / 021</td><td>AT4</td></tr>
+            <tr><td>REQ-030 / 031</td><td>AT5</td></tr>
+            <tr><td>REQ-032</td><td>AT6</td></tr>
+            <tr><td>ERR-002 / NFR-007</td><td>AT7</td></tr>
+            <tr><td>ERR-001 / ERR-003</td><td>AT-ERR-1</td></tr>
+            <tr><td>AC-008</td><td>AT8</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

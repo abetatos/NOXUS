@@ -32,7 +32,7 @@
         <strong>relative-index / cluster-attribution</strong> blueprint (Kim 2023) — sample a footprint
         around the steel facilities, subtract a regional background, normalise meteorology, deseasonalise,
         emit a relative index, correlate against throughput. <strong>Flux-divergence point-source
-        attribution (Beirle 2021/2023) is explicitly out of scope</strong> and deferred to NOX-004 (it
+        attribution (Beirle 2021/2023) is explicitly out of scope</strong> and deferred to NOX-005 (it
         needs a raw L2 swath path and is known to resolve poorly in high-background / complex-wind regions
         like industrial NE China).</p>
         <p>The pipeline is: <em>weekly cube → sample on the facility footprint → subtract/normalise a
@@ -148,7 +148,7 @@
       <section id="memory-decision-implications">
         <h2>Memory and decision implications</h2>
         <p>Candidate decisions to log at review time (proposed only; developer decides): (a) the
-        relative-index / cluster-attribution paradigm for v1 with flux-divergence deferred to NOX-004; (b)
+        relative-index / cluster-attribution paradigm for v1 with flux-divergence deferred to NOX-005; (b)
         ERA5 from the Copernicus CDS (server-side AOI subset) as the meteo normalisation source and the chosen regress-out form; (c) the chosen
         footprint radius + background-ring geometry once tuned on real coverage; (d) the deseasonalisation
         method of record. The relative-vs-absolute and report-the-null stances are already implied by the

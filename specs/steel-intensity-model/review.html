@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Steel emission-intensity (decoupling) model</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Reviewed</th><td><code>2026-06-13</code></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approve (T1–T9); T10/T11 data-gated follow-ups</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Status</h2>
+        <p>Implementation review of the additive intensity-decomposition increment. 107 tests pass,
+        <code>ruff check</code> + <code>ruff format</code> clean. Deep-review focus items (the p-hacking
+        surface) all hold. The full-series re-run + coverage tuning (T10) and the project-map/decisions/history
+        docs (T11) are the remaining, explicitly data-gated / documenter items.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Requirement traceability</h2>
+        <table>
+          <thead><tr><th>Req</th><th>Implementation</th><th>Test</th><th>State</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-101</td><td><code>intensity.fit_intensity_trend</code> (spline/loess; residual=activity)</td><td>AT101 (recovers trend+residual+sign inversion)</td><td>✅</td></tr>
+            <tr><td>REQ-102</td><td>blocked-CV / GCV smoothness; <strong>no benchmark arg</strong></td><td>AT102 (low df + signature check)</td><td>✅</td></tr>
+            <tr><td>REQ-103</td><td><code>smoothness_sweep</code></td><td>AT103 (row/df; planted-null flat)</td><td>✅</td></tr>
+            <tr><td>REQ-104</td><td><code>_write_intensity_decomposition</code> → <code>steel_intensity_decomposition.parquet</code></td><td>test_build_activity_index_intensity_model_emits_decomposition</td><td>✅</td></tr>
+            <tr><td>REQ-110</td><td><code>report.add_levels_relationship</code> + dual-sign summary</td><td>test_report_adds_decoupling_levels_relationship</td><td>✅</td></tr>
+            <tr><td>REQ-120/121</td><td><code>gridding.assert_cube_complete</code> gate + radius sweep in battery</td><td>cube-completeness tests; radius_sweep</td><td>◑ harness done; full-series run data-gated (cube partial)</td></tr>
+            <tr><td>REQ-130</td><td>battery + fig7/8/9 + <code>docs/preliminary-results.html</code> §5</td><td>run on real partial data (figures regenerated)</td><td>✅</td></tr>
+            <tr><td>REQ-131</td><td>CIs + sign + bar + null + no tonnage (inherited path)</td><td>existing report tests</td><td>✅</td></tr>
+            <tr><td>REQ-140</td><td><code>deseasonalize</code> dispatch + <code>SignalConfig</code> intensity_* fields</td><td>test_deseasonalize_intensity_model_records_attrs; regression of existing methods</td><td>✅</td></tr>
+            <tr><td>ERR-101/102</td><td><code>IntensityModelError</code> (short series / degenerate CV)</td><td>test_short_series_raises / _empty_grid_ / _one_fold_</td><td>✅</td></tr>
+            <tr><td>ERR-103</td><td><code>IncompleteCubeError</code> gate</td><td>test_assert_cube_complete_raises_on_partial</td><td>✅</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="deep-review">
+        <h2>Deep-review focus (anti-p-hacking)</h2>
+        <ul>
+          <li><strong>Smoothness never tuned to the benchmark (NFR-102):</strong> verified — <code>fit_intensity_trend</code> takes no benchmark/target argument (asserted in AT102), and CV scores on the NO₂ series' own held-out MSE.</li>
+          <li><strong>Sweep is report-only:</strong> <code>smoothness_sweep</code> is separate from selection; the planted-null sweep stays |r|&lt;0.3 across all df (AT103).</li>
+          <li><strong>Backward compatibility:</strong> existing deseason branches untouched; default stays <code>yoy</code>; full prior suite green (regression).</li>
+          <li><strong>No-publish:</strong> <code>steel_intensity_decomposition.parquet</code> confirmed gitignored; figures + stats CSVs committable. No new egress / secrets.</li>
+        </ul>
+      </section>
+
+      <section id="real-result">
+        <h2>Real (partial-cube) result</h2>
+        <p>On the current partial cube (389 wk / 90 mo, 5 km footprint): the explicit model confirms the
+        decoupling (<strong>levels r = −0.35</strong>, p&lt;0.001) and recovers a weak activity residual
+        (<strong>monthly r ≈ 0.14, peak ≈ 0.19</strong>), comparable to <code>yoy</code> (0.19) but without
+        the arbitrary difference-filter choice. CV selects a near-linear trend (df = 2); the sweep decays
+        monotonically with df (no high-df plateau) — the signal is real-but-weak, below the 0.5–0.75 bar.
+        Honest near-null persists; the methodological gain is removing a researcher degree of freedom and
+        reporting the decoupling as a finding. The full-series re-run remains the go/no-go for NOX-005.</p>
+      </section>
+
+      <section id="findings"><h2>Open follow-ups (non-blocking)</h2>
+        <ul>
+          <li>T10: run the full chain + coverage-threshold tuning after the complete TROPOMI fetch (rebuild cube via <code>noxus grid</code>); resolves NOX-003 Q1/Q5, NOX-002b Q2.</li>
+          <li>T11 (documenter): project map (new module/method), methods note, decisions log (intensity-model method of record), <code>history.html</code> entry.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

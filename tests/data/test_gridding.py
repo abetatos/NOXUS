@@ -105,3 +105,53 @@ def test_grid_mismatch_raises(tmp_path):
     _save_manifest(raw, m)
     with pytest.raises(G.GriddingError):
         G.load_overpass_cube(raw)
+
+
+# --------------------------------------------------------------------------- cube completeness gate (NOX-003.1 ERR-103)
+
+
+def _coverage_cube(dates, frac_valid=1.0):
+    """A weekly cube with `coverage` present on the first `frac_valid` share of the given dates."""
+    n = len(dates)
+    cov = np.full((n, 2, 2), 0.8)
+    n_nan = int(round((1 - frac_valid) * n))
+    if n_nan:
+        cov[-n_nan:] = np.nan  # trailing periods unobserved (partial fetch)
+    return xr.Dataset(
+        {
+            G.NO2: (("time", "y", "x"), np.full((n, 2, 2), 1e-4)),
+            G.COVERAGE: (("time", "y", "x"), cov),
+        },
+        coords={"time": pd.DatetimeIndex(dates), "y": np.arange(2), "x": np.arange(2)},
+    )
+
+
+def test_cube_completeness_full_is_one():
+    dates = pd.date_range("2019-01-06", "2019-12-29", freq="W")
+    cube = _coverage_cube(dates, frac_valid=1.0)
+    frac = G.cube_completeness(
+        cube, expected_start="2019-01-06", expected_end="2019-12-29", freq="W"
+    )
+    assert frac > 0.95
+
+
+def test_assert_cube_complete_raises_on_partial():
+    dates = pd.date_range("2019-01-06", "2019-12-29", freq="W")
+    cube = _coverage_cube(dates, frac_valid=0.5)  # only half the weeks observed
+    with pytest.raises(G.IncompleteCubeError, match="ERR-103"):
+        G.assert_cube_complete(
+            cube, expected_start="2019-01-06", expected_end="2019-12-29", freq="W"
+        )
+
+
+def test_assert_cube_complete_partial_allowed_when_not_required():
+    dates = pd.date_range("2019-01-06", "2019-12-29", freq="W")
+    cube = _coverage_cube(dates, frac_valid=0.5)
+    frac = G.assert_cube_complete(
+        cube,
+        expected_start="2019-01-06",
+        expected_end="2019-12-29",
+        freq="W",
+        require=False,
+    )
+    assert frac < 0.9  # measured, but no error raised (partial run proceeds, labelled partial)

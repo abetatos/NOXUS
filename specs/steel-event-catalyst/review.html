@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Steel NO₂ event catalyst</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Reviewed</th><td><code>2026-06-13</code></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="status">
+        <h2>Status</h2>
+        <p>Implementation review of the full catalyst. 124 tests pass, <code>ruff</code> clean, real
+        end-to-end run completed (yfinance live fetch + <code>noxus catalyst</code>). The two high-risk
+        surfaces hold.</p>
+      </section>
+      <section id="findings"><h2>Findings (deep-review focus)</h2>
+        <ul>
+          <li><strong>No look-ahead (AC-006) ✅</strong> — detection uses a causal expanding median/MAD
+          (current point excluded from its own baseline); a test proves events before a cut are identical
+          with/without future data. The market study trades only on/after overpass + latency
+          (<code>_forward_car</code> filters <code>index &gt;= trade_date</code>).</li>
+          <li><strong>Multiple testing (REQ-042) ✅</strong> — detector + study defaults fixed in
+          <code>CatalystConfig</code> before any market return is viewed; <code>multiplicity_n_tests</code>
+          (events × instruments) recorded and surfaced in the summary as "exploratory, not adjusted".</li>
+          <li><strong>Meteo screen (REQ-005) ✅</strong> — ventilation index + causal stagnation flag reject
+          a same-sign weather-driven spike; tested (a stagnation surge is detected without the screen and
+          rejected with it).</li>
+          <li><strong>Coverage / confirmed-vs-unconfirmed / null ✅</strong> — low-coverage periods dropped;
+          confirmed events split out for the market study; null is first-class and reported.</li>
+          <li><strong>Public/free data ✅</strong> — yfinance only; ferrous futures deferred (Q1); NO₂ event
+          tables + price snapshots gitignored; graceful instrument skip (ERR-002).</li>
+        </ul>
+      </section>
+      <section id="real-result"><h2>Real (partial-cube) result</h2>
+        <p>Honest NULL: 25 NO₂ events (15 surge/10 drop); 4/47 production events matched (precision 0.16,
+        recall 0.09, median lead −2 d); market CARs for BHP/RIO/VALE/SLX all straddle zero (market_null).
+        The pipeline is correct; the event-marker is weak on the partial/noisy series. The full-fetch
+        re-run + threshold tuning is the decisive test (follow-up).</p>
+      </section>
+      <section id="decision"><h2>Decision</h2><p><span class="badge badge-ok">approved</span> — T1–T11 complete;
+        all acceptance tests green; honest null reported. Follow-ups (non-blocking): full-fetch re-run +
+        tuning, curtailment calendar (Q4), ferrous futures (Q1), optional figures.</p></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

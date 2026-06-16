@@ -95,6 +95,100 @@
 
     <div class="entry">
       <div class="entry-header">
+        <span class="entry-date">2026-06-14</span>
+        <span class="badge badge-warning">in review</span>
+        <span class="entry-title">NOX-008 — Spatial-scale sensitivity of the NO₂↔steel signal (autocorrelation-robust)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>review — code complete (T1–T10); 146 tests, ruff clean; full real-data run done. Awaiting reviewer.</dd>
+        <dt>Spec</dt>              <dd><code>specs/spatial-scale-sensitivity/</code></dd>
+        <dt>Summary</dt>          <dd>Sweep two scale axes over the EXISTING cube — AOI extent (0.25 vs 0.10° buffer, <code>clip_cube_to_region</code>) × grid resolution (native + block-averaged 0.10/0.15/0.25°, <code>coarsen_cube</code>; aggregation only, never interpolation) — re-derive the footprint NO₂ signal per scale through the existing pipeline, align vs the CREA BF rate, and judge each correlation with autocorrelation-robust + FDR significance (new <code>noxus/validation/robust.py</code>: first-order + Newey-West effective-N, moving-block bootstrap CI, block-permutation null, Benjamini–Hochberg FDR). Promotes the 2026-06-14 probe into tested code. Tests the Parubets &amp; Naito (2025) scale warning + the source-isolation intuition (Wen 2024).</dd>
+        <dt>Finding</dt>           <dd><strong>Hardened honest null.</strong> Of 128 (scale × variant × lag) tests, <strong>0 are robust</strong> after FDR; the 34 naïve-significant cells are all monthly peak-lag artefacts that fall to "fragile (naive-only)". The tight 0.10° AOI does <strong>not</strong> rescue the signal (Δ|r|≈0.02–0.05, never significant); native↔coarse sign flips are noise-level (|r|&lt;0.13). Conclusion upgraded from "no signal at one scale" to <strong>"no robust coupling at any reasonable scale"</strong>. Also confirmed the naïve Pearson p over-rejects under autocorrelation (probe: every positive "SIG" from the deep exploration collapses).</dd>
+        <dt>Decisions</dt>        <dd>Two recorded in <code>decisions/architecture-decisions.md</code> (2026-06-14): (1) autocorrelation-robust + FDR is the significance standard for index↔benchmark correlations; (2) no robust NO₂↔steel coupling at any reasonable spatial scale.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/validation/robust.py</code> + <code>scale.py</code>; <code>noxus/data/gridding.py</code> (clip/coarsen); <code>noxus/config/run.py</code> (ScaleSweepConfig); <code>noxus/cli/main.py</code> (<code>scale-sweep</code>); <code>analysis/scale_sensitivity.py</code> (+ probe <code>autocorr_significance.py</code>); tests <code>tests/data/test_scale_ops.py</code>, <code>tests/validation/test_robust.py</code>, <code>test_scale.py</code>. Result: <code>data/derived/scale_sensitivity.csv</code> + 16 figures + <code>scale_sensitivity_findings.txt</code>. Existing validation/gridding/CLI contracts unchanged (additive).</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 146 passed; <code>uv run ruff check .</code> → clean. Full sweep run on the 389-week cube (5000 bootstrap/permutation draws, seed 20260614).</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-14 ("Comienza"; Q1 resolved → resolutions {native,0.10,0.15,0.25}).</dd>
+        <dt>Follow-ups</dt>        <dd>Spatial-scale lever closed for the relative-index paradigm; remaining avenues are flux divergence (NOX-005), a diurnal sensor (GEMS, NOX-007), or the regime/event framing. Reviewer to confirm docs targets (exploration HTML section, project map).</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-14</span>
+        <span class="badge badge-ok">milestone</span>
+        <span class="entry-title">Full-series arbiter run — harmonic-K1 on the complete cube (closes NOX-003.1 T10)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>What</dt>             <dd>Rebuilt the weekly cube from the complete overpass store (389 weeks, 2019→2026; the earlier "partial" was intra-week cloud coverage, not a truncated series) and ran the full chain with the method of record — <strong>harmonic-K1</strong> (5 km footprint, ERA5 meteo) — plus the catalyst. This is the long-deferred "full-fetch arbiter" (NOX-003.1 T10).</dd>
+        <dt>Validation</dt>       <dd>Continuous: <strong>weak/null on average</strong> (weekly r=0.07 p=0.18 n=358; monthly r=0.13) but <strong>regime-dependent</strong> — rolling-18mo peak <strong>r≈0.76 at 2023-06</strong> (above the 0.5–0.75 bar), breaking down in 2024.</dd>
+        <dt>Catalyst</dt>         <dd>NULL — 27 NO₂ events, 4/47 production matched (precision 0.15, recall 0.09, lead −2 d); market CARs for BHP/RIO/VALE/SLX straddle zero.</dd>
+        <dt>Conclusion</dt>       <dd>The full series does <strong>not</strong> rescue the signal: with TROPOMI (1 overpass/day, ~40% steel mean-share, no exploitable weekly cycle) the Tangshan steel signal is <strong>real but intermittent</strong> — strong when curtailments dominate the variance (2023), invisible otherwise; the event/catalyst marker is null. Remaining levers: regime-conditioned modelling, flux divergence (NOX-005), or a multi-overpass sensor (GEMS). Result artifacts: <code>data/derived/steel_validation_results.json</code>, <code>catalyst_results.json</code>.</dd>
+        <dt>Decisions</dt>        <dd>No new code (a run on existing methods). Closes the NOX-003.1 T10 follow-up.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-006 — Daily NO₂ aggregation + Prophet decomposition</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — implemented + self-reviewed; 133 tests, ruff clean; real daily run on the partial cube.</dd>
+        <dt>Spec</dt>              <dd><code>specs/daily-prophet-deseason/</code></dd>
+        <dt>Summary</dt>          <dd>Daily NO₂ footprint (re-aggregate per-overpass at <code>freq=D</code>, coverage-screened; 1984/2720 valid days = 73%, weekdays balanced) + a Prophet decomposition (trend + yearly + weekly Fourier, deterministic MAP, lazy-imported) to test the day-of-week source-separation lever (steel baseload vs traffic cycle). Adds <code>deseason_method="prophet"</code> + <code>"harmonic"</code>; harmonic is the dependency-free fallback; causal rolling-refit for any lead claim.</dd>
+        <dt>Finding</dt>           <dd><strong>Honest null on the marginal value.</strong> Weekly component FLAT (variance 0.5%, weekday profile ~0) → steel is baseload, but therefore no weekly cycle to separate (also limited by the single ~13:30 overpass). Daily-Prophet residual couples to BF at best-regime r=0.65 — BELOW harmonic-K1 weekly (0.78) and intensity (0.73); yearly-only ≈ yearly+weekly. No usable quarterly/four-month cycle (BF sub-annual power is ~semiannual = heating-season curtailment on/off, an annual harmonic). <strong>harmonic-K1 stays the method of record.</strong></dd>
+        <dt>Decisions</dt>        <dd>Daily-Prophet kept + tested but harmonic-K1 is the method of record; recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/signal/prophet_deseason.py</code> (Prophet + harmonic + weekday diagnostic + causal refit); <code>noxus/signal/index.py</code> (prophet/harmonic branches); <code>noxus/config/run.py</code> (Prophet/daily params); <code>analysis/daily_prophet_probe.py</code> (+figures); <code>tests/signal/test_prophet_deseason.py</code> + <code>test_harmonic_fallback.py</code>; <code>pyproject.toml</code>/<code>uv.lock</code> (+prophet). Daily NO₂-derived gitignored.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 133 passed; <code>uv run ruff check .</code> → clean. Live daily Prophet run + periodogram executed.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> — see <code>specs/daily-prophet-deseason/review.html</code>.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13.</dd>
+        <dt>Follow-ups</dt>        <dd>Revive the weekly source-separation lever only with a multi-overpass/geostationary sensor (GEMS); otherwise the full TROPOMI fetch + event/regime framing remain the path.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-004 — Steel NO₂ event catalyst (production-event detection → market lead)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — full pipeline implemented + self-reviewed; 124 tests, ruff clean; real end-to-end run on the partial cube.</dd>
+        <dt>Spec</dt>              <dd><code>specs/steel-event-catalyst/</code></dd>
+        <dt>Summary</dt>          <dd>Paradigm shift: use cluster NO₂ as an event/catalyst marker, not a continuous tracker. Detect discrete production events (robust MAD-z + CUSUM, causal/no-look-ahead) on the NOX-003.1 residual; coverage + strengthened meteo screen (ventilation index + stagnation flag). Match vs production (CREA BF-rate jumps + curtailment calendar) → precision/recall/lead. Market event-study (forward CAR ±window, trade at overpass+latency) for miners (BHP/RIO/VALE) + steel ETF (SLX) vs ACWI. Headline metrics with CIs, not Pearson r; multiple-testing recorded; honest null.</dd>
+        <dt>Finding</dt>           <dd><strong>Honest NULL on the partial cube.</strong> 25 NO₂ events detected (15 surge/10 drop); only 4/47 production events matched (precision 0.16, recall 0.09, median lead −2 d); market CARs for all four instruments straddle zero (market_null). The machinery works; the event-marker is weak on partial/noisy data — the full TROPOMI fetch (NOX-003.1 T10) + threshold tuning is the real test.</dd>
+        <dt>Decisions</dt>        <dd>Catalyst (event-marker) paradigm; no-look-ahead + multiple-testing discipline; ventilation/stagnation meteo lever (not flux-divergence); yfinance for free prices; ferrous futures deferred (Q1) — recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/catalyst/{events,groundtruth,market,study,report}.py</code>; <code>noxus/config/run.py</code> (CatalystConfig); <code>noxus/cli/main.py</code> (detect-events/ingest-market/catalyst); <code>tests/catalyst/</code>; <code>.gitignore</code> (market snapshots); <code>pyproject.toml</code>/<code>uv.lock</code> (+yfinance); docs (data-access, project map). NO₂ events + price snapshots gitignored.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 124 passed; <code>uv run ruff check .</code> → clean. Live-verified: yfinance fetch + full <code>noxus catalyst</code> run produced the null report.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> — see <code>specs/steel-event-catalyst/review.html</code>.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13 (spec approved before implementation).</dd>
+        <dt>Follow-ups</dt>        <dd>Re-run after the full TROPOMI fetch + tune z-threshold/match-window; assemble the curtailment calendar (Q4); add Chinese ferrous futures via exchange-settlement snapshot (Q1); optional event-timeline/CAR figures.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-13</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-003.1 — Explicit emission-intensity (decoupling) model</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — code complete (T1–T9) + reviewed; tests + lint green; docs updated. T10 (full-series re-run + coverage tuning) is data-gated on the complete TROPOMI fetch and recorded as a non-blocking follow-up.</dd>
+        <dt>Spec</dt>              <dd><code>specs/steel-intensity-model/</code></dd>
+        <dt>Summary</dt>          <dd>Additive increment on NOX-003: recover steel activity by modelling the emission-intensity decline <strong>explicitly</strong> instead of differencing blindly. Fit a smoothness-controlled secular trend <code>s(t)</code> to the meteo-normalised footprint signal; residual = activity proxy (Li 2024 decomposition). Smoothness chosen by blocked time-series CV <strong>on the NO₂ series alone — benchmark never consulted</strong> (anti-p-hacking). A smoothness-sensitivity sweep + the <code>s(t)</code> diagnostic are emitted; the report states both signs (levels − decoupling, residual + activity).</dd>
+        <dt>Finding</dt>           <dd><strong>Honest near-null persists; decoupling confirmed.</strong> On the partial cube: levels r=−0.35 (p&lt;0.001); explicit-model residual monthly r≈0.14 (peak ≈0.19), comparable to <code>yoy</code> (0.19), below the 0.5–0.75 bar. CV picks a near-linear trend (df=2); the sweep decays monotonically with df (no high-df plateau) — signal real-but-weak, no df choice manufactures it. The gain is methodological honesty (one fewer researcher degree of freedom), not a higher number.</dd>
+        <dt>Decisions</dt>        <dd>Explicit emission-intensity model (CV-selected trend) as the activity-recovery method of record; blind differencing kept only for replicability — recorded in <code>decisions/architecture-decisions.md</code>.</dd>
+        <dt>Files changed</dt>     <dd><code>noxus/signal/intensity.py</code> (new), <code>noxus/signal/index.py</code> (dispatch + decomposition emit), <code>noxus/validation/report.py</code> (dual-sign decoupling), <code>noxus/config/run.py</code> (intensity_* params), <code>noxus/data/gridding.py</code> (cube-completeness gate, ERR-103), <code>analysis/preliminary_signal.py</code> (fig7–9 + sweep), <code>docs/preliminary-results.html</code> (§5 + figures); tests in <code>tests/{signal,validation,data}/</code>. No new dependency; no new egress.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 107 passed; <code>uv run ruff check .</code> → clean. Battery re-run on the real partial cube regenerated fig7–9 + <code>smoothness_sweep.csv</code>.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approve (T1–T9)</span> — see <code>specs/steel-intensity-model/review.html</code>; T10/T11 data-gated follow-ups.</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-13 (spec approved before implementation).</dd>
+        <dt>Follow-ups</dt>        <dd>T10: full-series re-run + radius/coverage tuning after the complete fetch (closes NOX-003 Q1/Q5, NOX-002b Q2). T11: project-map / methods-note docs. Then the full-series result gates the NOX-005 go/no-go.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
         <span class="entry-date">2026-06-13</span>
         <span class="badge badge-warning">in progress</span>
         <span class="entry-title">NOX-003 — Steel NO₂ activity signal + validation (preliminary real result)</span>
@@ -108,7 +202,7 @@
         <dt>Files changed</dt>     <dd><code>noxus/data/era5.py</code> (CDS-only ingest), <code>noxus/signal/index.py</code> (yoy/stl methods), <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>, <code>noxus/validation/*</code>; <code>analysis/preliminary_signal.py</code> (reproducible); <code>docs/preliminary-results.html</code> + <code>docs/figures/preliminary/*</code>; tests across <code>tests/{data,signal,validation,cli}/</code>; deps scipy/statsmodels/cdsapi (gcsfs/zarr removed with ARCO).</dd>
         <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 90 passed; <code>uv run ruff check .</code> → clean. CDS path verified live (42 KB / 3-day probe; full era 8148 hourly steps, 3.8 MB).</dd>
         <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approve-with-nits</span> phase 1 (T1–T4) &amp; phase 2 (T5–T14); nits fixed. <strong>ERA5 source switch (CDS-only) is post-review → re-review of that change pending at T15.</strong></dd>
-        <dt>Follow-ups</dt>        <dd>T15: model the retrofit trend explicitly (Li 2024); flux-divergence NOX-004; curtailment calendar (Q6a); then mark done. Result may stand as a publishable honest null (Montgomery/Morris&amp;Zhang).</dd>
+        <dt>Follow-ups</dt>        <dd>T15: model the retrofit trend explicitly (Li 2024); flux-divergence NOX-005; curtailment calendar (Q6a); then mark done. Result may stand as a publishable honest null (Montgomery/Morris&amp;Zhang).</dd>
       </dl>
     </div>
 

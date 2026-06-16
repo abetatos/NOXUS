@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOXUS — Deep exploration: NO₂ × steel × economy</title>
+<style>
+  :root{--ink:#1b1f24;--muted:#5b6570;--line:#e3e7ec;--soft:#f6f7f9;--accent:#1f6feb;
+        --p1:#b3261e;--ok:#1a7f37;--warn:#9a3412;--warnbg:#fff4ed;--okbg:#eef8f0;--maxw:980px;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  header{padding:42px 0 24px;border-bottom:1px solid var(--line)}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{margin:8px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em}
+  h2{margin:34px 0 10px;font-size:21px}
+  h3{margin:22px 0 6px;font-size:16px}
+  p.lead{color:var(--muted);font-size:16.5px;max-width:780px}
+  .meta{color:#8a939d;font-size:13px;margin-top:12px}
+  figure{margin:18px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  figure img{width:100%;display:block}
+  figcaption{padding:10px 14px;font-size:13.5px;color:var(--muted);background:var(--soft);border-top:1px solid var(--line)}
+  .callout{border:1px solid #c5dcfb;background:#eaf2ff;border-radius:10px;padding:16px 18px;margin:18px 0}
+  .callout.warn{border-color:#f0d6c4;background:var(--warnbg)}
+  .callout.ok{border-color:#c5e6cf;background:var(--okbg)}
+  .callout h3{margin:0 0 6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:14px 0}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid #eef1f4}
+  th{background:var(--soft);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  td.neg{color:var(--p1);font-weight:700} td.pos{color:var(--ok);font-weight:700}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:.88em;background:var(--soft);padding:1px 5px;border-radius:4px}
+  pre{background:#0b1320;color:#d6e2f0;padding:14px 16px;border-radius:8px;overflow:auto;font-size:13px}
+  ul li{margin:5px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .toc{font-size:14px;color:var(--muted)}
+  .toc a{color:var(--accent);text-decoration:none}
+  footer{margin:40px 0;border-top:1px solid var(--line);padding-top:16px;color:#8a939d;font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="kicker">NOXUS · NOX-004 follow-up · deep exploration</span>
+  <h1>NO₂ × steel × economy: hunting the lag and the hidden patterns</h1>
+  <p class="lead">A deep, reproducible study of every NO₂ representation we've built (level · intensity
+  residual · year-over-year · STL) against steel activity (CREA blast-furnace rate + pig-iron, crude-steel
+  and BF-starting-rate aux series) and the economy (BHP/RIO/VALE/SLX vs ACWI). The brief: <strong>don't
+  assume the NO₂↔production lag — infer it from the data</strong>, and surface correlations the static
+  numbers hide. The headline: there is no single clean lag, but there <em>is</em> a strong, previously
+  invisible <strong>regime-dependent</strong> coupling.</p>
+  <div class="meta">Generated 2026-06-13 · weekly cube (389 wks, partial) + monthly · CREA benchmark 2019–2026 ·
+  market via yfinance snapshot. Reproduce: <code>uv run python analysis/deep_exploration.py</code>.
+  <strong>Exploratory — partial cube; treat magnitudes as provisional.</strong></div>
+  <p class="toc" style="margin-top:14px">Jump to:
+    <a href="#lag">1 · The lag</a> ·
+    <a href="#regime">2 · Regime dependence</a> ·
+    <a href="#artifact">3 · Decoupling = trend artifact</a> ·
+    <a href="#economy">4 · Economy</a> ·
+    <a href="#seasonal">5 · Seasonal</a> ·
+    <a href="#prophet">6 · Better seasonality?</a> ·
+    <a href="#daily">7 · Daily &amp; the weekly lever</a> ·
+    <a href="#takeaways">8 · Takeaways</a></p>
+</div></header>
+
+<div class="wrap">
+
+  <div class="callout warn">
+    <h3>Three-line summary</h3>
+    <p>(1) <strong>No single NO₂→BF lag</strong>: levels carry a persistent negative "decoupling" at every
+    lag; de-trended NO₂ shows only a weak quasi-annual wave inside the noise band — residual seasonality,
+    not a stable lead. (2) <strong>The relationship is regime-dependent</strong>: a rolling correlation
+    swings from −0.42 to <strong>+0.73</strong> (mid-2023 clears the literature bar), hidden by the flat
+    full-sample r≈0.15. (3) The famous <strong>−0.35 "decoupling" is mostly a whole-sample trend
+    artifact</strong> — within sub-periods the level correlation is +0.27 then ~0.</p>
+  </div>
+
+  <h2 id="lag">1 · The lag, inferred from the data — there isn't a clean one</h2>
+  <p>Cross-correlating each NO₂ variant against the BF operating rate across lags (positive lag = NO₂
+  leads) shows <strong>two different structures</strong>. The <em>level</em> (purple) sits below the
+  white-noise band at <em>every</em> lag — a persistent negative "decoupling", deepest at −6 months
+  (r=−0.50). The <em>de-trended</em> variants (yoy/STL/intensity-residual) trace an almost identical
+  <strong>quasi-annual wave</strong> inside the band: a trough at −6, a bump at −1/−2, a dip at +2, and a
+  weak peak at +6 (yoy r=0.24, barely above the band). That all three share the same wave is the tell —
+  it is <strong>residual annual seasonality</strong> (the heating-season steel-share shift, Wen 2024), not
+  a causal lead. So the apparent "+6-month NO₂ lead" is most likely a seasonal artifact.</p>
+  <figure><img src="figures/exploration/expl_ccf_monthly.png" alt="monthly lead-lag CCF">
+    <figcaption>Monthly lead-lag. Level (purple) is negative at all lags (decoupling); de-trended variants
+    oscillate within the ±band with a ~12-month wave — no robust single peak.</figcaption></figure>
+  <figure><img src="figures/exploration/expl_ccf_weekly.png" alt="weekly lead-lag CCF">
+    <figcaption>Weekly lead-lag is noise — peaks scatter (−14…+4) and barely exceed the band, confirming
+    Morris &amp; Zhang's "weekly is too noisy" for this signal.</figcaption></figure>
+
+  <table>
+    <thead><tr><th>variant (monthly)</th><th>r at lag 0</th><th>best lag</th><th>r at best</th><th>read</th></tr></thead>
+    <tbody>
+      <tr><td>NO₂ level</td><td class="neg">−0.38</td><td>−6 mo</td><td class="neg">−0.50</td><td>persistent decoupling (see §3)</td></tr>
+      <tr><td>NO₂ intensity residual</td><td class="pos">+0.13</td><td>−1 mo</td><td>+0.18</td><td>weak, inside band</td></tr>
+      <tr><td>NO₂ year-over-year</td><td class="pos">+0.16</td><td>+6 mo</td><td class="pos">+0.24</td><td>weak; quasi-annual wave (seasonal)</td></tr>
+      <tr><td>NO₂ STL residual</td><td>+0.09</td><td>+6 mo</td><td>+0.19</td><td>weak; same wave</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--muted);font-size:14px"><strong>For the catalyst:</strong> there is no fixed Δ to
+  bake in — the offset is seasonal/unstable, so the symmetric match window was the right design; report
+  leads per regime, not as one global number.</p>
+
+  <h2 id="regime">2 · The hidden pattern: a regime-dependent coupling</h2>
+  <p>The flat full-sample correlation (r≈0.15) is an <strong>average over a strong but unstable
+  relationship</strong>. A rolling 18-month correlation of de-trended NO₂ against the BF rate swings from
+  <strong>−0.42 to +0.73</strong>, positive 72–86% of the time, and <strong>peaks at ≈+0.73 in mid-2023 —
+  above the 0.5–0.75 literature bar</strong> — then breaks down through 2024. The indicator <em>worked</em>
+  in 2022–2023 and stopped working in 2024. This is the structure the static numbers hid.</p>
+  <figure><img src="figures/exploration/expl_rolling_monthly.png" alt="rolling correlation monthly">
+    <figcaption>Rolling 18-month correlation, de-trended NO₂ vs BF rate. Blue band = above +0.3; the
+    mid-2023 window reaches +0.73 (clears the bar), 2024 turns negative — clear regime dependence.</figcaption></figure>
+  <figure><img src="figures/exploration/expl_rolling_weekly.png" alt="rolling correlation weekly">
+    <figcaption>Weekly 52-week rolling correlation — same story, noisier: epochs of genuine positive
+    coupling separated by breakdowns.</figcaption></figure>
+  <div class="callout">
+    <p><strong>Caveat:</strong> a single-window r=0.73 on a partial series can be over-fitting a good
+    stretch. The full TROPOMI fetch is the arbiter — but a regime/state-conditioned model (not one global
+    r) is clearly the right framing.</p>
+  </div>
+
+  <h2 id="artifact">3 · The −0.35 "decoupling" is mostly a whole-sample trend artifact</h2>
+  <p>Split the <em>level</em> correlation by period and the negative sign largely disappears:</p>
+  <table>
+    <thead><tr><th>period</th><th>level NO₂ vs BF (monthly)</th><th>n</th><th>read</th></tr></thead>
+    <tbody>
+      <tr><td>2019–2021</td><td class="pos">+0.27</td><td>35</td><td>positive within-period</td></tr>
+      <tr><td>2022–2026</td><td>0.00</td><td>54</td><td>flat within-period</td></tr>
+      <tr><td>2019–2026 (full)</td><td class="neg">−0.35</td><td>90</td><td>negative only across the whole span</td></tr>
+    </tbody>
+  </table>
+  <p>The −0.35 comes from two <strong>secular trends crossing</strong> over seven years — NO₂ declining
+  (retrofits) while the BF rate rises — a Simpson's-paradox-style artifact, <strong>not</strong> a
+  within-regime inverse relationship. So "decoupling" is a long-horizon trend story; intra-period there is
+  no inversion to fear. Don't over-interpret the −0.35.</p>
+  <figure><img src="figures/exploration/expl_bestlag_scatter_monthly.png" alt="best-lag scatter">
+    <figcaption>The strongest single relationship found (level at lag −6) — visibly the secular trend
+    crossing, not a tight activity link.</figcaption></figure>
+
+  <h2 id="economy">4 · Economy: below the noise floor (for now)</h2>
+  <p>De-trended NO₂ is <em>consistently, mildly negative</em> against miner abnormal returns (RIO −0.28,
+  VALE −0.23, SLX −0.15 at lag 0, monthly), and the intensity residual is mildly negative vs crude-steel
+  output (−0.21). But none clears |r|≥0.3, the lead-lag peaks have <strong>opposite signs</strong> across
+  instruments, and the four miners are effectively one dimension (mutually r≈0.85) — so this is one weak,
+  sign-unstable observation, below the multiple-testing floor. <strong>No exploitable NO₂→market link on
+  this partial data.</strong></p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/expl_economy_ccf_monthly.png" alt="economy lead-lag monthly">
+      <figcaption>Steel drivers (BF-rate change, NO₂ residual) vs miner abnormal returns — all inside the
+      noise band, signs inconsistent.</figcaption></figure>
+    <figure><img src="figures/exploration/expl_corr_matrix_monthly.png" alt="correlation matrix monthly">
+      <figcaption>Lag-0 correlation matrix. Tight within-group blocks (steel outputs ~0.95; miners ~0.85)
+      confirm sane data; the NO₂↔steel / NO₂↔market cells are the conspicuously weak ones.</figcaption></figure>
+  </div>
+  <p style="color:var(--muted);font-size:14px">Sanity confirmed: pig-iron ~ crude-steel r=0.95; BF
+  starting-rate-247 ~ output r≈0.5; miners cluster at 0.85. The data is coherent — the missing strong cell
+  is precisely NO₂↔steel, consistent with a weak (and regime-gated) satellite signal.</p>
+
+  <h2 id="seasonal">5 · Seasonal structure</h2>
+  <p>Monthly climatology shows the heating-season imprint that the de-trended CCF wave (§1) reflects —
+  another reason to model the heating-season interaction explicitly rather than difference it away.</p>
+  <figure><img src="figures/exploration/expl_seasonal.png" alt="seasonal climatology">
+    <figcaption>Monthly climatology of NO₂ level vs BF rate (grey = heating season). The seasonal mismatch
+    feeds the residual annual wave seen in the lead-lag.</figcaption></figure>
+
+  <h2 id="prophet">6 · Can better seasonality removal help? (Prophet-style Fourier)</h2>
+  <p>The §1 residual wave is leftover annual seasonality, so we tested the developer's idea — a
+  <strong>Prophet-style decomposition</strong> (flexible trend + multi-frequency <strong>Fourier
+  seasonality</strong>), implemented lightweight as harmonic regression (no heavy dependency): remove
+  <em>K</em> annual harmonics from the intensity residual. The static full-sample correlation barely
+  moves (still ~0.12–0.16, because the regime averaging dominates — §2), but the <strong>best-regime
+  coupling improves</strong>:</p>
+  <table>
+    <thead><tr><th>method (monthly)</th><th>|best-lag r|</th><th>best-regime |r| (rolling 18-mo)</th></tr></thead>
+    <tbody>
+      <tr><td>yoy</td><td>0.24</td><td>0.71</td></tr>
+      <tr><td>STL</td><td>0.36</td><td>0.66</td></tr>
+      <tr><td>intensity residual (NOX-003.1)</td><td>0.18</td><td>0.73</td></tr>
+      <tr><td><strong>+ Fourier K=1 (annual)</strong></td><td>0.17</td><td class="pos"><strong>0.78</strong></td></tr>
+      <tr><td>+ Fourier K=2</td><td>0.17</td><td>0.77</td></tr>
+      <tr><td>+ Fourier K=3 / K=4</td><td>0.18</td><td>0.75 / 0.76</td></tr>
+    </tbody>
+  </table>
+  <p>Removing the single fundamental annual harmonic (K=1) lifts the best-regime correlation to
+  <strong>r≈0.78</strong> — above the literature bar and the cleanest of all methods. More harmonics
+  (K≥3) slightly <em>worsen</em> it (over-fitting the seasonal shape), so <strong>one annual sinusoid is
+  the sweet spot</strong>. Weekly stays noise-dominated (rolling-peak ~0.40) — the gain is monthly only.</p>
+  <figure><img src="figures/exploration/expl_seasonality_compare.png" alt="deseasonalisation comparison">
+    <figcaption>Coupling by deseasonalisation method (monthly): static best-lag |r| (green) vs best-regime
+    rolling-peak |r| (blue). Harmonic K1 has the highest best-regime coupling; the red line is the naive
+    SNR ceiling from a 40% mean share.</figcaption></figure>
+
+  <div class="callout ok">
+    <h3>The 40% limit is a mean-share ceiling, not a variance ceiling</h3>
+    <p>If steel is fraction <em>f</em> of the column <em>variance</em>, the attainable correlation is
+    bounded by ~√<em>f</em>; a 40% <em>mean</em> share would imply a ceiling of ~0.63. But the best-regime
+    r≈0.78 implies a <strong>variance share of ~61% in that window</strong> — i.e. <strong>steel drives
+    far more of the variability than of the mean when it is the swing factor</strong> (sharp curtailments
+    come and go), which is exactly the regime where an event/catalyst marker should work. So the 40% number
+    is not the binding limit for a <em>change</em> detector; it bounds a <em>level</em> estimator.</p>
+  </div>
+
+  <h2 id="daily">7 · The daily cube &amp; the weekly source-separation lever (NOX-006)</h2>
+  <p>The only way to beat the ~40% mean-share ceiling without flux divergence is to raise steel's
+  <em>variance</em> share — and the natural handle is the <strong>day-of-week cycle</strong>: steel is
+  baseload (runs 24/7, flat across the week) while traffic/other sources carry a weekly cycle, so removing
+  a weekly seasonal term would isolate the industrial component. That cycle is invisible in the weekly
+  composite, so we built a <strong>daily</strong> footprint (1,984 valid days / 73% after cloud screening,
+  weekdays balanced) and a <strong>Prophet</strong> decomposition (trend + yearly + weekly).</p>
+  <p><strong>Result: an honest null on the lever.</strong> The weekly component is <strong>flat</strong>
+  (variance 0.5% of signal; weekday effects ≈0) — confirming steel is baseload, but precisely therefore
+  <em>there is no weekly cycle to remove</em> (and TROPOMI's single ~13:30 overpass can't resolve a traffic
+  commute cycle anyway). The daily-Prophet residual couples to the BF rate at best-regime
+  <strong>r≈0.65</strong> — <em>below</em> the weekly harmonic-K1 (0.78) and intensity (0.73): daily adds
+  per-point noise without adding weekly signal. Yearly-only ≈ yearly+weekly; and no usable
+  quarterly/four-month cycle exists — the BF rate's sub-annual power sits at ~semiannual (the heating-season
+  curtailment on/off, already an annual harmonic), not aligned with the NO₂ residual's ~2–3.6-month wiggles.</p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/expl_prophet_decomposition.png" alt="prophet decomposition">
+      <figcaption>Prophet daily decomposition: trend + yearly + (flat) weekly + activity residual.</figcaption></figure>
+    <figure><img src="figures/exploration/expl_prophet_weekday.png" alt="weekday profile">
+      <figcaption>Day-of-week component — essentially flat (0.5% of variance): steel baseload, no weekly
+      traffic cycle to separate at the overpass time.</figcaption></figure>
+  </div>
+  <p style="color:var(--muted);font-size:14px">The Prophet/daily capability is kept and tested (it could
+  revive the weekly lever with a multi-overpass geostationary sensor like GEMS), but <strong>harmonic-K1
+  (weekly) remains the method of record</strong>.</p>
+
+  <h2 id="scale">8 · Spatial-scale sensitivity &amp; honest significance (NOX-008)</h2>
+  <p>Every result above used <strong>one fixed scale</strong> (0.25° AOI buffer, native ~5 km grid) and the
+  naïve Pearson p — which assumes i.i.d. data and badly overstates significance for these strongly
+  autocorrelated series (the level's effective sample size is ~225 of 377 weekly, ~39 of 90 monthly). NOX-008
+  re-tests the coupling two ways: (a) an <strong>autocorrelation-robust</strong> standard — effective-N
+  (first-order + Newey-West), a moving-block bootstrap CI of <em>r</em>, a block-permutation null, and a
+  Benjamini–Hochberg <strong>FDR</strong> correction across the family; and (b) a <strong>spatial-scale
+  sweep</strong> over the existing cube: AOI extent (0.25° vs 0.10° buffer, a strict clip) × grid resolution
+  (native vs block-averaged 0.10/0.15/0.25°, aggregation only — never interpolation). This is the
+  Parubets &amp; Naito (2025) scale test (significant coarse → lost/flipped fine) plus the source-isolation
+  hypothesis (a tighter AOI excludes Beijing-Tianjin-Hebei background; steel is only ~30–43% of Tangshan NO₂,
+  Wen 2024).</p>
+  <p><strong>Result: a hardened null.</strong> Of <strong>128</strong> (scale × variant × lag) tests,
+  <strong>zero</strong> survive the robust + FDR bar; the 34 naïve-significant cells are all monthly peak-lag
+  artefacts that collapse to <em>fragile (naive-only)</em>. The tight 0.10° AOI does <strong>not</strong>
+  rescue the signal (Δ|r| ≈ 0.02–0.05, never significant), and the native↔coarse sign flips are noise-level
+  (|r| &lt; 0.13). The conclusion graduates from "no signal at one scale" to <strong>"no robust coupling at
+  any reasonable scale"</strong>.</p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/scale_grid_r_intensity-model_W.png" alt="scale grid of r">
+      <figcaption>Scale grid of <em>r</em> (intensity residual, weekly): r stays near zero and flips sign
+      across extent × resolution — noise, not a scale effect.</figcaption></figure>
+    <figure><img src="figures/exploration/scale_grid_sig_level_W.png" alt="robust verdict grid">
+      <figcaption>Robust verdict (FDR) across scales: no cell reaches <em>robust</em>; coarsening adds no
+      information, only changes background dilution.</figcaption></figure>
+  </div>
+  <p style="color:var(--muted);font-size:14px">The robust-significance engine (<code>noxus/validation/robust.py</code>)
+  is now the project standard for any index↔benchmark correlation; the naïve p is shown only to expose the
+  gap. Spatial scale is closed as a lever — remaining avenues are flux divergence (NOX-005), a diurnal sensor
+  (GEMS, NOX-007), or the regime/event framing.</p>
+
+  <h2 id="takeaways">9 · Takeaways &amp; next probes</h2>
+  <ul>
+    <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
+    match window is correct; report leads per regime.</li>
+    <li><strong>Chase the regime, not the global r.</strong> The 2022–2023 window reached r≈0.73; a
+    state-conditioned model (or testing what switches the regime on/off — seasonal? policy? market?) is the
+    most promising next step. The full fetch decides if it's real or over-fit.</li>
+    <li><strong>Better seasonality removal helps — modestly and only in-regime.</strong> A Prophet-style
+    single annual Fourier harmonic on top of the intensity trend gives the best coupling (best-regime
+    r≈0.78, above the bar); K≥3 over-fits. Worth promoting to a <code>deseason_method="harmonic"</code> in
+    the pipeline. The static full-sample r stays low because of the regime averaging, not the filter.</li>
+    <li><strong>The 40% share bounds a level estimator, not a change detector.</strong> Steel's
+    <em>variance</em> share rises to ~60% when curtailments are the swing factor — so the catalyst/event
+    framing is the right way to live with the low mean share.</li>
+    <li><strong>Don't over-read −0.35</strong> — it's a whole-sample trend crossing, not intra-period
+    inversion.</li>
+    <li><strong>Economy link is below noise</strong> on partial data — revisit after the full fetch + the
+    curtailment calendar, and prefer the (regime-gated) confirmed events for any market test.</li>
+  </ul>
+
+  <div class="callout ok">
+    <h3>Reproducibility</h3>
+    <p>Every figure + <code>findings.txt</code> regenerates from one script over the committed/derived
+    artifacts:</p>
+    <pre>uv run python analysis/deep_exploration.py   # → docs/figures/exploration/</pre>
+    <p style="margin:8px 0 0">NO₂-derived inputs and market snapshots are gitignored; the figures, the
+    findings text and this page are committed.</p>
+  </div>
+
+  <footer>
+    NOXUS deep exploration · 2026-06-13 · figures: <code>docs/figures/exploration/</code> ·
+    code: <code>analysis/deep_exploration.py</code>. Partial cube — magnitudes provisional; the full
+    TROPOMI fetch (NOX-003.1 T10) is the arbiter for the regime finding.
+  </footer>
+</div>
+</body>
+</html>

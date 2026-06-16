@@ -187,6 +187,126 @@ def _cmd_ingest_era5(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_detect_events(args: argparse.Namespace) -> int:
+    """Detect coverage- + meteo-screened NO2 production events on the NOX-003.1 residual (NOX-004)."""
+    from dataclasses import replace
+
+    from noxus.catalyst.report import _load_meteo
+    from noxus.config.run import CatalystConfig
+
+    cfg = CatalystConfig()
+    if args.z_thresh is not None:
+        cfg = replace(cfg, z_thresh=args.z_thresh)
+    import pandas as pd
+
+    from noxus.catalyst.events import detect_events
+
+    decomp_path = Path(cfg.decomposition_path)
+    if not decomp_path.exists():
+        print(f"[noxus] detect-events failed: {decomp_path} missing (run 'noxus index' first).")
+        return 1
+    decomp = pd.read_parquet(decomp_path)
+    residual = pd.Series(
+        decomp["residual_activity"].to_numpy(dtype=float),
+        index=pd.DatetimeIndex(pd.to_datetime(decomp["date"])),
+    )
+    cov = (
+        pd.Series(decomp["valid_coverage"].to_numpy(), index=residual.index)
+        if "valid_coverage" in decomp.columns
+        else None
+    )
+    meteo = _load_meteo(cfg) if cfg.meteo_screen else None
+    events = detect_events(
+        residual,
+        cov,
+        meteo,
+        z_thresh=cfg.z_thresh,
+        method=cfg.detector,
+        min_periods=cfg.detect_min_periods,
+        min_coverage=cfg.min_coverage,
+        meteo_screen=cfg.meteo_screen,
+        ventilation_z=cfg.ventilation_z,
+    )
+    Path(cfg.events_out).parent.mkdir(parents=True, exist_ok=True)
+    events.to_parquet(cfg.events_out, index=False)
+    print(
+        f"[noxus] {len(events)} NO2 events (meteo_screen={meteo is not None}) -> {cfg.events_out}"
+    )
+    return 0
+
+
+def _cmd_ingest_market(args: argparse.Namespace) -> int:
+    """Fetch free daily prices (miners + steel ETF + benchmark) -> dated snapshot (NOX-004)."""
+    from noxus.catalyst.market import ingest_prices
+    from noxus.config.run import CatalystConfig
+
+    cfg = CatalystConfig()
+    try:
+        out = ingest_prices(cfg, start=args.start or "2019-01-01", end=args.end)
+    except Exception as exc:  # network / yfinance availability -> clean CLI error
+        print(f"[noxus] ingest-market failed ({type(exc).__name__}): {exc}")
+        return 1
+    print(f"[noxus] market snapshot -> {out}")
+    return 0
+
+
+def _cmd_catalyst(args: argparse.Namespace) -> int:
+    """Detect events + match vs production + market event-study -> report incl. null (NOX-004)."""
+    from dataclasses import replace
+
+    from noxus.catalyst.report import InsufficientEventsError, run_catalyst
+    from noxus.config.run import CatalystConfig
+
+    cfg = CatalystConfig()
+    if args.window is not None:
+        cfg = replace(cfg, study_window=args.window)
+    if args.latency is not None:
+        cfg = replace(cfg, overpass_latency_days=args.latency)
+    try:
+        art = run_catalyst(cfg)
+    except (FileNotFoundError, InsufficientEventsError) as exc:
+        print(f"[noxus] catalyst failed: {exc}")
+        return 1
+    print(
+        f"[noxus] conclusion={art.results['conclusion']} market={art.results['market']['verdict']}"
+    )
+    print(f"[noxus] results -> {art.results_path}; summary -> {art.summary_path}")
+    return 0
+
+
+def _cmd_scale_sweep(args: argparse.Namespace) -> int:
+    """Sweep AOI extent x grid resolution + autocorrelation-robust significance (NOX-008)."""
+    from dataclasses import replace
+
+    from noxus.config.run import ScaleSweepConfig
+    from noxus.validation.scale import run_scale_sweep
+
+    cfg = ScaleSweepConfig()
+    if args.buffers:
+        cfg = replace(cfg, buffers=tuple(float(b) for b in args.buffers.split(",")))
+    if args.resolutions:
+        cfg = replace(
+            cfg,
+            resolutions=tuple(
+                r.strip() if r.strip() == "native" else float(r)
+                for r in args.resolutions.split(",")
+            ),
+        )
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws, n_perm=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    if args.alpha is not None:
+        cfg = replace(cfg, fdr_alpha=args.alpha)
+    try:
+        out = run_scale_sweep(cfg)
+    except FileNotFoundError as exc:
+        print(f"[noxus] scale-sweep failed: {exc}")
+        return 1
+    print(f"[noxus] scale-sensitivity table -> {out}")
+    return 0
+
+
 def _snapshot_date(snapshot: Path) -> date | None:
     """Parse the YYYY-MM-DD date out of a ``crea_wind_<date>.csv`` snapshot name, if present."""
     stem = Path(snapshot).stem
@@ -248,6 +368,39 @@ def main(argv: list[str] | None = None) -> int:
     p_ver.add_argument("--out-dir", help="output dir (default: data/derived/verification)")
     p_ver.add_argument("--optical", action="store_true", help="also fetch a Sentinel-2 thumbnail")
     p_ver.set_defaults(func=_cmd_verify_no2)
+
+    p_det = sub.add_parser(
+        "detect-events", help="detect NO2 production events on the residual (NOX-004)"
+    )
+    p_det.add_argument("--z-thresh", type=float, dest="z_thresh", help="robust-z event threshold")
+    p_det.set_defaults(func=_cmd_detect_events)
+
+    p_mkt = sub.add_parser(
+        "ingest-market", help="fetch free daily prices -> dated snapshot (NOX-004)"
+    )
+    p_mkt.add_argument("--start", help="ISO start date (default 2019-01-01)")
+    p_mkt.add_argument("--end", help="ISO end date (default today)")
+    p_mkt.set_defaults(func=_cmd_ingest_market)
+
+    p_cat = sub.add_parser(
+        "catalyst", help="events + production match + market study -> report (NOX-004)"
+    )
+    p_cat.add_argument("--window", type=int, help="+/- trading-day event-study window (default 5)")
+    p_cat.add_argument("--latency", type=int, help="overpass+processing latency days (default 2)")
+    p_cat.set_defaults(func=_cmd_catalyst)
+
+    p_scale = sub.add_parser(
+        "scale-sweep",
+        help="AOI extent x grid resolution sensitivity, robust significance (NOX-008)",
+    )
+    p_scale.add_argument("--buffers", help="comma AOI buffers in deg (default 0.25,0.10)")
+    p_scale.add_argument(
+        "--resolutions", help="comma targets: 'native' or deg (default native,0.10,0.15,0.25)"
+    )
+    p_scale.add_argument("--draws", type=int, help="bootstrap/permutation draws (default 5000)")
+    p_scale.add_argument("--seed", type=int, help="RNG seed (default 20260614)")
+    p_scale.add_argument("--alpha", type=float, help="Benjamini-Hochberg FDR level (default 0.05)")
+    p_scale.set_defaults(func=_cmd_scale_sweep)
 
     args = parser.parse_args(argv)
     if args.command is None:

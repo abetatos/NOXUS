@@ -1,0 +1,9 @@
+DAILY PROPHET PROBE — findings (NOX-006)
+=======================================================
+daily footprint: 2720 days, 1984 valid (73%)
+variance removed: trend=0.034  yearly=0.012  weekly=0.005
+weekly peak-to-peak amplitude: 6.83e-06 (signal std 2.92e-05)
+weekday effect is ~FLAT -> steel is baseload; no weekly traffic cycle to separate at the ~13:30 overpass time (the source-separation lever yields no gain here).
+Prophet residual vs BF (monthly): full r=0.158 (n=90), rolling-18mo peak |r|=0.653
+baseline best-regime: harmonic-K1 0.78, intensity 0.73 -> daily-Prophet does NOT improve.
+CONCLUSION: harmonic-K1 (weekly) remains the method of record; daily adds noise without exploitable weekly structure. Honest null on the marginal value (full fetch is the arbiter).

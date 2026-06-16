@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Steel emission-intensity (decoupling) model</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Steel emission-intensity (decoupling) model + full-series re-run</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-003.1</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-intensity-model</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>This is an <strong>additive increment on the NOX-003 pipeline</strong>, not a rewrite. It inserts a
+        new detrending method — an explicit <strong>emission-intensity decomposition</strong> — into the
+        existing <code>noxus/signal/index.py</code> <code>deseasonalize()</code> dispatch, and extends the
+        validation report + analysis battery to surface the decoupling. The identifying model (Li 2024) is:</p>
+        <pre><code>log(NO₂_footprint, bg-corrected)  ≈  log(activity)  +  s(t)  +  β·meteo  +  ε
+                                       └ residual ┘   └ trend ┘  └ regressed out (REQ-011) ┘</code></pre>
+        <p>Meteorology is already removed upstream (NOX-003 <code>regress_out_meteo</code>). The new step fits a
+        <strong>smoothness-controlled secular trend <code>s(t)</code></strong> (penalised regression spline by
+        default; LOESS available) on the meteo-normalised series and returns the <strong>residual as the
+        activity proxy</strong>. The smoothness (effective degrees of freedom) is chosen by
+        <strong>blocked time-series cross-validation</strong> on the NO₂ series alone — the benchmark is never
+        consulted during selection (NFR-102). The trend <code>s(t)</code> is itself emitted as a diagnostic:
+        it <em>is</em> the decoupling story.</p>
+        <p>The central identifying assumption is a <strong>timescale separation</strong>: the retrofit/intensity
+        decline is slow and smooth, while activity varies on shorter timescales. If that separation fails, the
+        method cannot disentangle them — which is exactly why a <strong>smoothness-sensitivity sweep</strong>
+        (REQ-103) is mandatory output rather than a single point estimate, and why the planted-null test
+        (AC-103) must stay flat across all smoothing choices.</p>
+        <p>The second half of the task is operational: the <strong>deferred full-series re-run</strong> on the
+        completed cube, with footprint-radius and coverage-threshold tuning, resolving NOX-003 Q1/Q5 and
+        NOX-002b Q2 on real data.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="220" viewBox="0 0 720 220" aria-label="Intensity decomposition data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="86" width="150" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="106" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">meteo-normalised</text>
+            <text x="83" y="121" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">footprint signal</text>
+
+            <line x1="158" y1="110" x2="196" y2="110" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="198" y="70" width="172" height="80" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="284" y="92" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">fit s(t) trend</text>
+            <text x="284" y="108" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">spline/LOESS</text>
+            <text x="284" y="123" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">CV-selected df</text>
+            <text x="284" y="138" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(benchmark NOT used)</text>
+
+            <line x1="370" y1="92" x2="408" y2="70" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="410" y="40" width="150" height="40" rx="6" fill="#fef9f3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="485" y="56" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#92400e">s(t) diagnostic</text>
+            <text x="485" y="70" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#92400e">= decoupling</text>
+
+            <line x1="370" y1="128" x2="408" y2="150" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="410" y="130" width="150" height="44" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="485" y="148" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">residual</text>
+            <text x="485" y="163" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">= activity proxy</text>
+
+            <line x1="560" y1="152" x2="596" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="598" y="118" width="114" height="68" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="655" y="138" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">validate vs CREA</text>
+            <text x="655" y="152" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">levels (−) &amp;</text>
+            <text x="655" y="166" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">residual (+)</text>
+            <text x="655" y="180" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">+ df sweep</text>
+            <text x="360" y="210" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">s(t) is reported, not discarded; smoothness is swept (REQ-103).</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Extends <code>noxus/signal/index.py</code> (new <code>intensity-model</code> method + trend fit +
+        CV smoothness + decomposition output), <code>noxus/validation/report.py</code> (levels-and-residual
+        dual reporting + df-sweep artifact), <code>noxus/config/run.py</code> (intensity-model params),
+        and <code>analysis/preliminary_signal.py</code> + <code>docs/preliminary-results.html</code> (new
+        figures). Optionally a small new helper module <code>noxus/signal/intensity.py</code> to keep the
+        trend/CV logic isolated and testable. Reads the same gitignored cube + committed benchmark/facility
+        CSV as NOX-003.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/intensity.py</code></td><td>new</td><td>Trend fit (spline/LOESS), blocked-CV smoothness selection, decomposition (trend/residual) (REQ-101,102,103,104).</td></tr>
+            <tr><td><code>noxus/signal/index.py</code></td><td>extend</td><td>Add <code>intensity-model</code> branch to <code>deseasonalize()</code> dispatch; record selected df + criterion in provenance. Existing branches untouched (NFR-103).</td></tr>
+            <tr><td><code>noxus/validation/report.py</code></td><td>extend</td><td>Report levels↔benchmark and residual↔benchmark with CIs; emit df-sensitivity sweep artifact + decoupling framing (REQ-104,110,131).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td>Intensity-model config (estimator, df grid, CV folds/criterion, min length) on <code>SignalConfig</code>; default deseason unchanged (yoy) (REQ-140, NFR-103).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>maybe</td><td>Surface the df-sweep / full-rerun flags if needed; no breaking change to existing subcommands (REQ-140).</td></tr>
+            <tr><td><code>analysis/preliminary_signal.py</code></td><td>extend</td><td>Add decomposition + df-sweep + radius/coverage sensitivity figures; keep all existing modes runnable (REQ-130).</td></tr>
+            <tr><td><code>docs/preliminary-results.html</code></td><td>extend</td><td>Decoupling narrative + new figures + full-series result (REQ-130, doc).</td></tr>
+            <tr><td><code>tests/…</code></td><td>new</td><td>Planted-decomposition, CV-selection, df-sweep flatness on planted-null, regression of existing methods (AT101..AT-ERR-101).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/attribution/source.py</code></td><td>Footprint/background consumed as-is; only its <em>parameters</em> (radius) are tuned via config in REQ-121.</td></tr>
+            <tr><td><code>noxus/data/era5.py</code>, <code>noxus/data/gridding.py</code>, <code>noxus/data/tropomi.py</code>, <code>noxus/data/benchmark.py</code></td><td>Upstream contracts unchanged; consumed read-only.</td></tr>
+            <tr><td>Existing <code>deseasonalize()</code> branches (<code>yoy</code>/<code>stl</code>/<code>yoy-double-diff</code>/<code>none</code>)</td><td>Retained verbatim for replicability — additive only (developer constraint).</td></tr>
+            <tr><td><code>.env</code>, credential files</td><td>Protected; CDS credential by name only. No new egress in this task.</td></tr>
+            <tr><td>Flux-divergence / raw-L2 modules</td><td>NOX-005; out of scope.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/signal/**</code>, <code>noxus/validation/report.py</code>,
+        <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>, <code>analysis/**</code>,
+        <code>docs/preliminary-results.html</code>, <code>tests/**</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/signal/intensity.py  (new)
+@dataclass
+class TrendFit:
+    trend: pd.Series          # s(t)
+    residual: pd.Series       # activity proxy = signal - s(t)
+    df: float                 # selected effective degrees of freedom
+    criterion: str            # "blocked-cv" | "gcv"
+    cv_score: float
+    estimator: str            # "spline" | "loess"
+
+def fit_intensity_trend(signal: pd.Series, *, estimator: str = "spline",
+                        df_grid: Sequence[float], cv_folds: int,
+                        criterion: str = "blocked-cv",
+                        min_length: int) -> TrendFit: ...      # benchmark NEVER passed in
+
+def smoothness_sweep(signal: pd.Series, benchmark: pd.Series, *,
+                     df_grid: Sequence[float], max_lag: int) -> pd.DataFrame:
+    # one row per df: df, residual_r, residual_p, peak_lag, levels_r  (diagnostic only)
+
+# noxus/signal/index.py  (extend dispatch)
+def deseasonalize(s, method, heating_season, curtailment, *, cfg=None):
+    # method == "intensity-model" -> fit_intensity_trend(...).residual
+    # all existing branches unchanged
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+steel_intensity_decomposition.parquet  # date, signal, trend_s_t, residual_activity, valid_coverage
+                                       #   attrs: estimator, df, criterion, cv_score
+
+# data/derived/  (small stats summary — committable, no raw NO₂ field)
+steel_validation_results.json          # + levels_r/p/ci, residual_r/p/ci, df_selected, conclusion
+steel_smoothness_sweep.csv             # df, residual_r, peak_lag, levels_r  (REQ-103)
+steel_radius_coverage_sweep.csv        # radius_km, coverage_thr, residual_r  (REQ-121, data-gated)
+
+# docs/figures/preliminary/  (committed)
+fig7_decomposition.png   # signal vs s(t) vs residual
+fig8_smoothness_sweep.png# r vs df, CV point marked
+fig9_levels_vs_residual.png # sign panel
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus index   --deseason intensity-model      # fit s(t), residual = activity proxy
+uv run noxus validate                                # reports levels(−) & residual(+) + df sweep
+uv run python analysis/preliminary_signal.py         # full battery incl. new figures (all modes kept)
+# data-gated full re-run after the complete fetch:
+uv run noxus grid                                    # rebuild complete cube (NOX-002b)
+uv run noxus index --deseason intensity-model && uv run noxus validate
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>One new gitignored derived product (<code>steel_intensity_decomposition.parquet</code>) and two
+        small committable stats CSVs (smoothness sweep; radius/coverage sweep). No database. No new raw store
+        (ERA5 snapshot from NOX-003 is reused).</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>No new external data egress. Statistical building blocks come from already-present libraries; verify
+        the current API at implementation:</p>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>scipy / statsmodels</strong></td><td>Spline smoothing (<code>scipy.interpolate.UnivariateSpline</code> / <code>statsmodels</code> GAM or LOWESS <code>statsmodels.nonparametric.lowess</code>); confirm effective-df handling and that the smoothing parameter maps to a controllable df.</td><td>Reuse; no new dep unless a clean df-controllable spline needs one (open question — needs approval).</td></tr>
+            <tr><td><strong>Blocked time-series CV</strong></td><td>Implement gap-respecting folds in-house (no sklearn dependency assumed) or confirm an existing utility; record the fold scheme.</td><td>Determinism: fixed fold boundaries (NFR-105).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>No new secrets, no new network egress, no remote mutation. NO₂-derived decomposition outputs are
+        gitignored (NFR-104). Existing protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>docs/preliminary-results.html</code> (decoupling + decomposition + new figures + full-series
+        result), a short methods note on the intensity model + smoothness selection,
+        <code>.claude/context/project-map.md</code> (new method/module), possibly <code>README.md</code> and
+        <code>decisions/architecture-decisions.md</code> (intensity-model decision; resolved radius/coverage).
+        Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Planted decomposition</strong>: build <code>signal = activity + known smooth trend + β·meteo + noise</code>; assert <code>fit_intensity_trend</code> recovers the trend within tolerance, residual≈activity, and the sign inversion (levels − / residual +) holds when the trend dominates (AT101).</li>
+          <li><strong>CV selection</strong>: planted trend of known smoothness → CV-selected df near truth; assert the benchmark series is never referenced inside <code>fit_intensity_trend</code> (e.g. it takes no benchmark argument) (AT102).</li>
+          <li><strong>Sensitivity sweep</strong>: <code>smoothness_sweep</code> returns one row per df; on planted-null (independent series) residual_r stays near 0 across all df — no smoothing choice manufactures a correlation (AT103).</li>
+          <li><strong>Dual-sign reporting</strong>: report contains levels_r and residual_r with CIs and the decoupling framing; trend diagnostic series emitted (AT104).</li>
+          <li><strong>Regression</strong>: existing deseason methods + CLI produce byte-identical results to NOX-003 for the same config (AT105).</li>
+          <li><strong>Errors</strong>: short series → ERR-101; degenerate CV config → ERR-102; require-complete-cube flag on partial cube → ERR-103 (AT-ERR-101).</li>
+        </ul>
+        <p>All statistical correctness is tested on synthetic planted-signal / planted-null fixtures; no network,
+        no live-data assertions (non-deterministic). Folds and seeds fixed (NFR-105).</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). New figures are eyeballed as output artifacts.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Timescale-separation failure (central risk).</strong> If retrofit decline and activity share timescales, no smoothing cleanly separates them (double-diff already showed this). Mitigation: mandatory df-sensitivity sweep (REQ-103), planted-null flatness test (AC-103), honest reporting of an inseparable / null outcome (NFR-102).</li>
+          <li><strong>Researcher degrees of freedom on smoothness.</strong> The df knob could be tuned to maximise r. Mitigation: smoothness chosen by CV on the NO₂ series alone, benchmark never consulted; full config + sweep recorded and audited (REQ-102, NFR-102). This is the deep-review focus item.</li>
+          <li><strong>Step-change retrofits.</strong> A smooth trend mis-fits discrete plant upgrades (EDGE-103). Mitigation: residual diagnostics; change-point modelling flagged as future, not this scope.</li>
+          <li><strong>Short sample until the full fetch lands.</strong> Methodology is developed/tested on synthetic + partial data; the full-series number is the acceptance gate (AC-106) and may land as a recorded follow-up if the fetch is still running. <strong>Rejected:</strong> presenting a partial run as a full-series result (ERR-103).</li>
+          <li><strong>Over-engineering.</strong> A full Li-2024 econometric decomposition could balloon. Mitigation: scope is one trend term + CV + sweep + dual-sign reporting — additive and bounded; OOS/DM engine stays deferred.</li>
+          <li><strong>Paradigm risk (unchanged).</strong> Even with explicit intensity modelling the relative-index v1 may stay null; that remains the gate for the go/no-go on flux divergence (NOX-005). <strong>Rejected here:</strong> flux divergence / raw-L2.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Purely additive: a new method branch + a new helper module + extended reporting/figures. Rollback =
+        revert the feature branch and delete the gitignored decomposition outputs; existing methods, CLI and
+        the NOX-003 result are unaffected because their code paths are untouched.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

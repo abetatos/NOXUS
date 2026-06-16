@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — GEMS NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>gems-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-007</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-14</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Unresolved questions. <strong>Q1 is blocking</strong> (the download-volume go/no-go) and is answered by the T1 measurement spike before the loop is built. The rest are non-blocking with sensible defaults, also pinned down at T1's real-granule inspection.</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">1</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">3</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">1</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>Yes — Q1 (download volume go/no-go), resolved by T1.</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">What is the per-granule / full-mission download volume, and is it within budget?</span><span class="badge badge-blocking">Blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What is one GEMS L2 NO₂ granule's size on disk, hence per-day (×~8) and full-mission (~Oct-2021→, ~13k granules) download volume — and is it within an acceptable budget on the server-class machine?</dd>
+            <dt>Why it matters</dt><dd>No server-side subset ⇒ full granules transit the wire. This is the single feasibility gate and the reason the task is blocked for later server execution.</dd>
+            <dt>Default / plan</dt><dd>Estimate order 10²–10³ MB/granule ⇒ ~1–4 TB transient (clipped-then-deleted, kept volume tiny). <strong>Resolve by T1</strong>: download one granule, measure, set/confirm the budget, record go/no-go (ERR-004).</dd>
+            <dt>Related requirements</dt><dd>REQ-000, ERR-004, NFR-003/005</dd>
+            <dt>Resolved by</dt><dd>T1 spike (developer, server)</dd>
+            <dt>Resolved at</dt><dd>—</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">Open-API endpoint base, response schema, and per-key rate/volume limits</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Exact Open-API base URL + the <code>getFileDateList</code>/<code>getFileList</code>/<code>getFileItem</code> request/response schema, and whether the key has rate or daily-volume limits beyond the 20 GB / 40-file web cap.</dd>
+            <dt>Why it matters</dt><dd>Drives the enumerate/download client + batching strategy (resumability must respect any limit).</dd>
+            <dt>Default / plan</dt><dd>Implement against the documented ops; confirm schema + limits empirically at T1; SFTP is the fallback channel if the Open-API is rate-throttled.</dd>
+            <dt>Related requirements</dt><dd>REQ-001, REQ-008</dd>
+            <dt>Resolved by</dt><dd>T1</dd>
+            <dt>Resolved at</dt><dd>—</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">Exact NO₂ field/QA names, kernel layout, and operational version to pin</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>The exact variable names (tropospheric vs total column, QA flag/value, averaging kernel, precision), the HDF group layout, and which operational <code>ver</code> (v2.x / v3.x / v4.0.1) to pin.</dd>
+            <dt>Why it matters</dt><dd>Determines the clip/QA code and version-consistency policy.</dd>
+            <dt>Default / plan</dt><dd>Primary = tropospheric column; QA = product-recommended threshold; pin the latest stable operational version with full-mission coverage. Confirm from a real granule at T1.</dd>
+            <dt>Related requirements</dt><dd>REQ-003, REQ-004, REQ-005</dd>
+            <dt>Resolved by</dt><dd>T1</dd>
+            <dt>Resolved at</dt><dd>—</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id err">Q4</span><span class="card-title">Effective pixel footprint over Tangshan (off-nadir)</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What is the real pixel size over Tangshan given the off-nadir view (~9.6° west of 128°E, near the 45°N edge)?</dd>
+            <dt>Why it matters</dt><dd>Sets the cluster-vs-background expectation (per A4); informs the AOI buffer choice.</dd>
+            <dt>Default / plan</dt><dd>Assume coarser than the 3.5×8 nominal but cluster-usable (≈ NOX-002b ~5 km). Measure from the granule geolocation at T1.</dd>
+            <dt>Related requirements</dt><dd>REQ-000(c), EDGE-004</dd>
+            <dt>Resolved by</dt><dd>T1</dd>
+            <dt>Resolved at</dt><dd>—</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header"><span class="req-id err">Q5</span><span class="card-title">Temporal scope: full mission vs scoped window</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Acquire the full ~Oct-2021→present record, or a scoped window first to bound the download while testing the weekly/diurnal thesis?</dd>
+            <dt>Why it matters</dt><dd>Trades statistical power against download volume (Q1); no server-side subset ⇒ narrowing the date range is the only lever to cut download volume.</dd>
+            <dt>Decision (2026-06-14, developer)</dt><dd><strong>Scoped, not full mission.</strong> Default = a <strong>climatologically-stable autumn window, September–October</strong>, primary year <strong>2023</strong> (overlaps the strongest TROPOMI-era regime), with optional replication on <strong>Sep–Oct 2024</strong> (same season, different year → climate held constant, robustness added). Rationale: post-monsoon + <strong>pre-heating-season</strong> = near-constant meteorology (weekly cycle not swamped) and no residential-heating NO₂ confounder (cleaner steel↔traffic separation); low cloud ⇒ balanced GEMS coverage across weekdays and the ~8 daily scans; good 39.6°N sun angle. <strong>Mask Chinese public holidays — esp. Golden Week (1–7 Oct)</strong> — when estimating the weekday profile (they break the 7-day cycle; a holiday flag is recorded per scan, REQ-009). Bounds download to ~50–150 GB/window. Full mission stays opt-in.</dd>
+            <dt>Related requirements</dt><dd>REQ-009, REQ-008, REQ-000</dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>2026-06-14</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move here after answers.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Move here if explicitly deferred.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Q1 is blocking → no acquisition loop until the T1 go/no-go is recorded.</li>
+          <li>Task is <code>blocked</code> (server-run later); the developer moves it to <code>human_approved</code> when ready.</li>
+          <li>Resolve Q2–Q4 at T1's real-granule inspection and reflect changes back into the spec.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

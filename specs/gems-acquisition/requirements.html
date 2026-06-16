@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — GEMS (geostationary) NO₂ acquisition + AOI clip + QA</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-007</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>gems-acquisition</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-rejected">blocked</span> <span class="small">(spec complete; execution deferred to a server-style machine)</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author (main conversation)</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Acquire a <strong>diurnal</strong> NO₂ predictor substrate for Tangshan from <strong>GEMS</strong>
+        (Geostationary Environment Monitoring Spectrometer, on GEO-KOMPSAT-2B / GK2B, KR), the first
+        geostationary air-quality sounder. GEMS makes <strong>~8 daytime scans/day</strong> over East Asia
+        (vs TROPOMI's single ~13:30 overpass), which <strong>resolves the diurnal / day-of-week cycle</strong>
+        — the one temporal lever (short of flux divergence, NOX-005) that can lift steel's <em>variance</em>
+        share above the ~40% mean-share SNR ceiling, by separating flat steel baseload from the cyclical
+        traffic term. NOX-006 confirmed this lever is invisible to TROPOMI (weekly component flat, 0.5%
+        variance) precisely because of the single overpass.</p>
+        <p>This task delivers a per-scan, AOI-clipped, QA-filtered GEMS L2 NO₂ store under
+        <code>data/raw/gems/</code> with diurnal structure (multiple timestamps per day), provenance, and a
+        valid-coverage fraction — the GEMS analogue of NOX-002a. <strong>Diurnal/weekly compositing,
+        source-separation analysis and re-running NOX-003.1/NOX-004/NOX-006 on the GEMS residual are
+        downstream follow-ups (future NOX-009), not in scope here.</strong></p>
+        <p><strong>Scope decision (2026-06-14): a few stable-weather months, not the full mission.</strong>
+        The purpose is to test <em>whether a weekly component exists at all</em>, so the default acquisition
+        scope is a <strong>climatologically-stable autumn window (September–October)</strong> rather than the
+        full ~Oct-2021→present record — see <code>open-questions.html</code> Q5 / <code>assumptions.html</code>
+        A7. Early autumn (post-monsoon, <strong>pre-heating-season</strong>) gives near-constant meteorology
+        (low synoptic noise → the weekly cycle is not swamped), <strong>no residential-heating NO₂
+        confounder</strong> (so steel+traffic dominate the column → cleaner source separation), low cloud
+        (balanced GEMS coverage across all weekdays and ~8 daily scans), and a good sun angle at 39.6°N.
+        Primary window: <strong>Sep–Oct 2023</strong> (overlaps the strongest TROPOMI-era regime); optional
+        replication on <strong>Sep–Oct 2024</strong> (same season, different year → controls climate while
+        adding robustness). This bounds the download to ~50–150 GB/window (REQ-009). Full-mission acquisition
+        is opt-in.</p>
+        <p><strong>Central viability constraint (verified, see <code>assumptions.html</code> A1 /
+        <code>open-questions.html</code> Q1).</strong> Unlike TROPOMI (openEO <code>filter_bbox</code>) and
+        ERA5 (CDS <code>area</code>), the GEMS distribution channels — NIER-ESC <strong>Open-API</strong>,
+        SFTP, and no-login web download — deliver <strong>full granules</strong> (the full ~5000×5000 km
+        field of regard). There is <strong>no documented server-side AOI/bbox request</strong>. We therefore
+        download full granules and clip the Tangshan AOI <strong>client-side</strong>. The kept volume after
+        clip is tiny (a ~0.5° AOI ≈ a few dozen pixels/scan), but the <strong>download transit volume is the
+        cost</strong> and its magnitude is the feasibility unknown — so a <strong>measure-one-granule spike
+        (T1) gates the build</strong> (REQ-000).</p>
+        <p>Scope reality: GEMS' nominal ~3.5 km (N/S) × ~8 km (E/W) footprint is near nadir (Korea); the L3
+        product is documented at <strong>~5 km over Korea and ~10 km elsewhere</strong>, so over Tangshan —
+        off-nadir (sub-satellite point 128.0°E; Tangshan 39.6°N, 118.4°E) and near the 45°N field-of-regard
+        edge — the effective pixel is <strong>~10 km</strong>. A steel plant is still sub-pixel, so the signal
+        stays <strong>cluster / sub-cluster level, not per-factory</strong>, consistent with the TROPOMI work.
+        GEMS' gain over TROPOMI is <strong>diurnal frequency, not spatial resolution</strong>.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+
+        <h3 id="fr-spike">Viability gate (spike)</h3>
+        <div class="req-row"><span class="req-id">REQ-000</span><span>Before building the acquisition loop, the system shall (T1 spike, developer-run with the issued key) <strong>download one real GEMS L2 NO₂ granule</strong> and record: (a) <strong>file size on disk</strong> and the implied per-day (×~8 scans) and full-mission volume; (b) the granule's <strong>spatial footprint, array dimensions and geolocation</strong>; (c) the <strong>effective pixel size over Tangshan</strong> (off-nadir); (d) which <strong>NO₂ product fields</strong> exist (tropospheric vs total column, QA flag, averaging kernel, precision) and the <strong>processor version</strong>. A <strong>go/no-go decision</strong> against a download-budget threshold (Q1/A2) shall be recorded in <code>open-questions.html</code> and the decision log before further implementation.</span></div>
+
+        <h3 id="fr-acq">Acquisition</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When acquisition runs, the system shall enumerate the GEMS L2 NO₂ granules intersecting the configured date range via the <strong>NIER-ESC Open-API</strong> (<code>getFileDateList</code>/<code>getFileList</code>) and download each granule via <code>getFileItem</code>, then <strong>clip to the Tangshan AOI bbox client-side</strong> and discard the rest. (SFTP is the documented fallback channel; see design.)</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When acquiring, the system shall keep the <strong>diurnal structure</strong>: every retained scan is tagged with its <strong>observation timestamp</strong> (local scan slot) so the multiple daily passes are preserved distinctly (this is the whole point of GEMS over TROPOMI).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When acquiring, the system shall pin a <strong>single product version</strong> (configurable, e.g. the current operational <code>ver</code>) for a version-consistent record and shall record the <strong>processor/algorithm version per scan</strong> so a version discontinuity is detectable, never silently mixed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>While ingesting, the system shall apply a configurable <strong>quality filter</strong> using the GEMS QA flag/value (default = the product-recommended good-quality threshold; resolved at T1), discarding pixels below it.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>When ingesting, the system shall retain, per scan over the AOI: the <strong>tropospheric NO₂ column</strong> (primary) and, if present, the <strong>total column</strong>; the <strong>QA flag/value</strong>; <strong>cloud fraction</strong>; the <strong>averaging kernel</strong> (if exposed); geolocation (pixel centres/corners); and the column precision/uncertainty.</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>When a scan is ingested, the system shall persist the clipped result reproducibly under <code>data/raw/gems/</code>, tagged with date, scan time, AOI, QA threshold, product/version and fetch time (provenance).</span></div>
+        <div class="req-row"><span class="req-id">REQ-007</span><span>When ingesting, the system shall compute and store a <strong>valid-coverage fraction</strong> per scan over the AOI (share of AOI pixels passing QA), feeding the same coverage-screen / never-interpolate policy used for TROPOMI.</span></div>
+        <div class="req-row"><span class="req-id">REQ-008</span><span>While acquiring the record, the system shall be <strong>idempotent and resumable</strong>: a manifest records fetched granules/scans; re-running skips what is done and continues after interruption; acquisition shall support <strong>batching by date window</strong> to respect the channel's session/volume limits (web: 20 GB / 40 files per session — no-login only; Open-API/SFTP is the bulk route, confirm limits at T1).</span></div>
+        <div class="req-row"><span class="req-id">REQ-009</span><span>The <strong>default acquisition scope shall be a stable-weather window (Sep–Oct, primary year 2023; optional 2024 replication)</strong>, not the full mission, to test for a weekly component under near-constant meteorology (A7/Q5); full-mission acquisition is opt-in via config. The system shall <strong>record per-scan calendar metadata</strong> (weekday + a Chinese-public-holiday flag, esp. Golden Week 1–7 Oct) so the downstream weekday profile (NOX-009) can exclude/model holidays that break the 7-day cycle.</span></div>
+
+        <h3 id="fr-verify">Verification</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When verification runs, the system shall select a <strong>clear-sky, high-signal scan</strong> (low cloud fraction and high AOI NO₂) from the acquired record.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>For a selected scan, the system shall render the <strong>GEMS NO₂ field over the AOI with the steel-facility locations overlaid</strong>, so a reviewer can confirm the enhancement co-locates with the steel sub-clusters (reusing the TROPOMI facilities CSV + overlay convention).</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>Verification shall additionally render a <strong>diurnal panel</strong>: the AOI-mean NO₂ across the day's ~8 scans for one clear day, as direct evidence that GEMS resolves the within-day cycle TROPOMI cannot — the core justification for this acquisition.</span></div>
+
+        <h3 id="fr-cli">CLI</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When the user runs the acquisition and verification via the <code>noxus</code> CLI, the system shall expose them as documented subcommands (e.g. <code>fetch-gems</code>, <code>verify-gems</code>) driven by <code>noxus/config/</code> (AOI/buffer, date range, QA threshold, product/version, batch window).</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Acquisition is parameterised and provenance-tagged; given the same config and source state, the kept dataset is reproducible. Raw clips live under gitignored <code>data/raw/gems/</code>; downloaded full granules are treated as a transient cache and never committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free.</strong> Uses the free NIER-ESC GEMS distribution. The Open-API key is read from an <strong>environment variable</strong> (e.g. <code>GEMS_API_KEY</code>) via <code>.env</code> per <code>.env.example</code> — never logged or committed; reference the variable name only.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Volume discipline.</strong> Full granules are downloaded only because no server-side subset exists; each granule is clipped to the AOI immediately and the full granule is deleted (streaming clip) unless a <code>--keep-granules</code> debug flag is set. Only the AOI clip is retained.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run ruff check .</code> and <code>uv run pytest</code>; downloads via the existing HTTP stack (<code>httpx</code>); NetCDF/HDF5 read via the existing <code>h5netcdf</code>/<code>h5py</code> (add <code>netCDF4</code>/<code>geo</code> extra only if the GEMS HDF layout requires it — confirm at T1).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Politeness.</strong> Downloads are rate-limited / sequential with retry+backoff to respect the free service and its session limits; the run is resumable so it can span sessions.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Heavily clouded scans yield few/no valid AOI pixels → low coverage; the scan is kept with its coverage flag, not interpolated (same policy as TROPOMI).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Processor/version discontinuity within the record (v2.x ↔ v3.x ↔ v4.x landscape) → tracked (REQ-003) and surfaced, not silently mixed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>A download fails / times out / hits a session or volume limit → resumable batching (REQ-008); partial progress is not lost; the failed granule is retried later.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Tangshan sits near the <strong>northern edge</strong> of the field of regard (N limit ~45°N) and off the sub-satellite longitude → off-nadir, coarser pixels; a scan whose footprint does not actually cover the AOI (edge/partial scan mode) is recorded as zero-coverage, not an error.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>Scan count per day varies (seasonal daylight, instrument duty cycle, calibration slots) → the diurnal series has a ragged number of slots per day; downstream must not assume a fixed 8.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>An AOI clip returns an empty/all-masked window → recorded as zero-coverage, not an error.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the GEMS Open-API key is missing/invalid, the system shall fail with a clear message referencing the <strong>environment variable name</strong> — never echoing the key value.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the Open-API returns an error/empty listing for a date range, or the NO₂ product/field cannot be found in a granule, the system shall raise a descriptive error naming the product/field/version attempted.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If a download fails irrecoverably for a batch, the system shall record the failure, leave already-fetched scans intact, and allow a resume.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If the measured per-granule / full-mission download volume (REQ-000) exceeds the configured budget threshold, the system shall <strong>stop and surface the no-go</strong> rather than silently starting a multi-TB download.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-000</span><span>The T1 spike produces a recorded measurement of one real granule's size + structure + Tangshan footprint + available NO₂ fields + version, and a written go/no-go against the budget threshold.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>A small date-range acquisition over the AOI returns AOI-clipped GEMS NO₂ with <strong>multiple scans per day</strong> (diurnal structure preserved), each with QA/cloud/coverage/geo and provenance, retaining only the AOI window (full granules not kept).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>Each stored scan carries its product version and a valid-coverage fraction; a mixed-version range surfaces the discontinuity.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>Re-running the acquisition skips already-fetched scans (idempotent/resumable); interruption mid-range resumes without re-downloading done granules.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>Verification produces, for a clear high-NO₂ scan, a NO₂-over-AOI render with facility points overlaid, plus a diurnal panel showing the within-day NO₂ cycle across the day's scans.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass; network/auth are mocked in tests.</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Verification output is static image/plot files inspected by a human.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>The verification renders (NO₂ field + facility overlay; diurnal panel) are <em>produced</em> by this feature as evidence, not inputs. No input screenshots.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NIER-ESC GEMS distribution</strong> — <code>https://nesc.nier.go.kr</code>. Channels: <strong>Open-API</strong> (key by application, ~7-day admin approval; operations <code>getFileDateList</code>, <code>getFileList</code>, <code>getFileItem</code>; JSON/XML/TEXT; params <code>date</code>/<code>sDate</code>/<code>eDate</code>/<code>ver</code>); <strong>SFTP</strong> (credentials by application, IP-bound); no-login <strong>web download</strong> (≤20 GB / 40 files per session). All deliver <strong>full granules</strong> (no AOI subset).</li>
+          <li><strong>GEMS L2 NO₂ product</strong> — NetCDF4/HDF5; tropospheric + total column NO₂, QA flag, averaging kernel, precision. Version landscape v2.x→v4.0.1 (operational <code>ver</code> pinned at T1). Coverage from ~Oct-2021 (reprocessed/operational) over East Asia (N/S 45°N–5°S, E/W 75°E–145°E).</li>
+          <li><strong>Facilities CSV</strong> — <code>data/derived/tangshan_steel_facilities.csv</code> for the verification overlay and AOI provenance (reused from TROPOMI).</li>
+          <li><strong>AOI</strong> — <code>noxus.config.region.TANGSHAN</code> / <code>tangshan_aoi(buffer)</code> (reused).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>docs/data-access.md</code> (GEMS acquisition channel, key as env var, client-side-clip rationale), <code>README.md</code> (Data sources / Status), the project map (new <code>noxus/data/gems.py</code>, new <code>data/raw/gems/</code>, new CLI subcommands), <code>.env.example</code> (the <code>GEMS_API_KEY</code> variable name), <code>.gitignore</code> (<code>data/raw/gems/</code>), and a decision-log entry for the GEMS-acquisition channel + go/no-go. Reviewer confirms.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entries (proposed at review): (1) <strong>GEMS as the diurnal successor sensor</strong> and the client-side-clip acquisition pattern (because no server-side subset exists); (2) the <strong>go/no-go on download volume</strong> from the T1 measurement. Both build on the existing exploration finding that the weekly source-separation lever needs a multi-overpass sensor (NOX-006 follow-up).</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-000</span></td><td>AT0 (manual spike)</td><td>Developer-run with the key; measurement recorded, not CI-asserted.</td></tr>
+            <tr><td><span class="req-id">REQ-001/005/006</span></td><td>AT1</td><td>Mocked Open-API + synthetic granule: enumerate→download→clip→retain fields→provenance.</td></tr>
+            <tr><td><span class="req-id">REQ-002</span></td><td>AT1b</td><td>Multiple scans/day preserved with distinct timestamps.</td></tr>
+            <tr><td><span class="req-id">REQ-003</span></td><td>AT2</td><td>Version recorded per scan; mixed-version range flagged.</td></tr>
+            <tr><td><span class="req-id">REQ-004/007</span></td><td>AT3</td><td>QA filter; coverage fraction from a synthetic AOI window.</td></tr>
+            <tr><td><span class="req-id">REQ-008</span></td><td>AT4</td><td>Resumable: second run skips fetched scans.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT5a / AT5b</td><td>Clear-scan selection + render + diurnal panel (real-data check manual).</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td>Key failure, product-not-found, download failure/resume, budget no-go.</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td>CLI subcommands wired, config-driven.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

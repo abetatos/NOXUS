@@ -1,0 +1,24 @@
+NOX-008 — SPATIAL-SCALE x AUTOCORRELATION-ROBUST SIGNIFICANCE (monthly)
+==============================================================================
+Footprint-minus-background NO2 vs CREA BF operating rate.
+naive_sig: scipy p<.05 (i.i.d.) | robust_sig: BH-FDR(block-perm) q<.05 AND boot CI excludes 0
+
+wide-native      level      n= 90 lag0 r=-0.049 p=0.648 neff= 66.7 CI[-0.31,+0.16] q=0.987 | best lag -5 r=-0.306 -> ns
+wide-native      intensity  n= 90 lag0 r=+0.126 p=0.236 neff= 71.9 CI[-0.12,+0.30] q=0.987 | best lag +6 r=+0.262 -> ns
+wide-native      yoy        n= 78 lag0 r=-0.003 p=0.976 neff= 55.8 CI[-0.40,+0.29] q=0.987 | best lag -6 r=-0.262 -> ns
+wide-native      stl        n= 90 lag0 r=-0.002 p=0.984 neff= 84.0 CI[-0.22,+0.17] q=0.987 | best lag -5 r=-0.234 -> ns
+wide-coarse010   level      n= 90 lag0 r=+0.186 p=0.079 neff= 62.4 CI[-0.07,+0.36] q=0.987 | best lag +4 r=+0.278 -> ns
+wide-coarse010   intensity  n= 90 lag0 r=+0.131 p=0.217 neff= 62.9 CI[-0.13,+0.31] q=0.987 | best lag +4 r=+0.225 -> ns
+wide-coarse010   yoy        n= 78 lag0 r=-0.065 p=0.572 neff= 54.3 CI[-0.52,+0.24] q=0.987 | best lag -6 r=-0.296 -> ns
+wide-coarse010   stl        n= 90 lag0 r=+0.108 p=0.312 neff= 77.0 CI[-0.11,+0.27] q=0.987 | best lag +6 r=+0.241 -> ns
+tight-native     level      n= 90 lag0 r=-0.081 p=0.447 neff= 66.2 CI[-0.34,+0.13] q=0.987 | best lag -5 r=-0.338 -> ns
+tight-native     intensity  n= 90 lag0 r=+0.093 p=0.383 neff= 71.4 CI[-0.14,+0.26] q=0.987 | best lag +6 r=+0.273 -> ns
+tight-native     yoy        n= 78 lag0 r=-0.031 p=0.790 neff= 55.3 CI[-0.41,+0.25] q=0.987 | best lag -6 r=-0.285 -> ns
+tight-native     stl        n= 90 lag0 r=+0.019 p=0.859 neff= 85.6 CI[-0.21,+0.20] q=0.987 | best lag +6 r=+0.225 -> ns
+tight-coarse010  level      n= 90 lag0 r=-0.007 p=0.948 neff= 69.1 CI[-0.27,+0.19] q=0.987 | best lag -5 r=-0.255 -> ns
+tight-coarse010  intensity  n= 90 lag0 r=+0.048 p=0.653 neff= 69.6 CI[-0.21,+0.24] q=0.987 | best lag +6 r=+0.261 -> ns
+tight-coarse010  yoy        n= 78 lag0 r=-0.119 p=0.300 neff= 56.0 CI[-0.49,+0.19] q=0.987 | best lag -7 r=-0.314 -> ns
+tight-coarse010  stl        n= 90 lag0 r=-0.044 p=0.682 neff= 77.6 CI[-0.31,+0.15] q=0.987 | best lag -5 r=-0.214 -> ns
+
+SUMMARY: 16 scale x variant cells. naive-significant=0, robust (FDR + CI) =0.
+Sign of the LEVEL relationship across scales: wide-native=-, wide-coarse010=+, tight-native=-, tight-coarse010=-

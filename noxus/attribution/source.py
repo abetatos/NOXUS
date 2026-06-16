@@ -11,7 +11,7 @@ The cube is the NOX-002b weekly product (``noxus/data/gridding.py``): dims ``tim
 configured ``radius_km`` is a true ground distance.
 
 Flux-divergence point-source attribution (Beirle) is explicitly out of scope here — deferred to
-NOX-004.
+NOX-005.
 """
 
 from __future__ import annotations

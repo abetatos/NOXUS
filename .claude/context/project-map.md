@@ -20,10 +20,11 @@ Rules for this file:
 ```text
 noxus/                 # Python package
   config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/ValidationConfig
-  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py + era5.py (CDS ingest) — implemented
+  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py (compositing + clip/coarsen scale ops, NOX-008) + era5.py (CDS ingest) — implemented
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
-  signal/              # index.py: meteo regress-out + deseason + relative activity index — implemented
-  validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag vs the benchmark — implemented
+  signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (NOX-003.1) + prophet_deseason.py (daily Prophet trend/yearly/weekly + harmonic fallback, NOX-006) — implemented
+  validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag; robust.py (autocorrelation-robust effective-N/bootstrap/permutation + BH-FDR, NOX-008) + scale.py (extent×resolution sweep) — implemented
+  catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004) — implemented
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
 analysis/              # preliminary_signal.py: reproducible preliminary run → docs/figures/preliminary/
 docs/                  # design notes, preprint motivation, data-access.md, preliminary-results.html (+ figures/)
@@ -45,8 +46,13 @@ data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_oper
 | `uv run noxus grid [--freq --min-coverage]` | Composite per-overpass NO2 → weekly cube + interim AOI-mean series → `data/derived/no2/` (gitignored) |
 | `uv run noxus ingest-era5` | Fetch the AOI/era ERA5 subset from the Copernicus CDS (per-year, server-side) → dated `data/raw/era5/*.nc` snapshot (gitignored) |
 | `uv run noxus attribute [--radius KM]` | Footprint sampling + regional-background subtraction → background-corrected footprint signal |
-| `uv run noxus index [--no-meteo]` | ERA5 meteo regress-out + deseason + relative activity index (deseason method is config-only) |
+| `uv run noxus index [--no-meteo]` | ERA5 meteo regress-out + deseason + relative activity index (deseason method config-only: yoy/stl/yoy-double-diff/intensity-model/prophet/harmonic/none) |
+| `uv run noxus grid --freq D` | daily NO₂ cube (NOX-006; same gridding, daily compositing) → gitignored |
 | `uv run noxus validate [--max-lag N]` | Align + sign + r/p + lead-lag vs the benchmark → report (reports the null) |
+| `uv run noxus detect-events [--z-thresh Z]` | Detect coverage/meteo-screened NO2 production events on the intensity residual (NOX-004) → `data/derived/no2/steel_no2_events.parquet` (gitignored) |
+| `uv run noxus ingest-market [--start --end]` | Fetch free daily prices (miners + steel ETF + benchmark, yfinance) → dated `data/raw/market/*.parquet` snapshot (gitignored) |
+| `uv run noxus catalyst [--window --latency]` | Match events vs production (CREA jumps + curtailment calendar) + market event-study (CAR) → catalyst report incl. null (NOX-004) |
+| `uv run noxus scale-sweep [--buffers --resolutions --draws --seed --alpha]` | Sweep AOI extent × grid resolution + autocorrelation-robust/FDR significance (NOX-008) → `data/derived/scale_sensitivity.csv` |
 
 ## Key entrypoints
 

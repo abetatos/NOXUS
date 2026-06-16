@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — GEMS NO₂ acquisition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>gems-acquisition</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-007</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-14</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Observable behaviour required for acceptance. Network/auth are mocked with a synthetic granule; the real-data checks (AT0 measurement spike, AT5b co-location/diurnal) are developer-run on the server.</p></section>
+      <hr>
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <ul>
+          <li>A fake HTTP layer returns a granule listing + a small synthetic NetCDF granule (a region covering the AOI, several scan slots per day) → deterministic unit tests, no network/key.</li>
+          <li>Clip/QA/coverage/version/resumability/volume-discipline asserted on the synthetic granule.</li>
+          <li>Verification: synthetic store for clear-scan selection + render + diurnal panel; real-data visual check is manual.</li>
+          <li>AT0 (the T1 size + go/no-go measurement) is recorded, not CI-asserted.</li>
+        </ul>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+        <h3 id="test-locations">Related test files</h3>
+        <pre><code>tests/data/test_gems.py
+tests/data/test_verify_gems.py
+tests/cli/test_cli.py
+tests/fixtures/ (synthetic GEMS granule + listing)</code></pre>
+      </section>
+      <hr>
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table><thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-000</span></td><td>AT0 (manual)</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-001/005/006</span></td><td>AT1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-002</span></td><td>AT1b</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-003</span></td><td>AT2</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-004/007</span></td><td>AT3</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-008 / NFR-003</span></td><td>AT4</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT5a/AT5b</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+          <tr><td><span class="req-id">REQ-020</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+        </tbody></table>
+      </section>
+      <hr>
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card risk-high" id="at0"><div class="card-header"><span class="req-id">AT0</span><span class="card-title">Measurement spike + go/no-go (manual, gating)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-000, ERR-004</dd>
+            <dt>Scenario</dt><dd>With the issued key on the server, download one real GEMS L2 NO₂ granule.</dd>
+            <dt>Expected result</dt><dd>Recorded: file size + implied per-day/full-mission volume; array dims + geolocation; Tangshan effective footprint; NO₂ fields (tropo/total/QA/kernel/precision) + names; processor version; API schema + limits. A written <strong>go/no-go</strong> vs the budget. <em>Manual; needs key + server.</em></dd>
+            <dt>Suggested test location</dt><dd>manual — recorded in <code>open-questions.html</code> (Q1) + decision log</dd>
+          </dl></div></div>
+
+        <div class="card" id="at1"><div class="card-header"><span class="req-id">AT1</span><span class="card-title">Enumerate → download → clip → fields → provenance</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-001, REQ-005, REQ-006</dd>
+            <dt>Scenario</dt><dd>Mocked Open-API returns a listing + a synthetic granule for a short range.</dd>
+            <dt>Action</dt><dd>Run <code>acquire_gems_no2</code>.</dd>
+            <dt>Expected result</dt><dd>Granule downloaded, clipped to the AOI bbox; output keeps tropospheric (and total, if present) column, QA, cloud, kernel, geo, precision; per-scan file + provenance (product, version, qa, aoi, scan_time) written; only the AOI window persisted; the full granule deleted.</dd>
+            <dt>Negative expectations</dt><dd>No full granule retained (unless <code>--keep-granules</code>); no key echoed in logs/URLs.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at1b"><div class="card-header"><span class="req-id">AT1b</span><span class="card-title">Diurnal structure preserved</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-002</dd>
+            <dt>Scenario</dt><dd>Synthetic granule(s) with several scan slots in one day.</dd>
+            <dt>Expected result</dt><dd>All scans retained as distinct records with their observation timestamps; the store exposes a per-scan (sub-daily) series, not one value/day.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at2"><div class="card-header"><span class="req-id">AT2</span><span class="card-title">Version tracked + discontinuity flagged</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-003, EDGE-002</dd>
+            <dt>Scenario</dt><dd>Synthetic scans tagged with two versions.</dd>
+            <dt>Expected result</dt><dd>Each stored scan records its version; a range spanning both reports a version discontinuity.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at3"><div class="card-header"><span class="req-id">AT3</span><span class="card-title">QA filter + coverage fraction</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-004, REQ-007</dd>
+            <dt>Scenario</dt><dd>AOI window with a known QA distribution and some cloudy pixels.</dd>
+            <dt>Expected result</dt><dd>Pixels below threshold dropped; valid-coverage fraction equals the known share of passing AOI pixels.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at4"><div class="card-header"><span class="req-id">AT4</span><span class="card-title">Idempotent / resumable + volume discipline</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-008, NFR-003</dd>
+            <dt>Scenario</dt><dd>Run acquisition twice over the same range; interrupt mid-range and resume.</dd>
+            <dt>Expected result</dt><dd>Second run downloads/clips nothing new (manifest hit); resume completes without re-downloading done granules; cached full granules are deleted after clip.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at5a"><div class="card-header"><span class="req-id">AT5a</span><span class="card-title">Verification: clear-scan render + diurnal panel (synthetic)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-010, REQ-011, REQ-012</dd>
+            <dt>Scenario</dt><dd>Synthetic store with one low-cloud/high-NO₂ scan and a full day of scans.</dd>
+            <dt>Expected result</dt><dd><code>select_clear_high_scan</code> returns the clear scan; <code>render_scan</code> writes a PNG with facility markers; <code>render_diurnal_panel</code> writes the within-day AOI-mean curve.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_verify_gems.py</code></dd>
+          </dl></div></div>
+
+        <div class="card" id="at5b"><div class="card-header"><span class="req-id">AT5b</span><span class="card-title">Verification: real co-location + diurnal cycle (manual)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>REQ-011, REQ-012, AC-004</dd>
+            <dt>Scenario</dt><dd>Fetch a short real range on the server; pick a clear high-NO₂ scan; render NO₂-over-AOI with facility overlay + the day's diurnal panel.</dd>
+            <dt>Expected result</dt><dd>The NO₂ enhancement visibly sits over the steel sub-clusters, AND the diurnal panel shows a within-day cycle (evidence GEMS resolves what TROPOMI cannot). <em>Manual visual check; cannot be asserted in CI (non-deterministic, needs key).</em></dd>
+            <dt>Suggested test location</dt><dd>manual — output under <code>data/derived/verification/gems/</code></dd>
+          </dl></div></div>
+
+      </section>
+      <hr>
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+        <div class="card risk-high" id="at-err-1"><div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Key / product / download / budget failures</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt><dd>ERR-001, ERR-002, ERR-003, ERR-004</dd>
+            <dt>Scenario</dt><dd>(a) missing/invalid key; (b) empty listing / unknown product/field; (c) download failure mid-batch; (d) accumulated volume over budget.</dd>
+            <dt>Expected result</dt><dd>(a) clear error naming the env var, no value echoed; (b) descriptive error naming product/field/version; (c) failure recorded, fetched scans intact, resume works; (d) acquisition stops and surfaces the no-go.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_gems.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+        <div class="card" id="at-reg-1"><div class="card-header"><span class="req-id">AT-REG-1</span><span class="card-title">CLI additive + config-driven</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt><dd><code>noxus --help</code> and existing subcommands (incl. TROPOMI <code>fetch</code>) keep working.</dd>
+            <dt>Related requirements</dt><dd>REQ-020</dd>
+            <dt>Action</dt><dd><code>noxus fetch-gems --help</code>, <code>noxus verify-gems --help</code>.</dd>
+            <dt>Expected result</dt><dd>Subcommands exist, read config, expose documented flags (incl. <code>--probe</code>).</dd>
+            <dt>Suggested test location</dt><dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div></div>
+      </section>
+      <hr>
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> T1 measurement + go/no-go recorded (AT0).</li>
+          <li><input type="checkbox" disabled> All requirements have a test (auto or manual).</li>
+          <li><input type="checkbox" disabled> Only AOI window kept; full granules deleted after clip.</li>
+          <li><input type="checkbox" disabled> No key logged/committed.</li>
+          <li><input type="checkbox" disabled> Real slice verified (NO₂ over sub-clusters + diurnal panel) (AT5b).</li>
+          <li><input type="checkbox" disabled> Unresolved behaviour captured in open-questions.html.</li>
+        </ul>
+      </section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>Tests map back to requirements; auth/network mocked with a synthetic granule.</li>
+          <li>Mark AT0 and AT5b clearly as manual (needs the key + server, non-deterministic).</li>
+          <li>Do not invent behaviour beyond the approved spec.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

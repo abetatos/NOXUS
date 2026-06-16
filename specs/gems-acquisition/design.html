@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — GEMS (geostationary) NO₂ acquisition + AOI clip + QA</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-007</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>gems-acquisition</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-rejected">blocked</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A resumable acquisition loop that, per date-batch, (1) <strong>enumerates</strong> GEMS L2 NO₂
+        granules via the NIER-ESC <strong>Open-API</strong> (<code>getFileDateList</code>/<code>getFileList</code>,
+        pinned product <code>ver</code>), (2) <strong>downloads</strong> each full granule via
+        <code>getFileItem</code> over <code>httpx</code> with retry/backoff, (3) <strong>opens it lazily and
+        clips to the Tangshan AOI bbox client-side</strong> (the granule covers the full ~5000×5000 km field
+        of regard — there is no server-side subset), (4) applies the QA filter, computes valid-coverage, and
+        (5) writes a per-scan AOI clip under <code>data/raw/gems/</code> with a provenance sidecar, then
+        <strong>deletes the full granule</strong> (transient cache; kept only under a debug flag). A
+        lightweight <strong>manifest</strong> records what has been fetched so re-runs are idempotent and
+        resumable. The Open-API key is read from an environment variable (<code>GEMS_API_KEY</code>); SFTP is
+        the documented fallback channel (same enumerate→download→clip flow, different transport).</p>
+        <p>Because GEMS scans the daytime ~8×, the store is <strong>per-scan</strong> (multiple timestamps per
+        day) — the diurnal structure that distinguishes GEMS from TROPOMI is preserved at acquisition and is
+        the input to the downstream source-separation work (future NOX-009). A separate
+        <strong>verification</strong> module renders a clear-scan NO₂/facility overlay <em>and</em> a diurnal
+        panel (AOI-mean NO₂ across the day's scans) as direct evidence GEMS resolves the within-day cycle.</p>
+        <p class="callout"><strong>Gate.</strong> Task <strong>T1</strong> is a measurement spike: download
+        one real granule, measure its on-disk size + structure + Tangshan footprint + available NO₂ fields +
+        version, and record a <strong>go/no-go</strong> against a configured download-volume budget before the
+        loop is built. The per-granule byte size is not publicly documented and is the feasibility unknown.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="760" height="180" viewBox="0 0 760 180" aria-label="GEMS acquisition data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="62" width="138" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="77" y="82" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">NIER-ESC Open-API</text>
+            <text x="77" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">GEMS L2 NO₂</text>
+            <line x1="146" y1="86" x2="184" y2="86" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="186" y="52" width="150" height="68" rx="6" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5"/>
+            <text x="261" y="74" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#7f1d1d">download FULL granule</text>
+            <text x="261" y="90" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7f1d1d">(no server subset)</text>
+            <text x="261" y="105" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7f1d1d">~5000×5000 km</text>
+            <line x1="336" y1="86" x2="374" y2="86" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="376" y="52" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="456" y="72" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">clip AOI client-side</text>
+            <text x="456" y="88" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ QA + coverage</text>
+            <text x="456" y="103" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">then delete granule</text>
+            <line x1="536" y1="86" x2="574" y2="86" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="576" y="62" width="176" height="48" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="664" y="82" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#14532d">data/raw/gems</text>
+            <text x="664" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">per-scan AOI clip + manifest</text>
+            <text x="380" y="160" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">Verification reads the store → clear-scan NO₂/facility overlay + diurnal panel (separate module).</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Adds <code>noxus/data/gems.py</code> (new) and a verification module
+        (<code>noxus/data/verify_gems.py</code> or an extension of <code>verify_no2.py</code>); adds CLI
+        wiring in <code>noxus/cli/main.py</code> (<code>fetch-gems</code> + <code>verify-gems</code>); reads
+        <code>noxus/config/region.py</code> (AOI, reused) and
+        <code>data/derived/tangshan_steel_facilities.csv</code> (overlay, reused). Writes gitignored
+        <code>data/raw/gems/</code>. The Open-API key is read via <code>python-dotenv</code> only.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/gems.py</code></td><td>new</td><td>Open-API enumerate/download + client-side AOI clip + QA + manifest (REQ-001..008).</td></tr>
+            <tr><td><code>noxus/data/verify_gems.py</code></td><td>new</td><td>Clear-scan selection + NO₂/facility render + diurnal panel (REQ-010..012). May reuse helpers from <code>verify_no2.py</code>.</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>GemsAcquisitionConfig</code> (base URL, product, version, QA threshold, date range, batch window, AOI buffer, download budget, paths).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>fetch-gems</code> + <code>verify-gems</code> (REQ-020).</td></tr>
+            <tr><td><code>.env.example</code></td><td>add</td><td>Document <code>GEMS_API_KEY</code> (name only).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td><code>data/raw/gems/</code>.</td></tr>
+            <tr><td><code>pyproject.toml</code></td><td>maybe</td><td>Add <code>netCDF4</code> / <code>geo</code> extra only if the GEMS HDF layout needs it (confirm at T1; <code>h5netcdf</code>/<code>h5py</code> already present).</td></tr>
+            <tr><td><code>tests/data/test_gems.py</code>, <code>tests/data/test_verify_gems.py</code>, <code>tests/cli/test_cli.py</code></td><td>new/extend</td><td>Mocked-API unit tests + synthetic granule fixtures.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>.env</code> / credentials</td><td>Read via dotenv only; never logged/committed.</td></tr>
+            <tr><td><code>noxus/data/tropomi.py</code>, <code>era5.py</code>, <code>gridding.py</code></td><td>TROPOMI/ERA5 paths unaffected; GEMS is an additive parallel channel.</td></tr>
+            <tr><td><code>data/derived/tangshan_steel_facilities.csv</code></td><td>Consumed for overlay; not modified here.</td></tr>
+            <tr><td>attribution / signal / validation / catalyst modules</td><td>Out of scope (downstream; GEMS source-separation = future NOX-009).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Store layout</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/gems.py
+def acquire_gems_no2(aoi: Region, start: date, end: date, cfg: GemsAcquisitionConfig) -> AcquireReport:
+    """Resumable: batch -> Open-API list -> download granule -> clip AOI + QA -> per-scan write + manifest.
+    Streams/clips then deletes the full granule (NFR-003). Returns counts + download volume."""
+
+def list_granules(cfg, t0, t1) -> list[GranuleRef]: ...   # getFileDateList/getFileList (pinned ver)
+def download_granule(ref, cfg, dest) -> Path: ...         # getFileItem; key from env; retry/backoff
+def clip_to_aoi(granule_path, aoi, cfg) -> "xarray.Dataset": ...  # client-side bbox subset
+def apply_qa(ds, threshold) -> "xarray.Dataset": ...
+def coverage_fraction(scan_ds, aoi) -> float: ...
+
+# T1 spike helper (developer-run)
+def probe_granule(ref, cfg) -> GranuleProbe: ...  # size, dims, geoloc, Tangshan footprint, fields, version
+
+# noxus/data/verify_gems.py
+def select_clear_high_scan(store, max_cloud=0.2) -> ScanRef: ...
+def render_scan(store, scan, facilities_csv, out_png) -> Path: ...
+def render_diurnal_panel(store, day, out_png) -> Path: ...   # AOI-mean NO2 across the day's ~8 scans
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>data/raw/gems/                          # gitignored
+  manifest.json                          # {scan_id: {fetched_at, version, coverage, path}, granules: {...}}
+  _cache/                                # transient full-granule downloads (deleted after clip unless --keep-granules)
+  &lt;YYYY&gt;/&lt;YYYY-MM-DD&gt;_&lt;HHMM&gt;_&lt;scanslot&gt;.nc # AOI-clipped scan (NetCDF)
+# per-scan variables kept:
+#   nitrogendioxide_tropospheric_column (primary), total column (if present),
+#   qa flag/value, cloud_fraction, averaging_kernel (if exposed),
+#   latitude/longitude(+bounds), precision
+# provenance (attrs/sidecar): product, version, qa_threshold, aoi_bbox, scan_time, fetched_at
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus fetch-gems --probe                                   # T1 spike: 1 granule, measure + go/no-go
+uv run noxus fetch-gems --start 2021-10-01 --end 2026-06-14       # full record (batched, resumable)
+uv run noxus fetch-gems --start 2023-06-01 --end 2023-06-08       # small range (dev)
+uv run noxus verify-gems --max-cloud 0.2                          # clear-scan NO₂ + facility overlay + diurnal panel
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored store <code>data/raw/gems/</code> (per-scan NetCDF + JSON manifest + transient
+        <code>_cache/</code>). No database. Verification writes PNGs under
+        <code>data/derived/verification/gems/</code> (committable evidence, small).</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs checked (web, Jun 2026)</th><th>Version</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>NIER-ESC GEMS Open-API</td><td>Confirmed: ops <code>getFileDateList</code>/<code>getFileList</code>/<code>getFileItem</code>; JSON/XML/TEXT; params <code>date</code>/<code>sDate</code>/<code>eDate</code>/<code>ver</code>; key by application (~7-day approval). <strong>No server-side AOI subset documented.</strong></td><td>API since 2023</td><td>Exact endpoint base + response schema + per-key rate/volume limits confirmed at T1.</td></tr>
+            <tr><td>GEMS L2 NO₂ product</td><td>Confirmed: NetCDF4/HDF5; tropospheric + total column, QA, averaging kernel; East Asia FOR (45°N–5°S, 75°E–145°E); ~8 daytime scans/day; ~3.5×8 km nominal (coarser off-nadir at Tangshan).</td><td>v2.x→v4.0.1</td><td>Pin operational <code>ver</code> at T1; exact field/QA names + kernel layout from a real granule.</td></tr>
+            <tr><td>Coverage start</td><td>Launched Feb-2020; reprocessed/operational tropospheric NO₂ from ~Oct-2021 (GMAP2021).</td><td>—</td><td>Overlaps CREA benchmark from ~Oct-2021; shorter than TROPOMI (2019→).</td></tr>
+            <tr><td><code>httpx</code> / <code>h5netcdf</code> / <code>h5py</code></td><td>Already in stack</td><td>pinned via uv</td><td>Add <code>netCDF4</code> only if the GEMS HDF group layout needs it (T1).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>The Open-API key (<code>GEMS_API_KEY</code>) is read from <code>.env</code> via
+        <code>python-dotenv</code>; never logged, printed, or committed (it appears in request URLs/headers,
+        so logging of full request URLs must be scrubbed). Network egress limited to the NIER-ESC host. No
+        protected files written, no remote mutations.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>docs/data-access.md</code> (GEMS channel, key as env var, full-granule + client-side-clip
+        rationale, go/no-go result), <code>README.md</code> (Status/Data sources), project map
+        (<code>data/gems.py</code> new, new raw store + CLI), <code>.env.example</code>,
+        <code>.gitignore</code>, and a decision-log entry. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Mocked Open-API</strong>: a fake HTTP layer returns a synthetic granule listing + a small synthetic NetCDF granule (multiple scan slots over a region covering the AOI) so enumerate→download→clip→QA→persist→manifest is tested without network/key (AT1/AT1b).</li>
+          <li><strong>QA + coverage</strong>: synthetic AOI window with a known QA distribution → filter and coverage fraction correct (AT3).</li>
+          <li><strong>Diurnal preservation</strong>: a synthetic day with several scan slots → all retained with distinct timestamps; downstream sees a per-scan series (AT1b).</li>
+          <li><strong>Resumability</strong>: run twice; second run downloads/clips nothing new; mid-range interruption resumes (AT4).</li>
+          <li><strong>Version tracking</strong>: synthetic scans tagged with different versions → discontinuity flagged (AT2).</li>
+          <li><strong>Verification</strong>: synthetic store → clear-scan selection + <code>render_scan</code> writes a PNG with facility markers + <code>render_diurnal_panel</code> writes the within-day curve (AT5a; real-data visual check manual, AT5b).</li>
+          <li><strong>Errors</strong>: missing/invalid key (no value echoed), product/field-not-found, download failure/resume, budget no-go (AT-ERR-1).</li>
+          <li><strong>Volume discipline</strong>: assert the full granule is deleted after clip unless <code>--keep-granules</code> (NFR-003).</li>
+        </ul>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no browser UI). The NO₂/facility render and the diurnal panel are inspected manually as the location/diurnal-resolution check.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Download volume (the gate).</strong> No server-side subset → full granules transit the wire; narrowing the <em>date range</em> is the only lever to cut it. Per-granule size unknown (order 10²–10³ MB). Bounded by the <strong>scoped-window default</strong> (see below) to ~50–150 GB/window rather than a multi-TB full mission. Mitigations: clip-then-delete (kept volume tiny), resumable batching, SFTP bulk route (the 20 GB/40-file cap is no-login-web only), run on a server-class machine with bandwidth/scratch. <strong>T1 measures and gates this (REQ-000/ERR-004).</strong> <em>This is the reason the task is blocked: it is to be executed on a server-style machine in the future.</em></li>
+          <li><strong>Scoped window, not full mission (REQ-009 / Q5 / A7).</strong> Default scope = a stable-weather <strong>autumn window, Sep–Oct 2023</strong> (optional Sep–Oct 2024 replication): post-monsoon + pre-heating-season ⇒ near-constant meteorology (weekly cycle not swamped), no residential-heating NO₂ confounder (cleaner steel↔traffic separation), low cloud (balanced GEMS coverage across weekdays + the ~8 daily scans). <strong>Chinese public holidays (esp. Golden Week 1–7 Oct) are flagged per scan</strong> and excluded/modelled in the downstream weekday profile (they break the 7-day cycle). Full mission stays opt-in.</li>
+          <li><strong>Shorter history.</strong> ~Oct-2021→ vs TROPOMI 2019→ — less statistical power; mitigated for this test by focusing on the diurnal/weekly signal within the scoped window rather than a long levels series.</li>
+          <li><strong>Off-nadir resolution at Tangshan.</strong> Tangshan is ~9.6° west of the 128°E sub-satellite point and near the 45°N north edge of the FOR → effective pixel <strong>~10 km</strong> (L3 documented ~5 km Korea / ~10 km elsewhere), coarser than the 3.5×8 nominal. Adequate for the cluster (≈ NOX-002b's ~5 km decision), not for per-plant. GEMS' gain is diurnal frequency, not resolution.</li>
+          <li><strong>Ceiling unchanged in levels.</strong> GEMS does <strong>not</strong> change the ~40% mean-share cap on a levels estimator. The thesis is purely a <em>variance-share</em> gain from resolving the diurnal/weekly cycle (the NOX-006 lever). Honest-null remains valid.</li>
+          <li><strong>GEMS retrieval biases</strong> at high NO₂ / high latitude (v2/v3 validation literature) → keep the relative-index discipline; signal is relative, not absolute.</li>
+          <li><strong>Rejected alternatives:</strong> (a) GEMS <strong>L3 daily/monthly</strong> gridded NO₂ — far smaller, but averages away the diurnal cycle ⇒ defeats the entire purpose; (b) no-login <strong>web download</strong> as the main channel — 20 GB / 40-file session cap makes a multi-TB pull impractical; Open-API/SFTP scripted + resumable is the route; (c) external-HDD-by-mail — not reproducible/programmatic.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: new module behind new CLI subcommands; TROPOMI/ERA5 paths untouched. Rollback = revert
+        the branch and delete <code>data/raw/gems/</code> (gitignored) + the GEMS verification PNGs. If the T1
+        go/no-go is a <strong>no-go</strong>, the task stays blocked/closed with the measurement recorded and
+        no loop is built — nothing downstream depends on it yet.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

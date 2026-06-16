@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — Steel NO₂ event catalyst</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — Steel NO₂ event catalyst</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-004</code></td></tr>
+        <tr><th>Feature slug</th><td><code>steel-event-catalyst</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-13</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Questions for the developer. All have defaults that let implementation proceed; Q1 (ferrous-futures data) materially affects which instruments v1 covers and is the one to confirm at approval.</p></section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">5</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">1</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id err">Q1</span><span class="card-title">Chinese ferrous-futures data access (the public/free tension)</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>SHFE rebar / DCE iron ore + coking coal have no clean free API (yfinance doesn't carry them well); their daily settlements are exchange-published. How do we ingest them reproducibly without a paywalled dependency — (a) scrape exchange daily-settlement pages into dated snapshots, (b) a manual periodic snapshot, or (c) defer ferrous to a later phase and lead with miners+ETF?</dd>
+            <dt>Why it matters</dt><dd>Ferrous futures are the closest instrument to Tangshan output, but the project requires public/free reproducible data (NFR-002).</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>v1 leads with the free miners (BHP/RIO/VALE) + steel ETF; implement a best-effort exchange daily-settlement snapshot for ferrous behind a flag, documenting any access limitation; never add a paywalled dependency.</dd>
+            <dt>Affected</dt><dd><code>market.py</code>; CatalystConfig; REQ-030, NFR-002</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending — confirm at approval</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id err">Q2</span><span class="card-title">Market-data library</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Which free client for daily prices — <code>yfinance</code>, <code>pandas-datareader</code>/<code>stooq</code>, or direct CSV endpoints? Adds a dependency.</dd>
+            <dt>Why it matters</dt><dd>No new dependency without approval; reliability/rate-limits differ.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd><code>yfinance</code> for miners+ETF (widely used, free), pinned via <code>uv</code>; dated snapshots so analysis never depends on a live call.</dd>
+            <dt>Affected</dt><dd><code>pyproject.toml</code>; <code>market.py</code>; REQ-030</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id err">Q3</span><span class="card-title">Change-point detector: library vs in-house</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Use <code>ruptures</code> (PELT) for change-points, or an in-house CUSUM/MAD-z to stay dependency-light?</dd>
+            <dt>Why it matters</dt><dd>Dependency policy + determinism.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>In-house MAD-z anomaly + CUSUM level-shift (no new dep); add <code>ruptures</code> only if it demonstrably improves detection and is approved.</dd>
+            <dt>Affected</dt><dd><code>events.py</code>; REQ-002</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id err">Q4</span><span class="card-title">Curtailment calendar source</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What public source/format for the Tangshan curtailment calendar (MEE bulletins, CREA reporting)? (Inherits NOX-003 Q6a.)</dd>
+            <dt>Why it matters</dt><dd>Quality of cause-tagging + recall.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Assemble a best-effort calendar from public CREA/MEE reporting; if thin, lean on BF-rate jumps and document the gap.</dd>
+            <dt>Affected</dt><dd><code>groundtruth.py</code>; REQ-011</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header"><span class="req-id err">Q5</span><span class="card-title">Event-study window, latency &amp; abnormal-return model</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What [−k,+k] trading-day window, what overpass+processing latency (days) before the first tradeable session, and what abnormal-return model (market model vs sector de-meaning)?</dd>
+            <dt>Why it matters</dt><dd>These are the knobs the multiplicity discipline must cover; they must be fixed before viewing returns.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default if not answered</dt><dd>Window ±5 trading days; latency 2 days (TROPOMI overpass + NRTI/OFFL availability); abnormal return vs a broad benchmark (market model). Record all; report multiplicity.</dd>
+            <dt>Affected</dt><dd><code>study.py</code>; CatalystConfig; REQ-031, REQ-041, REQ-042</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions">
+        <h2>Resolved questions</h2>
+        <div class="card" id="qr1">
+          <div class="card-header"><span class="req-id">R1</span><span class="card-title">Instruments + ground-truth scope</span><span class="badge badge-ok">Resolved 2026-06-13</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Decision</dt><dd>Instruments: <strong>Chinese ferrous futures + global miners + China steel ETF/equities</strong> (all three). Ground truth: <strong>both</strong> — CREA BF-rate jumps combined with the public curtailment calendar. (Developer, 2026-06-13.) Ferrous data access remains Q1.</dd>
+          </dl></div>
+        </div>
+      </section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Flux-divergence source isolation for cleaner events → NOX-005 (deferred; not required for event detection). Intraday market microstructure → out of scope (daily bars).</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>All questions non-blocking → the spec can reach <code>spec_ready</code>; confirm Q1 (ferrous data) at approval.</li>
+          <li>Fix detector + event-study defaults <strong>before</strong> looking at market returns (REQ-042) — no knob tuning to the P&amp;L.</li>
+          <li>Never add a paywalled data dependency; update this file when Q1/Q2/Q3 are answered.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

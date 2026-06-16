@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — GEMS NO₂ acquisition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — GEMS NO₂ acquisition</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-007</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>gems-acquisition</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-rejected">blocked</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+      <section id="blocked-note">
+        <h2>Blocked — execution deferred</h2>
+        <div class="claude-note"><h4>Why blocked</h4>
+          <p>The acquisition downloads <strong>full granules</strong> (no server-side AOI subset) and clips
+          client-side. The transient download volume over the full mission is plausibly multi-TB and the
+          per-granule size is unmeasured. By developer decision the build/run is <strong>deferred to a
+          server-style machine</strong> (bandwidth + scratch) in the future. The spec is complete so it can be
+          executed then. <strong>Do not implement</strong> while status is <code>blocked</code>; the developer
+          moves it to <code>human_approved</code> when ready to run.</p>
+        </div>
+      </section>
+
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order; small, verifiable steps. Mark complete by adding <code>class="done"</code>
+        to the <code>&lt;li class="task-item"&gt;</code>. Global status lives in <code>tasks.json</code>.
+        <strong>T1 is a gating spike</strong> — its go/no-go decides whether T2+ proceed.</p>
+
+        <ol class="task-timeline">
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>GATE — measure one granule + go/no-go (REQ-000, ERR-004).</strong> <em>(developer-run, needs the issued Open-API key + a server-class machine)</em></div>
+            <div class="task-item-body">Register the Open-API key (~7-day approval). Download <strong>one</strong> real GEMS L2 NO₂ granule via <code>getFileItem</code>. Record: on-disk size + implied per-day/full-mission volume; array dims + geolocation; effective pixel size over Tangshan (off-nadir); which NO₂ fields exist (tropospheric/total/QA/kernel/precision) + exact names; processor version; the Open-API response schema + per-key rate/volume limits. Write a <strong>go/no-go</strong> vs the download budget into <code>open-questions.html</code> (Q1) and the decision log. <em>If no-go → stop here; the task stays blocked/closed with the measurement recorded.</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Config + deps + env var (REQ-020, NFR-002/004).</strong></div>
+            <div class="task-item-body"><code>GemsAcquisitionConfig</code> (base URL, product, pinned <code>ver</code>, QA threshold, date range, batch window, AOI buffer, download budget, paths); document <code>GEMS_API_KEY</code> in <code>.env.example</code>; add <code>data/raw/gems/</code> to <code>.gitignore</code>; add <code>netCDF4</code> only if T1 showed the HDF layout needs it.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Open-API client: enumerate + download + auth (REQ-001, ERR-001/002).</strong></div>
+            <div class="task-item-body"><code>list_granules</code> (<code>getFileDateList</code>/<code>getFileList</code>, pinned <code>ver</code>) + <code>download_granule</code> (<code>getFileItem</code>, key from env, retry/backoff, request-URL scrubbing); clear error referencing the env-var name on key failure; descriptive error on product/field-not-found.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Tests (mocked API + synthetic granule) for enumerate/download/clip/persist (REQ-001/005/006).</strong></div>
+            <div class="task-item-body">Fake HTTP layer returns a listing + a small synthetic NetCDF granule covering the AOI with several scan slots; assert clip shape, fields retained, provenance written, full granule deleted after clip.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Client-side AOI clip + QA + per-scan write (REQ-001/004/005/006).</strong></div>
+            <div class="task-item-body">Open granule lazily → bbox subset to AOI → QA mask → write per-scan NetCDF + provenance → delete the cached full granule (unless <code>--keep-granules</code>).</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Diurnal preservation + coverage + version tracking (REQ-002/003/007).</strong></div>
+            <div class="task-item-body">Every scan tagged with its observation timestamp (distinct slots/day); per-scan valid-coverage fraction over AOI; record processor version; flag version discontinuity across a range.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>Resumable batching + scoped-window default + manifest + budget guard (REQ-008/009, ERR-003/004, NFR-005).</strong></div>
+            <div class="task-item-body">Default scope = stable-weather autumn window <strong>Sep–Oct 2023</strong> (config-overridable; optional Sep–Oct 2024 replication; full mission opt-in). Record per-scan calendar metadata (weekday + Chinese-holiday flag, esp. Golden Week 1–7 Oct). Manifest of fetched granules/scans; re-run skips done; batch by date window (SFTP bulk route; 20 GB/40-file cap is no-login-web only); rate-limit + backoff; stop + surface no-go if accumulated volume exceeds the budget.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Verification module (REQ-010/011/012).</strong></div>
+            <div class="task-item-body"><code>select_clear_high_scan</code>; <code>render_scan</code> → NO₂-over-AOI PNG with facility overlay; <code>render_diurnal_panel</code> → AOI-mean NO₂ across the day's scans (the diurnal-resolution evidence).</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Verification + error tests (AT5a, AT-ERR-1).</strong></div>
+            <div class="task-item-body">Synthetic store → clear scan picked; render writes PNGs incl. the diurnal panel; key/product/download/budget error paths.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Wire CLI <code>fetch-gems</code> (+ <code>--probe</code>) + <code>verify-gems</code> (REQ-020) + smoke test.</strong></div>
+            <div class="task-item-body">Config-driven subcommands; CLI smoke test (mocked).</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Real acquisition slice + verification (AC-001/004).</strong> <em>(developer-run on the server; needs the key)</em></div>
+            <div class="task-item-body">Fetch a short real range (e.g. one clear week), run <code>verify-gems</code>, eyeball NO₂ over the steel sub-clusters AND the diurnal panel showing the within-day cycle TROPOMI cannot resolve.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T12</span>
+            <strong>Run validation (AC-005).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; network/auth mocked.</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T13</span>
+            <strong>Docs + project map + decision proposals.</strong></div>
+            <div class="task-item-body">Update <code>docs/data-access.md</code> (GEMS channel + go/no-go), README status, project map (<code>gems.py</code>, raw store, CLI), <code>.env.example</code>, <code>.gitignore</code>; propose the GEMS-acquisition + go/no-go decisions.</div></li>
+        </ol>
+        <p class="callout">Downstream (out of scope — future <strong>NOX-009</strong>): diurnal/weekly compositing of the GEMS store, the day-of-week source-separation diagnostic (<strong>weekday profile with Chinese holidays / Golden Week excluded or modelled</strong>), and re-running NOX-003.1 / NOX-004 / NOX-006 on the GEMS-derived residual to test whether resolving the weekly cycle lifts steel's variance share. The scoped Sep–Oct window (REQ-009) is the input.</p>
+      </section>
+
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> T1 go/no-go recorded (size + structure + Tangshan footprint + fields + version).</li>
+          <li><input type="checkbox" disabled> Requirements covered by tests (network/auth mocked).</li>
+          <li><input type="checkbox" disabled> Tests pass; lint passes.</li>
+          <li><input type="checkbox" disabled> No key logged or committed; full granules deleted after clip; only AOI window kept.</li>
+          <li><input type="checkbox" disabled> Real slice verified (NO₂ over sub-clusters + diurnal panel).</li>
+          <li><input type="checkbox" disabled> Reviewer approved traceability; documentation decision recorded.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
