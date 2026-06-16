@@ -96,6 +96,25 @@
     <div class="entry">
       <div class="entry-header">
         <span class="entry-date">2026-06-14</span>
+        <span class="badge badge-warning">in review</span>
+        <span class="entry-title">NOX-008 — Spatial-scale sensitivity of the NO₂↔steel signal (autocorrelation-robust)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>review — code complete (T1–T10); 146 tests, ruff clean; full real-data run done. Awaiting reviewer.</dd>
+        <dt>Spec</dt>              <dd><code>specs/spatial-scale-sensitivity/</code></dd>
+        <dt>Summary</dt>          <dd>Sweep two scale axes over the EXISTING cube — AOI extent (0.25 vs 0.10° buffer, <code>clip_cube_to_region</code>) × grid resolution (native + block-averaged 0.10/0.15/0.25°, <code>coarsen_cube</code>; aggregation only, never interpolation) — re-derive the footprint NO₂ signal per scale through the existing pipeline, align vs the CREA BF rate, and judge each correlation with autocorrelation-robust + FDR significance (new <code>noxus/validation/robust.py</code>: first-order + Newey-West effective-N, moving-block bootstrap CI, block-permutation null, Benjamini–Hochberg FDR). Promotes the 2026-06-14 probe into tested code. Tests the Parubets &amp; Naito (2025) scale warning + the source-isolation intuition (Wen 2024).</dd>
+        <dt>Finding</dt>           <dd><strong>Hardened honest null.</strong> Of 128 (scale × variant × lag) tests, <strong>0 are robust</strong> after FDR; the 34 naïve-significant cells are all monthly peak-lag artefacts that fall to "fragile (naive-only)". The tight 0.10° AOI does <strong>not</strong> rescue the signal (Δ|r|≈0.02–0.05, never significant); native↔coarse sign flips are noise-level (|r|&lt;0.13). Conclusion upgraded from "no signal at one scale" to <strong>"no robust coupling at any reasonable scale"</strong>. Also confirmed the naïve Pearson p over-rejects under autocorrelation (probe: every positive "SIG" from the deep exploration collapses).</dd>
+        <dt>Decisions</dt>        <dd>Two recorded in <code>decisions/architecture-decisions.md</code> (2026-06-14): (1) autocorrelation-robust + FDR is the significance standard for index↔benchmark correlations; (2) no robust NO₂↔steel coupling at any reasonable spatial scale.</dd>
+        <dt>Files changed</dt>     <dd>new <code>noxus/validation/robust.py</code> + <code>scale.py</code>; <code>noxus/data/gridding.py</code> (clip/coarsen); <code>noxus/config/run.py</code> (ScaleSweepConfig); <code>noxus/cli/main.py</code> (<code>scale-sweep</code>); <code>analysis/scale_sensitivity.py</code> (+ probe <code>autocorr_significance.py</code>); tests <code>tests/data/test_scale_ops.py</code>, <code>tests/validation/test_robust.py</code>, <code>test_scale.py</code>. Result: <code>data/derived/scale_sensitivity.csv</code> + 16 figures + <code>scale_sensitivity_findings.txt</code>. Existing validation/gridding/CLI contracts unchanged (additive).</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 146 passed; <code>uv run ruff check .</code> → clean. Full sweep run on the 389-week cube (5000 bootstrap/permutation draws, seed 20260614).</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-06-14 ("Comienza"; Q1 resolved → resolutions {native,0.10,0.15,0.25}).</dd>
+        <dt>Follow-ups</dt>        <dd>Spatial-scale lever closed for the relative-index paradigm; remaining avenues are flux divergence (NOX-005), a diurnal sensor (GEMS, NOX-007), or the regime/event framing. Reviewer to confirm docs targets (exploration HTML section, project map).</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-06-14</span>
         <span class="badge badge-ok">milestone</span>
         <span class="entry-title">Full-series arbiter run — harmonic-K1 on the complete cube (closes NOX-003.1 T10)</span>
       </div>

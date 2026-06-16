@@ -1,0 +1,45 @@
+AUTOCORRELATION-AWARE SIGNIFICANCE OF NO2 <-> BF RATE
+Does the naive Pearson p-value survive serial dependence?
+naive = scipy.pearsonr (i.i.d. assumption, what leadlag.py reports today)
+neff   = first-order effective-N t-test | boot95 = moving-block bootstrap CI of r
+p_block= block-permutation null p-value | 'robust' needs p_block<.05 AND boot CI excludes 0
+
+==============================================================================
+WEEKLY  (NO2 variant vs BF operating rate)
+==============================================================================
+
+-- lag 0 --
+variant     lag    n       r   p_naive  neff    p_neff        boot95_CI  p_block  verdict
+no2_level    +0  377  -0.195    0.0001 226.2    0.0032 [-0.31,-0.08]       0.0066  robust
+no2_resid    +0  377  +0.061    0.2360 271.7    0.3150 [-0.03,+0.15]       0.3055  ns
+no2_yoy      +0  325  +0.108    0.0514 257.3    0.0834 [-0.05,+0.24]       0.0622  ns
+no2_stl      +0  377  -0.006    0.9135 334.3    0.9186 [-0.10,+0.09]       0.9224  ns
+(naive CI for reference, lag0 only shown above; block len = round(n^1/3); 5000 bootstrap/permutation draws)
+
+-- peak-|r| lag --
+variant     lag    n       r   p_naive  neff    p_neff        boot95_CI  p_block  verdict
+no2_level   -14  363  -0.266    0.0000 214.8    0.0001 [-0.40,-0.12]       0.0002  robust
+no2_resid    -3  374  +0.102    0.0482 270.9    0.0931 [-0.01,+0.20]       0.0728  FRAGILE (naive-only)
+no2_yoy      -8  317  +0.133    0.0181 261.5    0.0319 [-0.01,+0.26]       0.0416  FRAGILE (naive-only)
+no2_stl     -14  363  -0.066    0.2085 314.9    0.2417 [-0.18,+0.05]       0.2685  ns
+(naive CI for reference, lag0 only shown above; block len = round(n^1/3); 5000 bootstrap/permutation draws)
+
+==============================================================================
+MONTHLY  (NO2 variant vs BF operating rate)
+==============================================================================
+
+-- lag 0 --
+variant     lag    n       r   p_naive  neff    p_neff        boot95_CI  p_block  verdict
+no2_level    +0   90  -0.351    0.0007  38.7    0.0293 [-0.59,-0.10]       0.0274  robust
+no2_resid    +0   90  +0.128    0.2294  89.3    0.2313 [-0.06,+0.30]       0.3081  ns
+no2_yoy      +0   78  +0.190    0.0951  50.3    0.1844 [-0.17,+0.46]       0.2737  ns
+no2_stl      +0   90  +0.133    0.2108  81.9    0.2333 [-0.10,+0.31]       0.3641  ns
+(naive CI for reference, lag0 only shown above; block len = round(n^1/3); 5000 bootstrap/permutation draws)
+
+-- peak-|r| lag --
+variant     lag    n       r   p_naive  neff    p_neff        boot95_CI  p_block  verdict
+no2_level    -6   84  -0.497    0.0000  38.8    0.0013 [-0.66,-0.28]       0.0002  robust
+no2_resid    -1   89  +0.179    0.0933  88.6    0.0941 [-0.03,+0.34]       0.1098  ns
+no2_yoy      +6   72  +0.287    0.0144  45.3    0.0548 [-0.10,+0.54]       0.1148  FRAGILE (naive-only)
+no2_stl      +6   84  +0.201    0.0669  76.8    0.0802 [-0.18,+0.50]       0.1882  ns
+(naive CI for reference, lag0 only shown above; block len = round(n^1/3); 5000 bootstrap/permutation draws)

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Spatial-scale sensitivity</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-002b</code> (cube), <code>NOX-003.1</code> (signal variants); probe <code>analysis/autocorr_significance.py</code> (2026-06-14)</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Every result so far (NOX-003/003.1/006, the deep exploration, and the 2026-06-14
+        autocorrelation probe) was computed at <strong>one fixed spatial scale</strong>: the default
+        <code>0.25°</code> AOI buffer and the native <code>~0.05°</code> grid. The honest null we reported
+        could therefore be an artefact of that single choice. Parubets &amp; Naito (2025) showed exactly this
+        risk for NO₂↔GDP in Japan — the relationship is <strong>significant at 0.25°</strong> but
+        <strong>loses significance / flips sign at 0.1°</strong> — and warn that aggregation scale must be
+        treated as a tuned hyper-parameter, not maximised. A competing intuition pulls the other way for our
+        case: steel is only ~30–43% of Tangshan NO₂ (Wen 2024), so a <strong>tighter</strong> AOI could
+        improve source isolation by excluding the Beijing-Tianjin-Hebei background.</p>
+        <p>This feature sweeps <strong>two scale axes over the existing cube</strong> and recomputes the
+        NO₂↔BF-rate correlation at each scale with an <strong>autocorrelation-robust, multiplicity-corrected</strong>
+        significance test, so the conclusion graduates from "no signal at one scale" to "no robust signal at
+        any reasonable scale" — or surfaces the scale where a signal appears.</p>
+        <ul>
+          <li><strong>Axis 1 — AOI extent:</strong> default <code>0.25°</code> buffer vs <code>0.10°</code>
+          tight buffer (a strict spatial <em>clip</em> of the cube; both constants already exist in
+          <code>noxus/config/region.py</code>).</li>
+          <li><strong>Axis 2 — grid resolution:</strong> native vs <strong>block-averaged</strong> to
+          ~<code>0.1°</code> and ~<code>0.25°</code> — <strong>aggregation only, never interpolation</strong>
+          (the 2026-06-13 decision rejected interpolating to a <em>finer</em> grid; coarsening by averaging is
+          the permitted direction and is precisely the Parubets experiment).</li>
+        </ul>
+        <p><strong>Feasibility (verified 2026-06-14):</strong> the cube is 30×51 cells spanning the wide AOI
+        (lon 117.74–119.32, lat 38.71–40.44); the tight AOI is a strict subset, and coarsening to 0.1°/0.25°
+        is a block-mean of native cells — both are pure re-aggregations of the committed cube, no re-fetch.</p>
+        <p><strong>Honesty (carried over):</strong> coarsening adds no information — it only changes how much
+        background is blended in; an honest <strong>null across all scales</strong> is a valid, designed-for
+        outcome (Morris &amp; Zhang 2019). The robust-significance machinery (effective-N, block bootstrap,
+        block permutation, FDR) is the load-bearing new capability and is reusable by the wider pipeline.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-scale">Scale construction (extent × resolution)</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When given the analysis-ready cube and an AOI <code>Region</code>, the system shall <strong>clip</strong> the cube to the cells whose centres fall within that region, returning a strict spatial subset <strong>without interpolation or resampling</strong>, so the 0.25°→0.10° tight-AOI comparison is a pure subset (REQ uses <code>tangshan_aoi(0.25)</code> vs <code>tangshan_aoi(0.10)</code>).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When given a target resolution coarser than native, the system shall <strong>block-average</strong> the cube (mean over non-overlapping cell blocks sized to the target degree spacing), propagating <code>coverage</code> as the mean of contributing valid cells and emitting a block as NaN when it has no valid cell — <strong>aggregation only, never interpolation</strong> (consistent with the native-resolution decision, 2026-06-13).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When coarsening, the system shall record the realised cell spacing and grid shape per target (native, ~0.1°, ~0.25°) so the actual resolution used is auditable and not assumed (EDGE-001).</span></div>
+
+        <h3 id="fr-signal">Per-scale signal re-derivation</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When a scale (extent × resolution) is selected, the system shall re-derive the NO₂ activity signal from the clipped/coarsened cube using the <strong>existing</strong> footprint/AOI-mean + background pathway and the existing <code>deseasonalize</code> variants (<code>level</code> / <code>intensity-model</code> residual / <code>yoy</code> / <code>stl</code>), with no change to those algorithms (additive reuse).</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When a coarsened scale leaves too few cells for the footprint/background contrast (e.g. 0.25° over the tight AOI), the system shall fall back to the AOI spatial mean and <strong>label the signal accordingly</strong>, rather than fabricating a footprint from one cell (EDGE-002).</span></div>
+
+        <h3 id="fr-robust">Autocorrelation-robust significance</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When testing a correlation for significance, the system shall compute an <strong>effective sample size</strong> that accounts for serial dependence — at minimum the first-order (Bayley–Hammersley) estimate and a <strong>full-order/Newey-West-style</strong> estimate — and report a p-value on the effective degrees of freedom alongside the naïve Pearson p (so the gap is explicit).</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When quantifying uncertainty in <code>r</code>, the system shall provide a <strong>moving-block bootstrap</strong> confidence interval (block length scaled to the series length, paired resampling that preserves within-block memory) with a configurable number of draws and a fixed seed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>When testing the null "no cross-correlation", the system shall provide a <strong>block-permutation</strong> p-value (reorder contiguous blocks of one series against the other, preserving each series' own autocorrelation while destroying the cross-correlation), with a fixed seed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-023</span><span>The robust-significance functions shall be added to <code>noxus/validation/</code> as reusable, tested code (not analysis-script throwaways) and shall be <strong>additive</strong>: the existing <code>correlate</code>, <code>lead_lag</code> and <code>verify_sign</code> contracts are unchanged.</span></div>
+
+        <h3 id="fr-fdr">Multiple-testing correction</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When many correlations are tested across the scale × variant × lag grid, the system shall apply a <strong>Benjamini–Hochberg FDR</strong> correction over the family of p-values and report the adjusted significance, so an isolated "hit" among dozens of tests is not over-claimed.</span></div>
+
+        <h3 id="fr-sweep">Sweep, comparison &amp; reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When the sweep runs, the system shall produce a <strong>tidy result table</strong> with one row per (extent, resolution, variant, lag-choice) carrying: realised cell spacing, n, <code>r</code>, naïve p, effective-N p (1st &amp; full order), block-bootstrap CI, block-permutation p, FDR-adjusted significance, and a robust verdict.</span></div>
+        <div class="req-row"><span class="req-id">REQ-041</span><span>When reporting, the system shall present the result as a <strong>scale grid</strong> (heatmap/figure of <code>r</code> and robust significance over extent × resolution) and shall state explicitly whether the data reproduce the Parubets pattern (significant coarse → lost/flipped fine) and whether the tight AOI improves coupling (source-isolation hypothesis).</span></div>
+        <div class="req-row"><span class="req-id">REQ-042</span><span>When the outcome is a null, the system shall report it as a <strong>valid finding</strong> ("no robust coupling at any swept scale"), with CIs, not as a failure — and shall not cherry-pick the most favourable scale without the multiplicity caveat (Morris &amp; Zhang 2019).</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-050</span><span>When the user runs the sweep, the system shall expose it reproducibly (a <code>noxus</code> subcommand and/or an <code>analysis/</code> driver) from a recorded config (resolutions, buffers, bootstrap draws, FDR α, seed); existing subcommands and defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> The whole sweep reproduces from the committed cube + recorded config; no live fetch at analysis time; bootstrap/permutation use fixed seeds.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>No interpolation.</strong> Both scale operations are pure re-aggregation of observed cells (clip = subset; coarsen = block-mean); cloud-gap cells stay NaN — the cloud/native-resolution decisions hold.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Anti-p-hacking.</strong> The deseason/intensity smoothness is still selected on the NO₂ series alone (NOX-003.1 NFR-102); the scale sweep never selects the scale that maximises the benchmark correlation as if it were the headline result — every scale is reported with the FDR caveat.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Additive.</strong> Existing validation/gridding contracts and CLI behaviour are unchanged; new code is opt-in.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>No-publish.</strong> NO₂-derived per-scale series/cubes are gitignored; small stats tables + figures may be committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run pytest</code> + <code>uv run ruff check .</code>; no new heavy dependency (SciPy/NumPy already present; FDR/Newey-West implemented locally or via existing statsmodels).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-007</span><span><strong>Honest reporting.</strong> Coarsening adds no information; the report states this and frames any apparent gain as reduced background dilution, not new signal.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Target resolution not an integer multiple of native spacing → block edges don't align; the system rounds the block factor, records the <strong>realised</strong> spacing (≠ the nominal target) and reports it, never silently mislabels (REQ-003).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Coarse resolution × tight AOI leaves only a handful of cells → footprint/background contrast is ill-posed; fall back to AOI mean and label it (REQ-011); if &lt;1 valid cell remains, that scale is dropped with a recorded reason, not crashed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>Block-permutation with very few blocks (short series ÷ large block) → too few distinct permutations; the system caps the block length and reports the effective permutation count so the p-value's resolution is honest.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>Effective-N estimate degenerate (autocorrelation ≥ 1 within numerical error, or n_eff &lt; 3) → clamp to a floor and report the clamp, returning a null-leaning p rather than a spurious significant one.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>Partial cube (fetch incomplete) → the sweep still runs and labels the result partial; the full-fetch cube (NOX-003.1 T10, already rebuilt to 389 wks) is the arbiter.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the analysis-ready cube is missing, the sweep fails with an actionable message naming <code>noxus grid</code>.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If a requested target resolution is <strong>finer</strong> than native, the system refuses with a message pointing at the native-resolution decision (no upsampling/interpolation), rather than fabricating cells (NFR-002).</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If an AOI clip yields no overlapping cells (region outside the cube), the system fails with an actionable message naming the cube extent and the requested bbox.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>Clipping the cube to <code>tangshan_aoi(0.10)</code> yields a strict cell subset of the 0.25° cube (fewer y/x cells, identical values on shared cells, no new/interpolated cells) (REQ-001).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>On a synthetic cube with a known field, block-averaging to a 2×/5× coarser grid returns the exact block means, propagates coverage, and yields NaN for all-NaN blocks; realised spacing is recorded (REQ-002/003, EDGE-001).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>On a synthetic <strong>autocorrelated null</strong> (two independent AR(1) series), the naïve Pearson p over-rejects at the nominal α while the effective-N, block-bootstrap and block-permutation tests do <strong>not</strong> (false-positive rate ≈ α) (REQ-020/021/022).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>On a synthetic series pair with a planted lagged correlation, the robust tests <strong>recover</strong> it (CI excludes 0, permutation p &lt; α) — i.e. they are not merely conservative (REQ-021/022).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>Benjamini–Hochberg FDR on a known p-value vector matches the reference adjusted values; a family of all-null p's yields ~no discoveries (REQ-030).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span>The sweep emits the tidy table (one row per extent×resolution×variant×lag) with every column of REQ-040 and a scale-grid figure; re-running with the same seed/config reproduces it identically (REQ-040/041, NFR-001).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span>The report states the Parubets verdict (does coarse→fine behave as in Japan?) and the source-isolation verdict (does tight AOI help?), and frames a null as a valid finding with the multiplicity caveat (REQ-041/042).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span>The existing <code>correlate</code>/<code>lead_lag</code>/<code>verify_sign</code> behaviour and the existing CLI are unchanged (NFR-004); <code>uv run pytest</code> and <code>uv run ruff check .</code> pass (NFR-006).</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, parquet/CSV stats, a tidy result table, and static figures (the scale-grid heatmap), folded into the exploration HTML report.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. Output figures: the extent×resolution scale grid of <code>r</code> + robust significance, and per-scale lead-lag curves.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>Analysis-ready cube</strong> — <code>data/derived/no2/no2_cube_w.nc</code> (gitignored), re-clipped/coarsened.</li>
+          <li><strong>CREA benchmark</strong> — BF operating rate (<code>data/derived/benchmark_tangshan_bf_operating_rate.parquet</code>).</li>
+          <li><strong>NOX-002b gridding / NOX-003 footprint / NOX-003.1 intensity</strong> — reused per scale.</li>
+          <li><strong>SciPy / NumPy</strong> — already present (Pearson, bootstrap, permutation); <strong>statsmodels</strong> already present (STL, optional Newey-West). No new dependency.</li>
+          <li><strong>Probe</strong> — <code>analysis/autocorr_significance.py</code> (2026-06-14) is the prototype to promote.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: the exploration HTML report (a scale-sensitivity section + the scale-grid
+        figure), the project map (new validation robust-significance + gridding coarsen/clip helpers),
+        <code>decisions/</code> (the autocorrelation-robust significance method, and the scale-sweep finding),
+        and <code>history.html</code>. The literature note may cite the Parubets test. Reviewer confirms.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Likely decision-log candidates (proposed at review, not pre-written): (1) adopting an
+        autocorrelation-robust + FDR significance standard for all index↔benchmark correlations going forward;
+        (2) the spatial-scale finding (whether a scale rescues the signal). Both are methodological choices
+        future sessions should not re-litigate.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001</span></td><td>AT1</td><td>Clip = strict subset.</td></tr>
+            <tr><td><span class="req-id">REQ-002/003</span></td><td>AT2</td><td>Block-average + realised spacing.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT3, AT4</td><td>Robust tests: null not over-rejected; planted signal recovered.</td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td>AT5</td><td>BH-FDR vs reference.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/040/041</span></td><td>AT6</td><td>Sweep table + scale-grid figure; determinism.</td></tr>
+            <tr><td><span class="req-id">REQ-041/042</span></td><td>AT7</td><td>Parubets + isolation verdicts; honest null.</td></tr>
+            <tr><td><span class="req-id">NFR-004/006</span></td><td>AT8</td><td>Additive; tests + lint.</td></tr>
+            <tr><td><span class="req-id">ERR-001/002/003</span></td><td>AT-ERR-1</td><td>Missing cube; finer-than-native refusal; empty clip.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

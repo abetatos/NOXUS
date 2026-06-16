@@ -20,10 +20,10 @@ Rules for this file:
 ```text
 noxus/                 # Python package
   config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/ValidationConfig
-  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py + era5.py (CDS ingest) — implemented
+  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py (compositing + clip/coarsen scale ops, NOX-008) + era5.py (CDS ingest) — implemented
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
   signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (NOX-003.1) + prophet_deseason.py (daily Prophet trend/yearly/weekly + harmonic fallback, NOX-006) — implemented
-  validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag vs the benchmark — implemented
+  validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag; robust.py (autocorrelation-robust effective-N/bootstrap/permutation + BH-FDR, NOX-008) + scale.py (extent×resolution sweep) — implemented
   catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004) — implemented
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
 analysis/              # preliminary_signal.py: reproducible preliminary run → docs/figures/preliminary/
@@ -52,6 +52,7 @@ data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_oper
 | `uv run noxus detect-events [--z-thresh Z]` | Detect coverage/meteo-screened NO2 production events on the intensity residual (NOX-004) → `data/derived/no2/steel_no2_events.parquet` (gitignored) |
 | `uv run noxus ingest-market [--start --end]` | Fetch free daily prices (miners + steel ETF + benchmark, yfinance) → dated `data/raw/market/*.parquet` snapshot (gitignored) |
 | `uv run noxus catalyst [--window --latency]` | Match events vs production (CREA jumps + curtailment calendar) + market event-study (CAR) → catalyst report incl. null (NOX-004) |
+| `uv run noxus scale-sweep [--buffers --resolutions --draws --seed --alpha]` | Sweep AOI extent × grid resolution + autocorrelation-robust/FDR significance (NOX-008) → `data/derived/scale_sensitivity.csv` |
 
 ## Key entrypoints
 

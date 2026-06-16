@@ -1,0 +1,37 @@
+SPATIAL-SCALE SENSITIVITY — findings (NOX-008)
+================================================================
+
+rows: 128 | robust (FDR + CI excl. 0): 0 | fragile (naive-only): 34
+
+[1] Robust findings (verdict == robust):
+  NONE — no scale x variant x lag survives autocorrelation-robust + FDR testing.
+
+[2] Parubets test (does coarsening change r? lag0):
+  ME intensity-model buf 0.10: native r=+0.09 -> coarsest r=+0.06
+  ME intensity-model buf 0.25: native r=+0.12 -> coarsest r=-0.02  [SIGN FLIP]
+  ME level          buf 0.10: native r=-0.07 -> coarsest r=+0.08  [SIGN FLIP]
+  ME level          buf 0.25: native r=-0.04 -> coarsest r=+0.01  [SIGN FLIP]
+  ME stl            buf 0.10: native r=+0.01 -> coarsest r=+0.05
+  ME stl            buf 0.25: native r=-0.04 -> coarsest r=+0.02  [SIGN FLIP]
+  ME yoy            buf 0.10: native r=-0.03 -> coarsest r=-0.05
+  ME yoy            buf 0.25: native r=-0.00 -> coarsest r=-0.01
+  W  intensity-model buf 0.10: native r=+0.04 -> coarsest r=+0.03
+  W  intensity-model buf 0.25: native r=+0.06 -> coarsest r=-0.03  [SIGN FLIP]
+  W  level          buf 0.10: native r=-0.05 -> coarsest r=+0.03  [SIGN FLIP]
+  W  level          buf 0.25: native r=-0.03 -> coarsest r=-0.02
+  W  stl            buf 0.10: native r=-0.01 -> coarsest r=+0.05  [SIGN FLIP]
+  W  stl            buf 0.25: native r=-0.03 -> coarsest r=+0.01  [SIGN FLIP]
+  W  yoy            buf 0.10: native r=-0.02 -> coarsest r=-0.03
+  W  yoy            buf 0.25: native r=-0.00 -> coarsest r=-0.02
+
+[3] Source-isolation test (tight 0.10 vs wide 0.25 AOI, native res, lag0):
+  ME intensity-model: wide r=+0.12 tight r=+0.09 (tighter does not help)
+  ME level         : wide r=-0.04 tight r=-0.07 (tighter helps)
+  ME stl           : wide r=-0.04 tight r=+0.01 (tighter does not help)
+  ME yoy           : wide r=-0.00 tight r=-0.03 (tighter helps)
+  W  intensity-model: wide r=+0.06 tight r=+0.04 (tighter does not help)
+  W  level         : wide r=-0.03 tight r=-0.05 (tighter helps)
+  W  stl           : wide r=-0.03 tight r=-0.01 (tighter does not help)
+  W  yoy           : wide r=-0.00 tight r=-0.02 (tighter helps)
+
+Verdict framing: an honest NULL across scales is a valid finding (Morris & Zhang 2019); coarsening adds no information (it only changes background dilution). Every scale is reported with the FDR/multiplicity caveat — no single scale is the headline.

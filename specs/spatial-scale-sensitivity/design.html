@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Spatial-scale sensitivity</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Two small reusable additions plus a thin orchestration layer. (1) <strong>Scale construction</strong>
+        in <code>noxus/data/gridding.py</code>: <code>clip_cube_to_region</code> (strict cell subset for the
+        AOI-extent axis) and <code>coarsen_cube</code> (block-mean to a target degree spacing for the
+        resolution axis) — both pure re-aggregations of the committed cube, never interpolation.
+        (2) <strong>Autocorrelation-robust significance</strong> in a new
+        <code>noxus/validation/robust.py</code>: effective-N (first-order Bayley–Hammersley + a full-order
+        Newey-West-style estimate), moving-block bootstrap CI of <code>r</code>, block-permutation null p, and
+        Benjamini–Hochberg FDR — promoting the 2026-06-14 probe (<code>analysis/autocorr_significance.py</code>)
+        into tested code, additive to <code>leadlag.py</code>. (3) A <strong>sweep driver</strong>
+        (<code>noxus/validation/scale.py</code> + an <code>analysis/</code> figure script) that, for each
+        (extent × resolution) scale, re-derives the signal through the <em>existing</em> footprint/deseason
+        pathway, aligns to the BF rate, and tabulates <code>r</code> + robust significance, then emits the
+        scale-grid figure and a findings file.</p>
+        <p>Why this shape: the robust-significance functions have value beyond this task (they fix the i.i.d.
+        assumption in every correlation the project reports), so they live in <code>noxus/validation/</code> as
+        tested code, not in <code>analysis/</code>. The scale operations belong next to the gridding they
+        re-aggregate. The orchestration is deliberately thin and reuses NOX-003/003.1 unchanged.</p>
+        <p><strong>Analogy caveat (load-bearing):</strong> our predictor is a single AOI-mean/footprint time
+        series, so "resolution" here means <em>how coarsely we average within the AOI before the
+        footprint/background contrast</em> — an analogue of Parubets' cross-prefecture panel, not an identity.
+        This is recorded as assumption A1 and stated in the report.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="210" viewBox="0 0 720 210" aria-label="Scale-sweep data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="84" width="138" height="44" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="77" y="102" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">no2_cube_w.nc</text>
+            <text x="77" y="117" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">30×51, wide AOI</text>
+            <line x1="146" y1="106" x2="184" y2="106" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="186" y="64" width="150" height="84" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="261" y="82" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">scale construction</text>
+            <text x="261" y="98" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">clip → 0.25 / 0.10° AOI</text>
+            <text x="261" y="113" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">coarsen → native/0.1/0.25°</text>
+            <text x="261" y="132" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">(aggregation, no interp)</text>
+            <line x1="336" y1="106" x2="374" y2="106" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="376" y="64" width="160" height="84" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="456" y="82" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">per-scale signal</text>
+            <text x="456" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">footprint + deseason</text>
+            <text x="456" y="112" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(reuse NOX-003/003.1)</text>
+            <text x="456" y="130" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">align vs BF rate</text>
+            <line x1="536" y1="106" x2="574" y2="106" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="576" y="64" width="136" height="84" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="644" y="82" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">robust sig + FDR</text>
+            <text x="644" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">n_eff · bootstrap</text>
+            <text x="644" y="112" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">permutation · BH</text>
+            <text x="644" y="130" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#14532d">→ scale grid + table</text>
+            <text x="360" y="194" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">For every (extent × resolution) scale: re-derive signal → align → judge significance honestly → tabulate.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Adds to <code>noxus/data/gridding.py</code> (clip + coarsen helpers) and
+        <code>noxus/validation/</code> (new <code>robust.py</code> + a <code>scale.py</code> driver), reusing
+        <code>noxus/attribution/source.py</code> (footprint), <code>noxus/signal/index.py</code>
+        (<code>deseasonalize</code>) and <code>noxus/validation/{preprocess,leadlag}.py</code> read-only.
+        Extends <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code> and the exploration report.
+        NO₂-derived per-scale outputs gitignored.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/gridding.py</code></td><td>extend</td><td>Add <code>clip_cube_to_region(cube, region)</code> (strict subset) and <code>coarsen_cube(cube, target_deg)</code> (block-mean + coverage, realised spacing in attrs). No change to existing compositing (REQ-001/002/003).</td></tr>
+            <tr><td><code>noxus/validation/robust.py</code></td><td>new</td><td><code>effective_n</code> (1st-order + Newey-West), <code>block_bootstrap_ci</code>, <code>block_permutation_p</code>, <code>bh_fdr</code>, and a <code>robust_corr</code> wrapper returning a dataclass with naïve + robust fields (REQ-020..022, 030).</td></tr>
+            <tr><td><code>noxus/validation/scale.py</code></td><td>new</td><td>Sweep driver: build scales, re-derive signal per scale (reuse footprint/deseason), align vs BF, call <code>robust_corr</code> + <code>lead_lag</code>, assemble the tidy result frame + FDR across the family (REQ-010/011/040).</td></tr>
+            <tr><td><code>noxus/validation/leadlag.py</code></td><td>none / import-only</td><td>Unchanged contracts; <code>scale.py</code> reuses <code>correlate</code>/<code>lead_lag</code>. (Robust additions live in <code>robust.py</code> to keep <code>leadlag.py</code> stable, REQ-023.)</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td>Scale-sweep config (resolutions, buffers, bootstrap draws, FDR α, seed, block-length rule). Existing config unchanged (REQ-050).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>A <code>scale-sweep</code> subcommand that runs the driver and writes the table/figure. Existing commands unchanged (REQ-050).</td></tr>
+            <tr><td><code>analysis/scale_sensitivity.py</code></td><td>new</td><td>Figure driver: the extent×resolution scale grid + per-scale lead-lag curves; writes <code>docs/figures/exploration/</code> + a findings file. Supersedes the throwaway probe (REQ-041).</td></tr>
+            <tr><td><code>docs/exploration-results.html</code></td><td>extend</td><td>A scale-sensitivity section: the grid figure, the Parubets + isolation verdicts, the honest null framing (REQ-041/042).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>Per-scale NO₂-derived cubes/series (NFR-005).</td></tr>
+            <tr><td><code>tests/data/test_scale_ops.py</code>, <code>tests/validation/test_robust.py</code>, <code>tests/validation/test_scale.py</code></td><td>new</td><td>Clip-subset; block-average; AR(1) null not over-rejected; planted-signal recovered; BH-FDR vs reference; sweep determinism (AT1–AT8).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/index.py</code>, <code>intensity.py</code>, <code>prophet_deseason.py</code></td><td>Reused read-only; the deseason/intensity algorithms are unchanged (REQ-010).</td></tr>
+            <tr><td><code>noxus/validation/leadlag.py</code>, <code>preprocess.py</code></td><td>Contracts unchanged; reused read-only (REQ-023, NFR-004).</td></tr>
+            <tr><td><code>noxus/config/region.py</code></td><td>The 0.25°/0.10° buffer constants already exist; read-only.</td></tr>
+            <tr><td>Acquisition / GEMS / flux-divergence</td><td>NOX-002a/007/005; out of scope.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/validation/**</code>, <code>noxus/data/gridding.py</code>, <code>noxus/config/run.py</code>,
+        <code>noxus/cli/main.py</code>, <code>analysis/**</code>, <code>docs/exploration-results.html</code>,
+        <code>tests/**</code>, <code>.gitignore</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/gridding.py  (additions)
+def clip_cube_to_region(cube: xr.Dataset, region: Region) -&gt; xr.Dataset: ...   # strict cell subset, no interp
+def coarsen_cube(cube: xr.Dataset, target_deg: float) -&gt; xr.Dataset: ...       # block-mean; realised spacing in .attrs
+
+# noxus/validation/robust.py  (new)
+@dataclass(frozen=True)
+class RobustCorr:
+    r: float; n: int
+    p_naive: float
+    n_eff_first: float; p_eff_first: float
+    n_eff_nw: float;    p_eff_nw: float
+    boot_lo: float; boot_hi: float       # moving-block bootstrap 95% CI
+    p_perm: float                        # block-permutation null
+    block: int; n_draws: int
+
+def effective_n(x, y, *, order="auto") -&gt; float: ...                 # 1st-order or Newey-West n_eff
+def block_bootstrap_ci(x, y, *, block, n_draws, seed, alpha=0.05) -&gt; tuple[float,float]: ...
+def block_permutation_p(x, y, *, block, n_draws, seed) -&gt; float: ...
+def bh_fdr(pvalues: Sequence[float], alpha=0.05) -&gt; tuple[np.ndarray, np.ndarray]:  # (rejected, p_adj)
+def robust_corr(x, y, *, n_draws, seed) -&gt; RobustCorr: ...
+
+# noxus/validation/scale.py  (new)
+def build_scales(cube, *, buffers, resolutions) -&gt; Iterator[Scale]: ...        # (extent,resolution) -&gt; clipped/coarsened cube
+def scale_sweep(cube, benchmark, *, cfg) -&gt; pd.DataFrame: ...                  # tidy table + FDR across the family
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+scale/cube_&lt;buffer&gt;_&lt;res&gt;.nc            # optional cached per-scale cube
+# data/derived/  (small stats — committable)
+scale_sensitivity.csv                  # extent,resolution,realised_deg,variant,lag,n,r,p_naive,
+                                       #   n_eff_first,p_eff_first,n_eff_nw,p_eff_nw,boot_lo,boot_hi,
+                                       #   p_perm,p_fdr,verdict
+# docs/figures/exploration/  (committed)
+scale_grid_r.png, scale_grid_sig.png, scale_leadlag_&lt;variant&gt;.png
+docs/figures/exploration/scale_sensitivity_findings.txt
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus scale-sweep                         # full extent×resolution sweep -&gt; table + figures
+uv run noxus scale-sweep --buffers 0.25,0.10 --resolutions native,0.1,0.25 --draws 5000 --seed 20260614
+uv run python analysis/scale_sensitivity.py      # figures + findings from the table
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored per-scale cubes (optional cache) + a committable <code>scale_sensitivity.csv</code>
+        stats table and figures. No database, no schema migration.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>NumPy / SciPy</strong></td><td><code>scipy.stats.pearsonr</code> (already used in <code>leadlag.py</code>); RNG via <code>numpy.random.default_rng</code>.</td><td>Already present; no version change. Bootstrap/permutation implemented locally.</td></tr>
+            <tr><td><strong>statsmodels</strong></td><td>Optional Newey-West long-run variance (already a dependency for STL).</td><td>Used only for the full-order n_eff; first-order is dependency-free as a fallback.</td></tr>
+            <tr><td><strong>xarray</strong></td><td><code>Dataset.sel</code>/<code>.coarsen(...).mean()</code> for clip/block-mean.</td><td>Already present (cube I/O). Verify <code>coarsen(boundary="trim")</code> semantics for non-divisible sizes (EDGE-001).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>No new secrets, no network egress (same local cube). Per-scale NO₂-derived outputs gitignored.
+        Standard protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (validation robust-significance + gridding scale helpers), the exploration HTML
+        (scale-sensitivity section + grid figure), <code>decisions/</code> (autocorrelation-robust significance
+        standard; scale-sweep finding), <code>history.html</code>, optionally the literature note (Parubets
+        test). Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Clip</strong> (AT1): a synthetic cube → <code>clip_cube_to_region</code> with the tight bbox returns a strict subset (fewer cells, equal values on shared cells, no interpolation).</li>
+          <li><strong>Coarsen</strong> (AT2): a synthetic cube with a known field → block-mean to 2×/5× returns exact block means, propagates coverage, NaN for all-NaN blocks; realised spacing recorded (EDGE-001).</li>
+          <li><strong>Robust null</strong> (AT3): two independent AR(1) series with strong autocorrelation → naïve Pearson p over-rejects across many seeds while n_eff/bootstrap/permutation hold the false-positive rate near α.</li>
+          <li><strong>Robust power</strong> (AT4): a planted lagged-correlation pair → CI excludes 0 and permutation p &lt; α (the tests are not merely conservative).</li>
+          <li><strong>FDR</strong> (AT5): <code>bh_fdr</code> vs a hand-computed reference vector; all-null family → ~no discoveries.</li>
+          <li><strong>Sweep</strong> (AT6): a small synthetic cube + benchmark → tidy table with all REQ-040 columns + a figure; identical re-run under the same seed (determinism).</li>
+          <li><strong>Error states</strong> (AT-ERR-1): missing cube → actionable; finer-than-native target → refusal pointing at the decision; empty clip → actionable.</li>
+        </ul>
+        <p>All statistics tested on synthetic fixtures (deterministic, seeded, no network). Bootstrap/permutation
+        draws are reduced in tests for speed while asserting the rate behaviour.</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). The scale-grid + lead-lag figures are eyeballed as outputs.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Analogy is imperfect (stated).</strong> Parubets ran a cross-prefecture panel; we run a single AOI-mean time series, so "resolution" = within-AOI averaging coarseness. Mitigation: state it (A1); interpret a coarse↔fine difference as background-dilution, not a literal replication.</li>
+          <li><strong>Coarse × tight AOI runs out of cells.</strong> 0.25° over the tight AOI is a few cells → footprint ill-posed. Mitigation: AOI-mean fallback + label (REQ-011); drop scales with &lt;1 valid cell (EDGE-002).</li>
+          <li><strong>Few independent samples ⇒ wide CIs.</strong> The robust tests will (correctly) widen CIs and may make even the level's negative <code>r</code> non-significant. That is the honest point, not a bug.</li>
+          <li><strong>Permutation resolution on short monthly series.</strong> Few blocks → coarse p. Mitigation: cap block length, report effective permutation count (EDGE-003).</li>
+          <li><strong>Scale-shopping temptation.</strong> Reporting the best scale without FDR would be p-hacking. Mitigation: FDR across the whole family; every scale reported (NFR-003).</li>
+          <li><strong>Rejected:</strong> upsampling/interpolating to a <em>finer</em> grid to "gain resolution" — rejected by the 2026-06-13 native-resolution decision and refused at runtime (ERR-002).</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: new helpers, a new validation module, a new subcommand, new gitignored outputs; existing
+        validation/gridding/CLI paths unchanged. Rollback = revert the feature branch and delete the gitignored
+        per-scale artifacts; the committed <code>scale_sensitivity.csv</code>/figures can stay as a record or be
+        removed.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

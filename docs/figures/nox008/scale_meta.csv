@@ -1,0 +1,7 @@
+meteo_form,meteo_covariates,radius_km,n_footprint,n_bg,cell_km,meteo_applied,scale,status,n_cells
+linear,"['u10', 'v10', 'blh', 'wind_speed']",15.0,448.0,288.0,6.1,True,wide-native,ok,1479.0
+linear,"['u10', 'v10', 'blh', 'wind_speed']",22.3,126.0,25.0,14.9,True,wide-coarse010,ok,238.0
+,,,,,,,wide-coarse025,"skip: GeometryError: Background ring contains no cells after excluding the footprint and clipping to the AOI (inner=71.33497649057985 km, outer=106.33497649057985 km); cannot estimate a background (ERR-003).",
+linear,"['u10', 'v10', 'blh', 'wind_speed']",15.0,435.0,262.0,6.1,True,tight-native,ok,966.0
+linear,"['u10', 'v10', 'blh', 'wind_speed']",22.3,110.0,21.0,14.9,True,tight-coarse010,ok,154.0
+,,,,,,,tight-coarse025,"skip: GeometryError: Background ring contains no cells after excluding the footprint and clipping to the AOI (inner=71.34262874944388 km, outer=106.34262874944388 km); cannot estimate a background (ERR-003).",

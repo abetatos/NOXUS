@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -160,6 +161,89 @@ def aoi_mean_series(composited: xr.Dataset) -> pd.DataFrame:
     # Unmistakable label: this is a spatial mean, NOT source attribution (that is NOX-003).
     df["kind"] = "naive_aoi_mean_pre_attribution"
     return df
+
+
+def _cube_lonlat(cube: xr.Dataset) -> tuple[str, str]:
+    """Return the (lon_name, lat_name) coordinate names of the cube (x/y, or geographic aliases)."""
+    lon = next((c for c in ("x", "lon", "longitude") if c in cube.coords), None)
+    lat = next((c for c in ("y", "lat", "latitude") if c in cube.coords), None)
+    if lon is None or lat is None:
+        raise GriddingError(
+            f"Cube has no recognisable lon/lat coordinates (expected x/y); found {list(cube.coords)}."
+        )
+    return lon, lat
+
+
+def _native_spacing(cube: xr.Dataset, name: str) -> float:
+    """Median absolute step of a 1-D coordinate, in degrees (the native cell spacing)."""
+    vals = np.asarray(cube[name].values, dtype=float)
+    if vals.size < 2:
+        return float("nan")
+    return float(np.median(np.abs(np.diff(vals))))
+
+
+def clip_cube_to_region(cube: xr.Dataset, region) -> xr.Dataset:
+    """Clip the cube to the cells whose centres fall inside ``region`` — a strict subset (NOX-008 REQ-001).
+
+    No interpolation or resampling: cells are selected by their existing centre coordinates, so the
+    0.25 deg -> 0.10 deg tight-AOI comparison is a pure subset of the same grid. Raises
+    :class:`GriddingError` (ERR-003) if no cell overlaps the region.
+    """
+    lon_name, lat_name = _cube_lonlat(cube)
+    lon = np.asarray(cube[lon_name].values, dtype=float)
+    lat = np.asarray(cube[lat_name].values, dtype=float)
+    xm = np.where((lon >= region.min_lon) & (lon <= region.max_lon))[0]
+    ym = np.where((lat >= region.min_lat) & (lat <= region.max_lat))[0]
+    if xm.size == 0 or ym.size == 0:
+        raise GriddingError(
+            f"AOI clip to region '{getattr(region, 'name', '?')}' "
+            f"({region.as_bbox()}) yields no overlapping cells; cube spans "
+            f"lon [{lon.min():.3f}, {lon.max():.3f}], lat [{lat.min():.3f}, {lat.max():.3f}] (ERR-003)."
+        )
+    out = cube.isel({lon_name: xm, lat_name: ym})
+    out.attrs = {
+        **cube.attrs,
+        "aoi_clip": getattr(region, "name", "region"),
+        "aoi_bbox": list(region.as_bbox()),
+    }
+    return out
+
+
+def coarsen_cube(cube: xr.Dataset, target_deg: float) -> xr.Dataset:
+    """Block-average the cube to ~``target_deg`` cell spacing — aggregation, never interpolation (NOX-008 REQ-002/003).
+
+    Coarsening by a block-mean over non-overlapping native-cell blocks is the *information-preserving*
+    direction (the 2026-06-13 native-resolution decision rejected interpolating to a FINER grid). NaN
+    (cloud-gapped) cells are skipped; an all-NaN block is NaN; ``coverage`` is propagated as the block
+    mean. The realised cell spacing (which may differ from the nominal target when blocks don't divide
+    evenly, EDGE-001) and the block factors are recorded in ``.attrs``. Raises ``ValueError`` (ERR-002)
+    when ``target_deg`` is finer than native (no upsampling).
+    """
+    lon_name, lat_name = _cube_lonlat(cube)
+    dx = _native_spacing(cube, lon_name)
+    dy = _native_spacing(cube, lat_name)
+    fx = int(round(target_deg / dx)) if dx > 0 else 1
+    fy = int(round(target_deg / dy)) if dy > 0 else 1
+    if fx < 1 or fy < 1:
+        raise ValueError(
+            f"Target resolution {target_deg} deg is finer than native (~{max(dx, dy):.4f} deg); "
+            "upsampling/interpolation is refused (native-resolution decision, 2026-06-13) (ERR-002)."
+        )
+    if fx == 1 and fy == 1:
+        out = cube.copy()
+    else:
+        out = cube.coarsen({lon_name: fx, lat_name: fy}, boundary="trim").mean(skipna=True)
+    out.attrs = {
+        **cube.attrs,
+        "coarsen_target_deg": float(target_deg),
+        "coarsen_factor": [fx, fy],
+        "coarsen_native_deg": [round(dx, 5), round(dy, 5)],
+        "coarsen_realised_deg": [
+            round(_native_spacing(out, lon_name), 5),
+            round(_native_spacing(out, lat_name), 5),
+        ],
+    }
+    return out
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Spatial-scale sensitivity</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Created</th><td><code>2026-06-14</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose"><h2>Purpose</h2><p>Explicit assumptions behind the scale sweep. A1 (the resolution analogy) is load-bearing for how the result is interpreted; if it is misread, the Parubets comparison is over-claimed.</p></section>
+      <hr>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">"Resolution" here ≈ within-AOI averaging coarseness, not Parubets' panel</span><span class="badge badge-blocking">Load-bearing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Block-averaging the cube before the footprint/background contrast is a defensible <em>analogue</em> of Parubets' choice of GDP-grid resolution; both change how much non-target area is blended into the signal.</dd>
+            <dt>Why it matters</dt><dd>Parubets ran a cross-prefecture two-way FE panel; we run a single AOI-mean/footprint time series. The mechanisms overlap (aggregation scale) but are not identical.</dd>
+            <dt>If false</dt><dd>The coarse↔fine difference is still a valid sensitivity result for <em>our</em> estimator; we report it as background-dilution sensitivity and soften the "replicates Parubets" claim. Stated in the report (REQ-041).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Block-averaging is the right coarsening operator</span><span class="badge badge-warning">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A simple mean over non-overlapping native-cell blocks (coverage-weighted, NaN-aware) approximates a coarser native grid well enough; we do not need area-weighting or a re-projection.</dd>
+            <dt>Why it matters</dt><dd>The cube is on a near-regular lon/lat grid over a small AOI, so equal-weight block means are close to area means.</dd>
+            <dt>If false</dt><dd>Add coverage/area weights to <code>coarsen_cube</code>; the interface already carries coverage. Low risk over this small AOI.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">First-order n_eff is a usable floor; Newey-West is the refinement</span><span class="badge badge-ok">Method</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The Bayley–Hammersley first-order effective-N is a reasonable, dependency-free lower-bound correction; the full-order Newey-West estimate sharpens it for series with seasonal/high-order autocorrelation (e.g. the level).</dd>
+            <dt>Why it matters</dt><dd>The 2026-06-14 probe used first-order only and noted it under-corrects the highly-autocorrelated level; the full-order estimate closes that gap.</dd>
+            <dt>If false</dt><dd>The block-permutation p (which makes no parametric assumption) is the arbiter; n_eff is reported alongside, not alone.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">The committed cube is the right substrate</span><span class="badge badge-ok">Verified</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>The full-series cube (389 weeks, rebuilt for NOX-003.1 T10) is complete enough that the sweep is the decisive test, not a partial-data artefact.</dd>
+            <dt>Why it matters</dt><dd>A partial cube would confound "scale effect" with "missing weeks".</dd>
+            <dt>If false</dt><dd>Label the run partial (EDGE-005); the cube-completeness gate (NOX-003.1 ERR-103) already exists. <strong>Checked 2026-06-14: cube spans 30×51 cells, wide AOI; tight AOI is a strict subset.</strong></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Coarsening cannot create signal</span><span class="badge badge-ok">Honesty</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>Averaging cells removes information; any apparent improvement at a coarser/tighter scale is reduced background dilution (better SNR for the steel term), not new signal.</dd>
+            <dt>Why it matters</dt><dd>Sets honest expectations and frames the report; prevents over-claiming a "scale that works".</dd>
+            <dt>If false</dt><dd>n/a — this is a statement of the physics, enforced in the report wording (NFR-007).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">The honest-null discipline carries over</span><span class="badge badge-ok">Inherited</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt><dd>A null across all scales is an acceptable, publishable outcome (Morris &amp; Zhang 2019), as in NOX-003/003.1/004/006.</dd>
+            <dt>Why it matters</dt><dd>The task is designed to be informative whether or not a scale rescues the signal.</dd>
+            <dt>If false</dt><dd>n/a.</dd>
+          </dl></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

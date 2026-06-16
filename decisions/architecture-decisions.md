@@ -28,6 +28,24 @@ Entry format:
 
 ---
 
+## 2026-06-14 — Autocorrelation-robust + FDR significance is the standard for index↔benchmark correlations
+
+- Status: accepted
+- Context: The validation engine (`noxus/validation/leadlag.py`) reported the Pearson p-value from `scipy.stats.pearsonr`, which assumes i.i.d. observations, plus a per-lag ±1.96/√n white-noise band. NO₂ and the steel benchmark are smooth, strongly autocorrelated series, so that p-value overstates significance: for the highly-autocorrelated level the effective sample size is ~225 of 377 (weekly) / ~39 of 90 (monthly). The 2026-06-14 probe (`analysis/autocorr_significance.py`) showed every positive NO₂-deseasonalised↔BF "SIG" finding from the deep exploration collapses once serial dependence is accounted for.
+- Decision: Judge index↔benchmark correlations with **autocorrelation-robust** significance — effective-N (first-order Bayley–Hammersley **and** full-order Newey-West), a **moving-block bootstrap** CI of r, and a **block-permutation** null p — plus a **Benjamini–Hochberg FDR** correction across any family of tests (scales × variants × lags). A finding is "robust" only if the FDR-adjusted permutation p clears α **and** the bootstrap CI excludes 0. This lives in `noxus/validation/robust.py` as tested, reusable code; the existing `correlate`/`lead_lag`/`verify_sign` contracts are unchanged (additive).
+- Alternatives rejected: keeping the naïve Pearson p (over-rejects under autocorrelation); first-order effective-N only (under-corrects the seasonal/high-order autocorrelation of the level); reporting per-test significance without multiplicity control (invites scale-shopping / p-hacking).
+- Consequences: any new correlation claim in the project must pass the robust + FDR bar; the naïve p is shown only alongside, to expose the gap. The lead-lag white-noise band stays as an eyeballing aid, not a significance test.
+- Source: NOX-008 (specs/spatial-scale-sensitivity), T3/T4; probe analysis/autocorr_significance.py.
+
+## 2026-06-14 — No robust NO₂↔steel coupling exists at any reasonable spatial scale (Tangshan)
+
+- Status: accepted
+- Context: Every prior result used one fixed spatial scale (0.25° AOI buffer, native ~5 km grid). Parubets & Naito (2025) warn that the NO₂↔activity relationship can be significant at 0.25° but vanish/flip at 0.1°; a competing intuition said a *tighter* AOI might improve source isolation (steel is only ~30–43% of Tangshan NO₂, Wen 2024). NOX-008 swept AOI extent (0.25 vs 0.10° buffer, clip) × grid resolution (native vs block-averaged 0.10/0.15/0.25°, aggregation only — never interpolation) over the existing full-series cube and judged each scale with the robust + FDR standard above.
+- Decision: Report a **hardened null**: of 128 (scale × variant × lag) tests, **zero** are robust after FDR; the only naïve-significant cells are monthly peak-lag artefacts that all fall to "fragile (naive-only)". The tight 0.10° AOI does **not** rescue the signal (Δ|r| ≈ 0.02–0.05, never significant), and the small native↔coarse sign flips are noise (|r| < 0.13). The conclusion is therefore *no robust coupling at any reasonable scale*, not *no coupling at one scale*.
+- Alternatives rejected: presenting the most favourable scale (e.g. tight-AOI level r≈−0.13 weekly) as a finding without the FDR/multiplicity caveat (p-hacking); interpreting coarse↔fine sign flips as a Parubets-style scale effect (they are noise-level here).
+- Consequences: the spatial-scale lever is closed for the relative-index paradigm; remaining avenues stay flux divergence (NOX-005), a diurnal sensor (GEMS, NOX-007), or the regime/event framing — not finer/coarser aggregation. Coarsening adds no information; it only changes background dilution.
+- Source: NOX-008 real run (data/derived/scale_sensitivity.csv; docs/figures/exploration/scale_sensitivity_findings.txt), T8.
+
 ## 2026-06-13 — The negative levels NO₂↔BF-rate correlation is spurious; never report it as a finding
 
 - Status: accepted

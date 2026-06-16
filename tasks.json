@@ -272,6 +272,73 @@
         "docs/exploration-results.html"
       ],
       "follow_ups": "Non-blocking: revive the weekly source-separation lever only with a multi-overpass/geostationary sensor (e.g. GEMS) that resolves the diurnal/weekday cycle; otherwise the full TROPOMI fetch + the event/regime framing remain the path. Causal rolling-refit + catalyst re-run on the Prophet residual deferred (null marginal value -> no predictive claim made)."
+    },
+    {
+      "id": "NOX-007",
+      "title": "GEMS (geostationary) NO2 acquisition + AOI clip + QA (diurnal successor to TROPOMI)",
+      "slug": "gems-acquisition",
+      "description": "New acquisition route (style of NOX-002a, but for GEMS instead of TROPOMI) to obtain a DIURNAL NO2 predictor over Tangshan from GEMS (Geostationary Environment Monitoring Spectrometer, on GEO-KOMPSAT-2B, KR) -- the first geostationary air-quality sounder, ~8 daytime scans/day over East Asia. WHY: GEMS resolves the diurnal / day-of-week cycle, reviving the source-separation lever (flat steel baseload vs cyclical traffic) that NOX-006 proved INVISIBLE to TROPOMI's single ~13:30 overpass (weekly term flat, 0.5% variance). This is the one temporal lever (short of flux divergence, NOX-005) that can lift steel's VARIANCE share above the ~40% mean-share SNR ceiling; it does NOT change that ceiling for a levels estimator. CENTRAL VIABILITY FINDING (web research 2026-06-14): unlike TROPOMI (openEO filter_bbox) and ERA5 (CDS area), the NIER-ESC distribution channels (Open-API getFileDateList/getFileList/getFileItem, SFTP, no-login web<=20GB/40-file) deliver FULL GRANULES (full ~5000x5000 km field of regard) -- there is NO server-side AOI subset. So we download full granules and clip the Tangshan AOI client-side; the kept volume is tiny but the transient DOWNLOAD volume is the cost and its magnitude is unmeasured (per-granule byte size not publicly documented; estimate order 1-4 TB over ~13k granules). Product: L2 NO2 NetCDF4/HDF5 with tropospheric + total column, QA flag, averaging kernel, precision; versions v2.x->v4.0.1; coverage ~Oct-2021-> (shorter than TROPOMI 2019->). Tangshan is off-nadir (~9.6deg W of the 128E sub-satellite point, near the 45N FOR edge) -> coarser-than-nominal pixels, cluster-usable not per-plant. Spec gates the build on a T1 measurement spike (download one granule, measure size/structure/Tangshan-footprint/fields/version, record go/no-go vs a download budget). SCOPE DECISION (2026-06-14): NOT the full mission -- default acquisition scope is a climatologically-stable autumn window (Sep-Oct, primary year 2023; optional Sep-Oct 2024 same-season replication) to test whether a weekly NO2 component exists under near-constant meteorology. Early autumn = post-monsoon + pre-heating-season -> low synoptic noise (weekly cycle not swamped), no residential-heating NO2 confounder (cleaner steel<->traffic separation), low cloud (balanced GEMS coverage across weekdays + the ~8 daily scans), good 39.6N sun angle. Chinese public holidays (esp. Golden Week 1-7 Oct) flagged per scan and excluded/modelled in the downstream weekday profile (they break the 7-day cycle). Bounds download to ~50-150 GB/window; full mission opt-in. Effective resolution over Tangshan ~10 km (off-nadir; L3 documented ~5 km Korea / ~10 km elsewhere) -- GEMS' gain is diurnal frequency, not spatial resolution. API key by env var only (GEMS_API_KEY), never committed. Downstream diurnal/weekly compositing + source-separation + re-running NOX-003.1/004/006 on the GEMS residual = future NOX-009, out of scope here.",
+      "sdd": true,
+      "status": "blocked",
+      "blocked_reason": "Full-granule download with no server-side AOI subset -> transient volume plausibly multi-TB; per-granule size unmeasured. By developer decision (2026-06-14) the build/run is deferred to a server-style machine (bandwidth + scratch). Spec is complete and reviewable; the T1 measurement spike gates the build (go/no-go) once started. Developer moves to human_approved when ready to run.",
+      "depends_on": [
+        "NOX-006"
+      ],
+      "spec_path": "specs/gems-acquisition/",
+      "scope": [
+        "noxus/data/gems.py",
+        "noxus/data/verify_gems.py",
+        "noxus/config/run.py",
+        "noxus/cli/main.py",
+        ".env.example",
+        ".gitignore",
+        "pyproject.toml",
+        "tests/data/**",
+        "tests/cli/**"
+      ],
+      "approval": {
+        "human_approved": false
+      },
+      "created": "2026-06-14"
+    },
+    {
+      "id": "NOX-008",
+      "title": "Spatial-scale sensitivity of the NO2<->steel signal (AOI extent x grid resolution, autocorrelation-robust)",
+      "slug": "spatial-scale-sensitivity",
+      "description": "Test whether the weak/null NO2<->BF steel coupling is an artefact of one fixed spatial scale, by sweeping TWO scale axes over the EXISTING analysis-ready cube (data/derived/no2/no2_cube_w.nc; 30x51 cells at native ~0.035x0.055 deg, wide AOI) and recomputing the correlation with HONEST significance. Axis 1 = AOI extent: the default 0.25 deg buffer (DEFAULT_AOI_BUFFER_DEG) vs the 0.10 deg tight buffer (TIGHT_AOI_BUFFER_DEG) -- a strict spatial subset (clip), testing the source-isolation intuition (tighter AOI = less Beijing-Tianjin-Hebei background dilution; steel is only ~30-43% of Tangshan NO2, Wen 2024). Axis 2 = grid resolution: native vs block-averaged to ~0.1 deg and ~0.25 deg -- AGGREGATION ONLY (mean over cell blocks, never interpolation), consistent with the 2026-06-13 native-resolution decision which rejected interpolating to a FINER grid; coarsening by averaging is the permitted, information-preserving direction and is exactly the Parubets & Naito (2025) experiment. For each (extent x resolution) scale, re-derive the footprint/AOI-mean NO2 signal, run the existing deseasonalize variants (level / intensity-residual / yoy / stl), align to the CREA BF operating rate, and compute Pearson r + lead-lag. Judge significance with an AUTOCORRELATION-ROBUST test (first-order + full-order/Newey-West effective sample size, moving-block bootstrap CI of r, block-permutation null p) -- prototyped in analysis/autocorr_significance.py and promoted to noxus/validation -- plus a Benjamini-Hochberg FDR multiple-testing correction across the scale x variant x lag grid. GOAL: empirically test the Parubets scale warning (significant at 0.25 deg, lost/sign-flipped at 0.1 deg) on OUR Tangshan steel data, and whether a tighter AOI rescues the signal. Honest NULL is an acceptable, designed-for outcome (Morris & Zhang 2019); the result hardens the conclusion from 'no signal at one scale' to 'no robust signal at any reasonable scale' (or surfaces a scale where it appears). Builds on the 2026-06-14 exploratory probe (analysis/autocorr_significance.py). NOTE on the analogy: our setup is a single AOI-mean time series, so 'resolution' here = how coarsely we average within the AOI before the footprint/background contrast -- an ANALOGUE of Parubets' cross-prefecture panel, stated as an assumption, not an identity. NO2-derived scale outputs gitignored; small stats + figures committable.",
+      "sdd": true,
+      "status": "review",
+      "depends_on": [
+        "NOX-002b",
+        "NOX-003.1"
+      ],
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "docs/exploration-results.html",
+        "decisions/architecture-decisions.md",
+        "history.html",
+        ".claude/context/project-map.md"
+      ],
+      "follow_ups": "Real run = hardened null: 0/128 scale x variant x lag robust after FDR; tight 0.10 AOI does not rescue the signal; native<->coarse sign flips are noise. Spatial scale closed as a lever for the relative-index paradigm -> remaining avenues are flux divergence (NOX-005), GEMS diurnal sensor (NOX-007), or regime/event framing. Result: data/derived/scale_sensitivity.csv + docs/figures/exploration/scale_sensitivity_findings.txt + 16 figures.",
+      "spec_path": "specs/spatial-scale-sensitivity/",
+      "scope": [
+        "noxus/validation/**",
+        "noxus/data/gridding.py",
+        "noxus/config/run.py",
+        "noxus/cli/main.py",
+        "analysis/**",
+        "docs/exploration-results.html",
+        "tests/**",
+        ".gitignore"
+      ],
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-06-14",
+        "notes": "Developer approved to begin (\"Comienza\", 2026-06-14). Q1 resolved: sweep resolutions {native, 0.10, 0.15, 0.25} deg."
+      },
+      "created": "2026-06-14"
     }
   ]
 }

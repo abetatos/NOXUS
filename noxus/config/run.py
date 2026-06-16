@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from noxus.config.region import DEFAULT_AOI_BUFFER_DEG
+from noxus.config.region import DEFAULT_AOI_BUFFER_DEG, TIGHT_AOI_BUFFER_DEG
 
 # Public, free source of record for the physical-output benchmark: CREA's WIND-sourced steel sheet,
 # exported as CSV. The Tangshan blast-furnace operating rate is one column among several steel
@@ -207,6 +207,57 @@ class ValidationConfig:
     out_dir: Path = Path("data/derived")
     results_name: str = "steel_validation_results.json"
     summary_name: str = "steel_validation_summary.txt"
+
+
+@dataclass(frozen=True)
+class ScaleSweepConfig:
+    """Configuration for the spatial-scale sensitivity sweep (NOX-008).
+
+    Sweeps two scale axes over the EXISTING analysis-ready cube and recomputes the NO2<->BF-rate
+    correlation at each scale with autocorrelation-robust, FDR-corrected significance. Both axes are
+    pure re-aggregations of the committed cube (clip = subset; coarsen = block-mean) — never
+    interpolation (REQ-001/002; native-resolution decision 2026-06-13). Defaults are fixed here so the
+    sweep is reproducible and no scale is selected to maximise the benchmark correlation (NFR-003).
+    """
+
+    # --- Scale axes ---------------------------------------------------------------------------
+    # AOI extent (buffer deg around the facility envelope): default wide vs tight (REQ-001).
+    buffers: tuple[float, ...] = (DEFAULT_AOI_BUFFER_DEG, TIGHT_AOI_BUFFER_DEG)
+    # Grid resolution targets: "native" keeps the cube; floats coarsen by block-mean to ~that deg
+    # spacing (Q1 resolved 2026-06-14: native, 0.10, 0.15, 0.25; mirrors Parubets + the 0.1->0.25 gap).
+    resolutions: tuple[object, ...] = ("native", 0.10, 0.15, 0.25)
+    # Deseasonalisation variants compared at each scale (reuse noxus.signal.index.deseasonalize).
+    variants: tuple[str, ...] = ("level", "intensity-model", "yoy", "stl")
+    # Frequencies to align/correlate at (weekly primary; monthly low-power, Q5).
+    freqs: tuple[str, ...] = ("W", "ME")
+
+    # --- Robust significance (REQ-020..022) ---------------------------------------------------
+    n_boot: int = 5000  # moving-block bootstrap draws for the CI of r
+    n_perm: int = 5000  # block-permutation null draws
+    seed: int = 20260614  # fixed RNG seed (NFR-001)
+    neff_order: str = "auto"  # "first" (Bayley-Hammersley) | "newey-west" | "auto" (report both)
+    # Moving-block length rule: round(n ** block_exponent), floored at block_floor (Q2).
+    block_exponent: float = 1.0 / 3.0
+    block_floor: int = 2
+
+    # --- Multiple testing (REQ-030) -----------------------------------------------------------
+    fdr_alpha: float = 0.05  # Benjamini-Hochberg level across the scale x variant x lag family
+
+    # --- Lead-lag + alignment (REQ-040) -------------------------------------------------------
+    max_lag: int = 8  # +/- lag window for the cross-correlation profile (periods)
+    min_overlap: int = 26  # refuse a scale below this many overlapping periods
+    # Coarse scales may leave too few cells for the footprint/background contrast -> AOI-mean
+    # fallback, labelled (REQ-011, EDGE-002). Require >= this many footprint cells to keep the contrast.
+    min_footprint_cells: int = 4
+
+    # --- Paths --------------------------------------------------------------------------------
+    cube_path: Path = Path("data/derived/no2/no2_cube_w.nc")
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "scale_sensitivity.csv"
+    figures_dir: Path = Path("docs/figures/exploration")
+    findings_name: str = "scale_sensitivity_findings.txt"
 
 
 # Default market instruments (NOX-004). Free/reproducible via yfinance: global miners + a steel ETF.

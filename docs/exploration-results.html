@@ -228,7 +228,38 @@
   revive the weekly lever with a multi-overpass geostationary sensor like GEMS), but <strong>harmonic-K1
   (weekly) remains the method of record</strong>.</p>
 
-  <h2 id="takeaways">8 · Takeaways &amp; next probes</h2>
+  <h2 id="scale">8 · Spatial-scale sensitivity &amp; honest significance (NOX-008)</h2>
+  <p>Every result above used <strong>one fixed scale</strong> (0.25° AOI buffer, native ~5 km grid) and the
+  naïve Pearson p — which assumes i.i.d. data and badly overstates significance for these strongly
+  autocorrelated series (the level's effective sample size is ~225 of 377 weekly, ~39 of 90 monthly). NOX-008
+  re-tests the coupling two ways: (a) an <strong>autocorrelation-robust</strong> standard — effective-N
+  (first-order + Newey-West), a moving-block bootstrap CI of <em>r</em>, a block-permutation null, and a
+  Benjamini–Hochberg <strong>FDR</strong> correction across the family; and (b) a <strong>spatial-scale
+  sweep</strong> over the existing cube: AOI extent (0.25° vs 0.10° buffer, a strict clip) × grid resolution
+  (native vs block-averaged 0.10/0.15/0.25°, aggregation only — never interpolation). This is the
+  Parubets &amp; Naito (2025) scale test (significant coarse → lost/flipped fine) plus the source-isolation
+  hypothesis (a tighter AOI excludes Beijing-Tianjin-Hebei background; steel is only ~30–43% of Tangshan NO₂,
+  Wen 2024).</p>
+  <p><strong>Result: a hardened null.</strong> Of <strong>128</strong> (scale × variant × lag) tests,
+  <strong>zero</strong> survive the robust + FDR bar; the 34 naïve-significant cells are all monthly peak-lag
+  artefacts that collapse to <em>fragile (naive-only)</em>. The tight 0.10° AOI does <strong>not</strong>
+  rescue the signal (Δ|r| ≈ 0.02–0.05, never significant), and the native↔coarse sign flips are noise-level
+  (|r| &lt; 0.13). The conclusion graduates from "no signal at one scale" to <strong>"no robust coupling at
+  any reasonable scale"</strong>.</p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/scale_grid_r_intensity-model_W.png" alt="scale grid of r">
+      <figcaption>Scale grid of <em>r</em> (intensity residual, weekly): r stays near zero and flips sign
+      across extent × resolution — noise, not a scale effect.</figcaption></figure>
+    <figure><img src="figures/exploration/scale_grid_sig_level_W.png" alt="robust verdict grid">
+      <figcaption>Robust verdict (FDR) across scales: no cell reaches <em>robust</em>; coarsening adds no
+      information, only changes background dilution.</figcaption></figure>
+  </div>
+  <p style="color:var(--muted);font-size:14px">The robust-significance engine (<code>noxus/validation/robust.py</code>)
+  is now the project standard for any index↔benchmark correlation; the naïve p is shown only to expose the
+  gap. Spatial scale is closed as a lever — remaining avenues are flux divergence (NOX-005), a diurnal sensor
+  (GEMS, NOX-007), or the regime/event framing.</p>
+
+  <h2 id="takeaways">9 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>

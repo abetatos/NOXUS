@@ -274,6 +274,39 @@ def _cmd_catalyst(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_scale_sweep(args: argparse.Namespace) -> int:
+    """Sweep AOI extent x grid resolution + autocorrelation-robust significance (NOX-008)."""
+    from dataclasses import replace
+
+    from noxus.config.run import ScaleSweepConfig
+    from noxus.validation.scale import run_scale_sweep
+
+    cfg = ScaleSweepConfig()
+    if args.buffers:
+        cfg = replace(cfg, buffers=tuple(float(b) for b in args.buffers.split(",")))
+    if args.resolutions:
+        cfg = replace(
+            cfg,
+            resolutions=tuple(
+                r.strip() if r.strip() == "native" else float(r)
+                for r in args.resolutions.split(",")
+            ),
+        )
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws, n_perm=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    if args.alpha is not None:
+        cfg = replace(cfg, fdr_alpha=args.alpha)
+    try:
+        out = run_scale_sweep(cfg)
+    except FileNotFoundError as exc:
+        print(f"[noxus] scale-sweep failed: {exc}")
+        return 1
+    print(f"[noxus] scale-sensitivity table -> {out}")
+    return 0
+
+
 def _snapshot_date(snapshot: Path) -> date | None:
     """Parse the YYYY-MM-DD date out of a ``crea_wind_<date>.csv`` snapshot name, if present."""
     stem = Path(snapshot).stem
@@ -355,6 +388,19 @@ def main(argv: list[str] | None = None) -> int:
     p_cat.add_argument("--window", type=int, help="+/- trading-day event-study window (default 5)")
     p_cat.add_argument("--latency", type=int, help="overpass+processing latency days (default 2)")
     p_cat.set_defaults(func=_cmd_catalyst)
+
+    p_scale = sub.add_parser(
+        "scale-sweep",
+        help="AOI extent x grid resolution sensitivity, robust significance (NOX-008)",
+    )
+    p_scale.add_argument("--buffers", help="comma AOI buffers in deg (default 0.25,0.10)")
+    p_scale.add_argument(
+        "--resolutions", help="comma targets: 'native' or deg (default native,0.10,0.15,0.25)"
+    )
+    p_scale.add_argument("--draws", type=int, help="bootstrap/permutation draws (default 5000)")
+    p_scale.add_argument("--seed", type=int, help="RNG seed (default 20260614)")
+    p_scale.add_argument("--alpha", type=float, help="Benjamini-Hochberg FDR level (default 0.05)")
+    p_scale.set_defaults(func=_cmd_scale_sweep)
 
     args = parser.parse_args(argv)
     if args.command is None:

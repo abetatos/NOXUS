@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Spatial-scale sensitivity</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>Statistics verified on <strong>synthetic fixtures</strong> — deterministic, seeded, no network.
+        Scale ops run on small synthetic cubes; the robust tests run on AR(1) fixtures with reduced
+        bootstrap/permutation draws for speed while asserting the rate behaviour. The real-data verdict
+        (AT7) is run once on the committed full-series cube.</p>
+      </section>
+
+      <section id="tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header"><span class="req-id ac">AT1</span><span class="card-title">Clip = strict cell subset, no interpolation</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-001 · AC-001</dd>
+            <dt>Given</dt><dd>A synthetic cube on a regular grid and a tight <code>Region</code> strictly inside it.</dd>
+            <dt>Then</dt><dd>The clipped cube has fewer y/x cells, every retained cell's value equals the original (no new/averaged cells), and no coordinate falls outside the region.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header"><span class="req-id ac">AT2</span><span class="card-title">Coarsen = exact block-mean + coverage + realised spacing</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-002 · REQ-003 · AC-002 · EDGE-001</dd>
+            <dt>Given</dt><dd>A synthetic cube with a known field (and some NaN cells) coarsened by a 2× and a 5× block factor.</dd>
+            <dt>Then</dt><dd>Each coarse cell equals the mean of its native block over valid cells; an all-NaN block is NaN; coverage is the block mean; the realised cell spacing is recorded in <code>.attrs</code> (and may differ from the nominal target).</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header"><span class="req-id ac">AT3</span><span class="card-title">Autocorrelated null is not over-rejected</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-020 · REQ-021 · REQ-022 · AC-003</dd>
+            <dt>Given</dt><dd>Many seeded pairs of <strong>independent</strong> AR(1) series with strong autocorrelation.</dd>
+            <dt>Then</dt><dd>The naïve Pearson p rejects at well above the nominal α, while the effective-N (1st &amp; full order), block-bootstrap (CI contains 0) and block-permutation tests hold the false-positive rate near α.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header"><span class="req-id ac">AT4</span><span class="card-title">Planted signal is recovered (not merely conservative)</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-021 · REQ-022 · AC-004</dd>
+            <dt>Given</dt><dd>A series pair with a planted lagged correlation above the noise.</dd>
+            <dt>Then</dt><dd>The bootstrap CI excludes 0 and the block-permutation p &lt; α; the lead-lag peak lands at the planted lag.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header"><span class="req-id ac">AT5</span><span class="card-title">Benjamini–Hochberg FDR</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-030 · AC-005</dd>
+            <dt>Then</dt><dd><code>bh_fdr</code> on a reference p-value vector returns the hand-computed adjusted values and rejection set; an all-null family yields ~no discoveries; a family with a strong signal yields it as a discovery.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header"><span class="req-id ac">AT6</span><span class="card-title">Sweep table + scale grid + determinism</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-010 · REQ-011 · REQ-040 · REQ-041 · AC-006</dd>
+            <dt>Given</dt><dd>A small synthetic cube + benchmark over {0.25°,0.10°} × {native,coarse}.</dd>
+            <dt>Then</dt><dd>The tidy table has one row per (extent,resolution,variant,lag) with every REQ-040 column (incl. realised spacing, n_eff×2, bootstrap CI, perm p, FDR-adjusted sig, verdict); the AOI-mean fallback fires + is labelled when cells are too few; the scale-grid figure is produced; re-running under the same seed/config reproduces the table identically.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header"><span class="req-id ac">AT7</span><span class="card-title">Real-data verdict: Parubets + source-isolation, honest null</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>REQ-041 · REQ-042 · AC-007</dd>
+            <dt>Given</dt><dd>The committed full-series cube + CREA BF rate.</dd>
+            <dt>Then</dt><dd>The findings state whether the Parubets pattern holds (coarse significant → fine lost/sign-flipped) and whether the tight AOI improves coupling; a null is reported as a valid finding with the FDR/multiplicity caveat; no single scale is presented as the headline without that caveat.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header"><span class="req-id ac">AT8</span><span class="card-title">Additive — existing contracts + tests/lint</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>NFR-004 · NFR-006 · AC-008</dd>
+            <dt>Then</dt><dd><code>correlate</code>/<code>lead_lag</code>/<code>verify_sign</code> and the existing CLI behave exactly as before; <code>uv run pytest</code> and <code>uv run ruff check .</code> pass.</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-err-1">
+          <div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Error states</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Covers</dt><dd>ERR-001 · ERR-002 · ERR-003</dd>
+            <dt>Then</dt><dd>Missing cube → actionable error naming <code>noxus grid</code>; a finer-than-native target → refusal citing the native-resolution decision (no upsampling); an AOI clip with no overlapping cells → actionable error naming the cube extent and requested bbox.</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-001</td><td>AT1</td></tr>
+            <tr><td>REQ-002 / 003</td><td>AT2</td></tr>
+            <tr><td>REQ-020 / 021 / 022</td><td>AT3, AT4</td></tr>
+            <tr><td>REQ-030</td><td>AT5</td></tr>
+            <tr><td>REQ-010 / 011 / 040 / 041</td><td>AT6</td></tr>
+            <tr><td>REQ-041 / 042</td><td>AT7</td></tr>
+            <tr><td>NFR-004 / 006</td><td>AT8</td></tr>
+            <tr><td>ERR-001 / 002 / 003</td><td>AT-ERR-1</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
