@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — NO₂ change-variance decomposition (industrial share vs the imported mean-share ceiling)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-009</code></td></tr>
+        <tr><th>Feature slug</th><td><code>no2-variance-decomposition</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>One small reusable module plus a thin orchestration layer, in the shape of NOX-008. The core is a new
+        <code>noxus/signal/variance.py</code>: a <strong>benchmark-blind</strong> hierarchical variance-partition
+        estimator that takes the footprint (5 km) and background-ring (25–60 km) change series and the ERA5
+        meteo covariates, and returns a four-way budget — <strong>regional / meteo / steel-local / noise</strong>
+        — via a <strong>sequential nested-R²</strong> decomposition. The nested models are:</p>
+        <pre><code>Δfootprint ~ Δbackground                     → R²_regional          (a)
+Δfootprint ~ Δbackground + meteo             → ΔR²_meteo            (b) incremental
+Δfootprint ~ Δbackground + meteo + local*    → ΔR²_steel_local      (c) incremental
+residual variance                            → 1 − R²_full          (d) noise
+       (* local = the footprint's own structure orthogonal to background+meteo,
+          i.e. the footprint-minus-background contrast's explainable part)</code></pre>
+        <p>Each incremental step's ΔR² is the variance share attributed to that term; the four shares sum to 1
+        (within rounding). The <strong>steel-local share <code>f</code></strong> is the headline: its square root
+        is the <strong>implied SNR ceiling for a change detector</strong>, reported against the imported
+        <strong>level ceiling</strong> ≈ <code>sqrt(attributable_cap)</code> = <code>sqrt([0.30, 0.43])</code>.
+        The budget is computed on two <strong>change bases</strong> (first differences; deseasonalised residual)
+        at two <strong>resolutions</strong> (weekly cube; NOX-006 daily cube), and every share/ceiling carries a
+        <strong>moving-block-bootstrap CI</strong> reusing <code>noxus/validation/robust.py</code> (NOX-008).</p>
+        <p>Why this shape: the decomposition is a property of the NO₂ + meteo + background data alone, so it lives
+        in <code>noxus/signal/</code> beside <code>intensity.py</code>, reuses the attribution/meteo/deseason
+        pathways read-only, and — like NOX-003.1 <code>fit_intensity_trend</code> — <strong>exposes no benchmark
+        argument</strong> so p-hacking against CREA is structurally impossible. The autocorrelation-robust CI is
+        the load-bearing reuse of NOX-008; the orchestration (driver + CLI verb + figure script) mirrors the
+        <code>scale-sweep</code> wiring exactly.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="220" viewBox="0 0 720 220" aria-label="Variance-decomposition data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="84" width="140" height="52" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="78" y="102" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">cube (W + D)</text>
+            <text x="78" y="116" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">footprint 5km</text>
+            <text x="78" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">bg ring 25–60km</text>
+            <line x1="148" y1="110" x2="186" y2="110" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="188" y="70" width="150" height="80" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="263" y="88" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">change basis</text>
+            <text x="263" y="103" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">first-diff /</text>
+            <text x="263" y="117" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">deseason resid</text>
+            <text x="263" y="136" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">+ meteo (ERA5)</text>
+            <line x1="338" y1="110" x2="376" y2="110" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="378" y="64" width="164" height="92" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="460" y="82" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">nested-R² partition</text>
+            <text x="460" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">regional → meteo →</text>
+            <text x="460" y="111" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">steel-local → noise</text>
+            <text x="460" y="130" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">(NO benchmark input)</text>
+            <text x="460" y="145" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">block-bootstrap CI</text>
+            <line x1="542" y1="110" x2="580" y2="110" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="582" y="70" width="130" height="80" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="647" y="90" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">budget table</text>
+            <text x="647" y="105" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">√f = change ceil</text>
+            <text x="647" y="119" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">vs √cap level ceil</text>
+            <text x="647" y="138" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#14532d">physical? / headroom?</text>
+            <text x="360" y="200" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">For each (basis × resolution): partition change-variance → steel-local share → implied ceiling, benchmark-blind.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Adds <code>noxus/signal/variance.py</code> (the partition estimator) and a thin driver + CLI verb,
+        reusing <code>noxus/attribution/source.py</code> (footprint/background), <code>noxus/signal/index.py</code>
+        (<code>regress_out_meteo</code>, <code>deseasonalize</code>), <code>noxus/signal/intensity.py</code>
+        (intensity residual) and <code>noxus/validation/robust.py</code> (<code>block_length</code> + moving-block
+        bootstrap) read-only. Extends <code>noxus/config/run.py</code> and <code>noxus/cli/main.py</code> and the
+        exploration report. NO₂-derived per-basis series stay under gitignored <code>data/derived/no2/</code>.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/variance.py</code></td><td>new</td><td>Benchmark-blind hierarchical variance partition: <code>partition_change_variance(...)</code> → <code>VarianceBudget</code> (four shares + ΔR² terms), <code>implied_change_ceiling(...)</code>, and a <code>decompose(...)</code> driver over (basis × resolution). <strong>No benchmark parameter</strong> (REQ-020/021/030, NFR-001).</td></tr>
+            <tr><td><code>noxus/validation/robust.py</code></td><td>maybe (additive)</td><td>Reuse <code>block_length</code> read-only; if a generic moving-block bootstrap of an arbitrary statistic is needed for the share CI, add <code>block_bootstrap_statistic(...)</code> additively — existing <code>robust_corr</code>/<code>block_bootstrap_ci</code> contracts unchanged (REQ-040, NFR-005). Placement is assumption A4.</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td>A <code>VarianceDecompConfig</code> (bases, resolutions, meteo covariates, bootstrap draws, seed, entry order, paths). Existing config unchanged (REQ-060).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>A <code>variance</code> subcommand (verb per assumption A3, which governs) that runs the driver and writes the table/figures, mirroring <code>_cmd_scale_sweep</code>. Existing commands unchanged (REQ-060).</td></tr>
+            <tr><td><code>analysis/variance_decomposition.py</code></td><td>new</td><td>Figure driver: stacked variance-partition (per basis×resolution) + change-vs-level ceiling comparison → <code>docs/figures/exploration/</code>; writes a findings file (REQ-050/051).</td></tr>
+            <tr><td><code>docs/exploration-results.html</code></td><td>extend</td><td>A change-variance-budget section: the stacked figure, the ceiling comparison, the physical-vs-method-bound verdict and its NOX-010/011 implication (REQ-050/051).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>verify</td><td>Per-basis NO₂-derived series stay under <code>data/derived/no2/</code> (already gitignored); confirm no new committed NO₂ field (NFR-006).</td></tr>
+            <tr><td><code>tests/signal/test_variance.py</code></td><td>new</td><td>Planted-decomposition share recovery; anti-p-hacking signature guard; ΔR² clamp; both bases×resolutions; block-bootstrap CI wider than naïve; determinism (AT1–AT8).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/attribution/source.py</code></td><td>Footprint/background consumed as-is; read-only (REQ-001).</td></tr>
+            <tr><td><code>noxus/signal/index.py</code>, <code>intensity.py</code>, <code>prophet_deseason.py</code></td><td>Meteo regress-out / deseason / intensity residual reused read-only; algorithms unchanged (REQ-002).</td></tr>
+            <tr><td><code>noxus/validation/leadlag.py</code>, <code>scale.py</code>, <code>report.py</code>, <code>preprocess.py</code></td><td>Contracts unchanged; not touched.</td></tr>
+            <tr><td><code>noxus/data/benchmark.py</code>, the CREA parquet</td><td><strong>Never read by the decomposition</strong> — structurally excluded (NFR-001, ERR-004).</td></tr>
+            <tr><td><code>.env</code>, credential files</td><td>Protected; no egress in this task.</td></tr>
+            <tr><td>Acquisition / GEMS / flux-divergence</td><td>NOX-002a/007/005; out of scope.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/signal/variance.py</code>, <code>noxus/validation/robust.py</code>,
+        <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>, <code>analysis/**</code>,
+        <code>docs/exploration-results.html</code>, <code>tests/**</code>, <code>.gitignore</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/signal/variance.py  (new) — NOTE: no benchmark argument anywhere (NFR-001)
+@dataclass(frozen=True)
+class VarianceBudget:
+    basis: str; resolution: str; n: int
+    share_regional: float; share_meteo: float
+    share_steel_local: float; share_noise: float   # sum ≈ 1 (clamped ≥0, EDGE-002)
+    dr2_regional: float; dr2_meteo: float; dr2_local: float   # raw incremental R² (audit)
+    order: tuple[str, ...]                          # entry order (REQ-021)
+
+def partition_change_variance(
+    footprint: pd.Series, background: pd.Series, meteo: pd.DataFrame,
+    *, basis: str, order=("regional","meteo","local"),
+) -> VarianceBudget: ...                            # benchmark NEVER passed in (REQ-003)
+
+def implied_change_ceiling(share_steel_local: float) -> float: ...   # sqrt(f)
+def level_ceiling(attributable_cap: tuple[float,float]) -> tuple[float,float]:  # sqrt(cap)
+
+def decompose(cfg: VarianceDecompConfig | None = None) -> pd.DataFrame: ...
+    # one row per (basis, resolution); block-bootstrap CI on each share + ceiling
+
+# noxus/validation/robust.py  (reuse; optional additive)
+def block_length(n, *, exponent=1/3, floor=2) -> int: ...            # reused read-only
+def block_bootstrap_statistic(fn, *arrays, block, n_draws, seed, alpha=0.05): ...  # optional (A4)
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/derived/no2/  (gitignored — NO₂-derived)
+variance/change_series_&lt;basis&gt;_&lt;res&gt;.parquet   # optional cached per-basis series
+
+# data/derived/  (small stats — committable, no raw NO₂ field)
+variance_decomposition.csv   # basis,resolution,n,share_regional,share_meteo,share_steel_local,
+                             #   share_noise,dr2_regional,dr2_meteo,dr2_local,
+                             #   change_ceiling,change_ceiling_lo,change_ceiling_hi,
+                             #   level_ceiling_lo,level_ceiling_hi,verdict
+
+# docs/figures/exploration/  (committed)
+variance_budget_stacked.png       # regional/meteo/steel-local/noise per basis×resolution
+variance_ceiling_compare.png      # change ceiling vs level ceiling, with CIs
+variance_decomposition_findings.txt
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus variance                            # both bases × {weekly,daily} -> table + figures
+uv run noxus variance --bases first-diff,deseason --resolutions W,D --draws 5000 --seed 20260706
+uv run python analysis/variance_decomposition.py  # figures + findings from the table
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>One optional gitignored per-basis change series (cache) + a committable
+        <code>variance_decomposition.csv</code> stats table and figures. No database, no schema migration.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>No new external data egress; purely internal analysis on the committed cube + ERA5 snapshot. Not a
+        high-risk category (no auth/payments/migrations/infra). Statistical building blocks come from
+        already-present libraries; confirm the current API at implementation:</p>
+        <table>
+          <thead><tr><th>Dependency</th><th>Docs to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>NumPy / SciPy</strong></td><td>Least-squares R² (<code>numpy.linalg.lstsq</code> or <code>scipy.stats</code>); RNG via <code>numpy.random.default_rng</code>.</td><td>Already present; no version change. Nested-R² and bootstrap implemented locally.</td></tr>
+            <tr><td><strong>statsmodels</strong></td><td>Already a dependency (STL/OLS); optional for the meteo OLS R² if convenient.</td><td>No new dependency introduced (NFR-007).</td></tr>
+            <tr><td><strong>noxus.validation.robust</strong> (NOX-008)</td><td><code>block_length</code> + moving-block resampling semantics.</td><td>Reused for the autocorrelation-aware share CI (REQ-040).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>No new secrets, no network egress (same local cube + ERA5 snapshot). Per-basis NO₂-derived outputs
+        gitignored. Standard protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p>Project map (new <code>noxus/signal/variance.py</code> + CLI verb), the exploration HTML
+        (change-variance-budget section + stacked figure + ceiling comparison), <code>decisions/</code>
+        (change-variance share replaces the imported mean-level share as the SNR-ceiling basis; physical-vs-method
+        verdict), <code>history.html</code>. Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Planted decomposition</strong> (AT3): build <code>Δfootprint = regional + β·meteo + local + noise</code> with known variance shares → <code>partition_change_variance</code> recovers the four shares within tolerance; they sum to ≈ 1; ΔR² entry order recorded.</li>
+          <li><strong>Anti-p-hacking guard</strong> (AT2): <code>inspect.signature(partition_change_variance)</code> has no benchmark parameter; the module does not import <code>noxus.data.benchmark</code> nor read the CREA parquet (mirrors NOX-003.1 discipline).</li>
+          <li><strong>Bases × resolutions</strong> (AT4): a small synthetic (weekly + daily) fixture → the driver emits one row per (first-diff/deseason × W/D); gap-aware first differencing records the effective <code>n</code> (EDGE-003).</li>
+          <li><strong>Ceiling</strong> (AT5): from a known steel-local share, <code>implied_change_ceiling = sqrt(f)</code>; <code>level_ceiling = sqrt([0.30,0.43])</code>; the verdict string reflects headroom vs ceiling-bound.</li>
+          <li><strong>Robust CI</strong> (AT6): on an autocorrelated fixture, the moving-block-bootstrap CI on the steel-local share is <strong>wider</strong> than the naïve i.i.d. interval; negative ΔR² clamps to 0 with the raw value recorded (EDGE-002).</li>
+          <li><strong>Determinism + additive</strong> (AT7/AT8): same seed/config → identical table; existing signal/attribution/validation/CLI unchanged; tests + lint pass.</li>
+          <li><strong>Error states</strong> (AT-ERR-1): missing weekly cube → names <code>noxus grid</code>; daily requested but daily cube absent → names the NOX-006 command; missing ERA5 → names ERA5 ingest; benchmark refusal (no such parameter).</li>
+        </ul>
+        <p>All statistics tested on synthetic fixtures (deterministic, seeded, no network). Bootstrap draws are
+        reduced in tests for speed while asserting the width behaviour. The real decomposition on the committed
+        cubes is run once as a validation task (AT7 narrative), not asserted numerically in CI.</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). The stacked-budget and ceiling-comparison figures are eyeballed as outputs.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Order-dependence of the nested partition (central method risk).</strong> When regional, meteo and local share variance, the sequential ΔR² attribution depends on entry order. Mitigation: fix and record the order (regional → meteo → local, REQ-021, A2); state that a commonality/Shapley split would redistribute the shared part; never pick the order that flatters the steel-local share. This is the deep-review focus item, though the task is <strong>not</strong> in a high-risk category (no auth/payments/migrations/infra/public API).</li>
+          <li><strong>Estimator choice is reversible.</strong> Sequential nested-R² is the default; a Shapley/commonality decomposition or a variance-components (mixed-model) estimator are alternatives. Recorded as assumption A1 / non-blocking open question Q1; the default is defensible and cheap.</li>
+          <li><strong>"Local structured" vs "noise" boundary.</strong> The steel-local term is the footprint's structure orthogonal to background+meteo; distinguishing genuine local structure from retrieval noise leans on the model. Mitigation: report the raw ΔR², the clamp (EDGE-002), and the CI; do not over-claim a tiny local share (EDGE-006).</li>
+          <li><strong>Low power at daily / after gaps.</strong> Gap-aware differencing shrinks <code>n</code>; the block-bootstrap CI will (correctly) widen. That is the honest point, not a bug (NFR-002).</li>
+          <li><strong>Interpretation temptation.</strong> Reading a favourable basis/resolution as "the" answer would be selective reporting. Mitigation: all four (basis × resolution) budgets reported; verdict stated once across them (NFR-003).</li>
+          <li><strong>Rejected:</strong> using the CREA benchmark to tune or validate the partition — structurally excluded (no benchmark argument), exactly as NOX-003.1 excluded it from smoothness selection.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: a new signal module, an optional additive helper in <code>robust.py</code>, a new config
+        block, a new subcommand, a new figure script, new gitignored outputs; existing signal/attribution/
+        validation/CLI paths unchanged. Rollback = revert the feature branch and delete the gitignored per-basis
+        artifacts; the committed <code>variance_decomposition.csv</code>/figures can stay as a record or be
+        removed.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

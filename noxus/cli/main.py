@@ -307,6 +307,34 @@ def _cmd_scale_sweep(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_variance(args: argparse.Namespace) -> int:
+    """Change-variance decomposition: steel-local share + implied change ceiling (NOX-009)."""
+    from dataclasses import replace
+
+    from noxus.config.run import VarianceDecompConfig
+    from noxus.data.era5 import ERA5SnapshotError
+    from noxus.signal.variance import run_decompose
+
+    cfg = VarianceDecompConfig()
+    if args.bases:
+        cfg = replace(cfg, bases=tuple(b.strip() for b in args.bases.split(",")))
+    if args.resolutions:
+        cfg = replace(cfg, resolutions=tuple(r.strip() for r in args.resolutions.split(",")))
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    if args.deseason:
+        cfg = replace(cfg, deseason_method=args.deseason)
+    try:
+        out = run_decompose(cfg)
+    except (FileNotFoundError, ERA5SnapshotError) as exc:
+        print(f"[noxus] variance failed: {exc}")
+        return 1
+    print(f"[noxus] variance-decomposition table -> {out}")
+    return 0
+
+
 def _snapshot_date(snapshot: Path) -> date | None:
     """Parse the YYYY-MM-DD date out of a ``crea_wind_<date>.csv`` snapshot name, if present."""
     stem = Path(snapshot).stem
@@ -401,6 +429,17 @@ def main(argv: list[str] | None = None) -> int:
     p_scale.add_argument("--seed", type=int, help="RNG seed (default 20260614)")
     p_scale.add_argument("--alpha", type=float, help="Benjamini-Hochberg FDR level (default 0.05)")
     p_scale.set_defaults(func=_cmd_scale_sweep)
+
+    p_var = sub.add_parser(
+        "variance",
+        help="NO2 change-variance decomposition -> steel-local share + change ceiling (NOX-009)",
+    )
+    p_var.add_argument("--bases", help="comma bases: first-diff,deseason (default both)")
+    p_var.add_argument("--resolutions", help="comma resolutions: W,D (default W,D)")
+    p_var.add_argument("--draws", type=int, help="moving-block bootstrap draws (default 5000)")
+    p_var.add_argument("--seed", type=int, help="RNG seed (default 20260706)")
+    p_var.add_argument("--deseason", help="deseason basis method: harmonic|intensity-model")
+    p_var.set_defaults(func=_cmd_variance)
 
     args = parser.parse_args(argv)
     if args.command is None:

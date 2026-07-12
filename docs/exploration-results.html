@@ -59,7 +59,9 @@
     <a href="#seasonal">5 · Seasonal</a> ·
     <a href="#prophet">6 · Better seasonality?</a> ·
     <a href="#daily">7 · Daily &amp; the weekly lever</a> ·
-    <a href="#takeaways">8 · Takeaways</a></p>
+    <a href="#scale">8 · Spatial-scale sensitivity</a> ·
+    <a href="#variance">9 · Change-variance decomposition</a> ·
+    <a href="#takeaways">10 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -259,7 +261,65 @@
   gap. Spatial scale is closed as a lever — remaining avenues are flux divergence (NOX-005), a diurnal sensor
   (GEMS, NOX-007), or the regime/event framing.</p>
 
-  <h2 id="takeaways">9 · Takeaways &amp; next probes</h2>
+  <h2 id="variance">9 · Change-variance decomposition — the headroom hypothesis, tested (NOX-009)</h2>
+  <p>§6 raised a live possibility: the ~40% steel <em>mean</em> share bounds a level estimator, but a
+  change/activity detector lives in the <em>variance of changes</em>, where steel's share could be higher
+  (critique #4's "variance-share headroom"). NOX-009 <strong>measures it directly</strong>. It partitions the
+  variance of the <em>changes</em> in the footprint NO₂ signal (footprint 5 km − background ring 25–60 km) into
+  four terms — (a) the shared <strong>regional common mode</strong> (the background ring), (b) the
+  <strong>meteo</strong> term (ERA5 regression), (c) the <strong>steel-local</strong> footprint-specific
+  structure, and (d) unexplained <strong>noise</strong> — across four cells: two change bases (first-difference,
+  deseasonalised residual) × two resolutions (weekly, daily). The partition is
+  <strong>benchmark-blind</strong> (NFR-001): it reads NO₂ + meteo + background only, never the CREA benchmark.
+  All four cells are reported (no cherry-pick, NFR-003).</p>
+
+  <table>
+    <thead><tr><th>basis × resolution</th><th>n</th><th>regional</th><th>meteo</th><th>steel-local</th><th>noise</th><th>change ceiling √<em>f</em> (block CI)</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>first-diff · W</td><td>388</td><td>0.944</td><td>0.005</td><td class="neg">0.000</td><td>0.051</td><td>0.00 [0.00, 0.00]</td><td>SNR-bound</td></tr>
+      <tr><td>deseason · W</td><td>389</td><td>0.951</td><td>0.002</td><td class="neg">0.006</td><td>0.040</td><td>0.08 [0.00, 0.115]</td><td>SNR-bound</td></tr>
+      <tr><td>first-diff · D</td><td>1555</td><td>0.933</td><td>0.005</td><td class="neg">0.000</td><td>0.062</td><td>0.00 [0.00, 0.00]</td><td>SNR-bound</td></tr>
+      <tr><td>deseason · D</td><td>2003</td><td>0.944</td><td>0.003</td><td class="neg">0.000</td><td>0.052</td><td>0.00 [0.00, 0.053]</td><td>SNR-bound</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--muted);font-size:14px">The <strong>regional common mode dominates every cell (≈0.93–0.95)</strong>;
+  meteo is negligible (≈0.002–0.005); the <strong>steel-local change-variance share is ≈0</strong>
+  (0.000–0.006, clamped to 0 in three of four cells where the raw incremental term went negative); noise is
+  ≈0.04–0.06. The implied change-detector ceiling is √(steel-local share) ≈ 0.00–0.08 (CI upper bound ≤0.115).
+  Level ceiling shown for contrast: √(0.30–0.43 Wen mean share) = 0.55–0.66 — used only as a contrast, never
+  as a fit target.</p>
+
+  <div class="grid2">
+    <figure><img src="figures/exploration/variance_budget_stacked.png" alt="stacked change-variance budget">
+      <figcaption>Stacked change-variance budget per basis × resolution: regional common mode fills almost the
+      whole bar; the steel-local slice is invisibly thin.</figcaption></figure>
+    <figure><img src="figures/exploration/variance_ceiling_compare.png" alt="change vs level ceiling comparison">
+      <figcaption>Implied change-detector ceiling √<em>f</em> (≈0, with block CI) against the imported level
+      ceiling √(0.30–0.43). The change ceiling sits far <em>below</em> the level ceiling.</figcaption></figure>
+  </div>
+
+  <div class="callout warn">
+    <h3>The headroom hypothesis is falsified — the null is physical, not method-bound</h3>
+    <p>Critique #4 predicted the change-variance steel share would be <em>higher</em> than the mean-level share,
+    leaving headroom a level estimator cannot see. The measurement shows the opposite: the steel-local
+    change-variance share is <strong>≈0 within its CI — lower than the 30–43% level share, not higher</strong>.
+    The verdict in all four cells is <strong>SNR-bound / physical</strong>: the near-null (weekly r≈0.07) is a
+    genuine signal-to-noise floor, not an artefact of the target or the method. The physical reason is
+    <strong>regional coherence</strong> — the 5 km footprint and the 25–60 km background ring move almost in
+    lockstep, so once the regional common mode and meteo are removed, almost no steel-specific variance remains
+    in the changes. The variance-share lever does not reopen the signal.</p>
+  </div>
+  <p style="color:var(--muted);font-size:14px">Estimator note (F1): terms (c)/(d) are realised as a
+  structured-vs-white split of the post-meteo residual — <code>structured = γ0 − ½·mean(Δresidual²)</code>,
+  the remainder white noise — because the inputs are footprint/background/meteo only, with no observed local
+  proxy to add as a nested regressor; a negative structured increment is recorded raw and the steel-local share
+  clamps to 0 (EDGE-002). Reproduce: <code>uv run noxus variance</code> →
+  <code>data/derived/variance_decomposition.csv</code>, then
+  <code>uv run python analysis/variance_decomposition.py</code> → the two figures +
+  <code>variance_decomposition_findings.txt</code>. This closes the variance-share question and feeds the
+  NOX-010 (deweathering) / NOX-011 (VIIRS triangulation) go/no-go.</p>
+
+  <h2 id="takeaways">10 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>
@@ -270,9 +330,13 @@
     single annual Fourier harmonic on top of the intensity trend gives the best coupling (best-regime
     r≈0.78, above the bar); K≥3 over-fits. Worth promoting to a <code>deseason_method="harmonic"</code> in
     the pipeline. The static full-sample r stays low because of the regime averaging, not the filter.</li>
-    <li><strong>The 40% share bounds a level estimator, not a change detector.</strong> Steel's
-    <em>variance</em> share rises to ~60% when curtailments are the swing factor — so the catalyst/event
-    framing is the right way to live with the low mean share.</li>
+    <li><strong>The 40% share bounds a level estimator; the change-variance share is even smaller (NOX-009).</strong>
+    The in-regime rolling window suggested steel's <em>variance</em> share could rise to ~60% when curtailments
+    are the swing factor, which motivated testing a change detector. NOX-009 (§9) measured the change-variance
+    share directly on the full series and found it <strong>≈0</strong> — <em>lower</em> than the mean share, not
+    higher: after removing the dominant regional common mode (≈0.94) the footprint and background move in
+    lockstep, so the null is SNR-bound / physical. The catalyst/event framing remains the only in-regime lever,
+    but the variance-share headroom hypothesis is closed.</li>
     <li><strong>Don't over-read −0.35</strong> — it's a whole-sample trend crossing, not intra-period
     inversion.</li>
     <li><strong>Economy link is below noise</strong> on partial data — revisit after the full fetch + the

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — VIIRS thermal-anomaly independent benchmark</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — VIIRS thermal-anomaly independent benchmark</h1>
+
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>viirs-thermal-benchmark</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>viirs-thermal-benchmark</code></td></tr>
+          <tr><th>Source document</th>  <td><code>tasks.json (NOX-011)</code></td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-011</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-07-12</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Acceptance-level scenarios that must hold for the feature to be accepted. They describe observable
+        behavior, not final test code. The implementer creates automated tests from them (synthetic fixtures,
+        no network); the reviewer verifies coverage.</p>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <p>The acceptance tests must verify: acquisition + AOI clip + provenance + resumability; the
+        facility-radius join and aggregation; benchmark-blind construction; the triangulation via the reused
+        <code>robust.py</code>; the interpretation table incl. the honest-null branch; the FIRMS cross-check;
+        verification rendering; error handling; and that existing behavior is unchanged.</p>
+
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest; network/credentials mocked via an injected fetcher seam (as in tests for tropomi.py);
+significance exercised through the real noxus/validation/robust.py on tiny arrays (not mocked).</code></pre>
+
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/data/test_viirs.py
+tests/signal/test_thermal.py
+tests/analysis/test_viirs_triangulation.py
+tests/cli/test_cli.py</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-000</span></td><td>AT0 (manual spike)</td><td class="warning">Manual</td></tr>
+            <tr><td><span class="req-id">REQ-001/002/003</span></td><td>AT1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-004</span></td><td>AT2</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-005</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-006/024</span></td><td>AT4</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-010</span></td><td>AT3a</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-011</span></td><td>AT3b</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-012</span></td><td>AT3c</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT5</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-023</span></td><td>AT6</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-030/031</span></td><td>AT7</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">EDGE-001/002/005</span></td><td>AT-EDGE-1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">EDGE-003</span></td><td>AT-EDGE-2</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">ERR-001..005</span></td><td>AT-ERR-1</td><td class="blocking">No</td></tr>
+            <tr><td><span class="req-id">REQ-040</span></td><td>AT-REG-1</td><td class="blocking">No</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at0">
+          <div class="card-header"><span class="req-id">AT0</span><span class="card-title">T1 feasibility spike — measure + go/no-go (manual)</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-000</dd>
+            <dt>Scenario</dt>              <dd>Developer fetches a small VNF window over Tangshan before the loop is built.</dd>
+            <dt>Preconditions</dt>         <dd>Network access; VNF endpoint per Q1 default.</dd>
+            <dt>Action</dt>                <dd>Run <code>fetch-viirs --probe</code>; record endpoint/format/auth, per-night volume, fields, AOI temporal coverage, facility co-location.</dd>
+            <dt>Expected result</dt>       <dd>A written measurement + a go/no-go against the budget in <code>open-questions.html</code> (Q1) and the decision log.</dd>
+            <dt>Negative expectations</dt> <dd>No secret value printed; no bulk download started on a no-go.</dd>
+            <dt>Suggested test location</dt><dd><code>manual — not CI-asserted</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at1">
+          <div class="card-header"><span class="req-id">AT1</span><span class="card-title">Acquire + AOI clip + provenance</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-001, REQ-002, REQ-003</dd>
+            <dt>Scenario</dt>              <dd>A mocked fetcher returns synthetic per-night detections spanning inside and outside the AOI.</dd>
+            <dt>Preconditions</dt>         <dd>Fake <code>ViirsFetcher</code> injected; temp <code>data/raw/viirs/</code>.</dd>
+            <dt>Action</dt>                <dd>Call <code>acquire_viirs</code> over a short date range.</dd>
+            <dt>Expected result</dt>       <dd>Only in-AOI detections retained, with temperature/area/radiant-heat/lat-lon/timestamp/id fields; per-night parquet + provenance (source, aoi_bbox, fetched_at) written; manifest updated.</dd>
+            <dt>Negative expectations</dt> <dd>Out-of-AOI detections not persisted; no network call.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_viirs.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header"><span class="req-id">AT2</span><span class="card-title">Resumable / idempotent acquisition</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-004, ERR-003</dd>
+            <dt>Scenario</dt>              <dd>Acquisition is run twice; and interrupted mid-range then resumed.</dd>
+            <dt>Preconditions</dt>         <dd>Manifest from a first run present.</dd>
+            <dt>Action</dt>                <dd>Re-run <code>acquire_viirs</code>; simulate a batch failure then resume.</dd>
+            <dt>Expected result</dt>       <dd>Second run fetches no completed night; a failed batch is recorded and retried on resume without re-downloading done nights.</dd>
+            <dt>Negative expectations</dt> <dd>No duplicate writes; no loss of prior progress.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_viirs.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3a">
+          <div class="card-header"><span class="req-id">AT3a</span><span class="card-title">Facility-radius join</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-010, EDGE-002</dd>
+            <dt>Scenario</dt>              <dd>Synthetic detections at known offsets from facility centroids, some within radius of two facilities, some outside every radius.</dd>
+            <dt>Preconditions</dt>         <dd>Small synthetic facilities frame + detections frame.</dd>
+            <dt>Action</dt>                <dd>Call <code>join_to_facilities(radius_km)</code>.</dd>
+            <dt>Expected result</dt>       <dd>Each in-radius detection assigned to the nearest facility; outside-radius detections dropped; assignment deterministic.</dd>
+            <dt>Negative expectations</dt> <dd>No detection double-counted; no geopandas import.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_thermal.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3b">
+          <div class="card-header"><span class="req-id">AT3b</span><span class="card-title">Weekly/daily aggregation</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-011</dd>
+            <dt>Scenario</dt>              <dd>Joined synthetic detections with known radiant heat, temperatures and timestamps.</dd>
+            <dt>Preconditions</dt>         <dd>Deterministic input frame.</dd>
+            <dt>Action</dt>                <dd>Call <code>build_thermal_series(freq="W")</code> and <code>freq="D"</code>.</dd>
+            <dt>Expected result</dt>       <dd>Summed radiant heat (primary), detection count and mean temperature computed correctly per bin; both frequencies produced.</dd>
+            <dt>Negative expectations</dt> <dd>No NaN-propagation error; empty bins handled (see AT-EDGE-1).</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_thermal.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at3c">
+          <div class="card-header"><span class="req-id">AT3c</span><span class="card-title">Benchmark-blind construction</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-012, NFR-006</dd>
+            <dt>Scenario</dt>              <dd>The series-build API is inspected.</dd>
+            <dt>Preconditions</dt>         <dd>—</dd>
+            <dt>Action</dt>                <dd>Assert <code>build_thermal_series</code> / <code>join_to_facilities</code> signatures take no CREA/NO₂ argument.</dd>
+            <dt>Expected result</dt>       <dd>The thermal series is producible with no benchmark input.</dd>
+            <dt>Negative expectations</dt> <dd>No hidden coupling to CREA/NO₂.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_thermal.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header"><span class="req-id">AT4</span><span class="card-title">FIRMS static-land-source cross-check</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-006, REQ-024, EDGE-004</dd>
+            <dt>Scenario</dt>              <dd>A synthetic FIRMS frame with mixed detection types (static land source, vegetation fire, offshore).</dd>
+            <dt>Preconditions</dt>         <dd>Fake FIRMS fetcher; env-var key referenced.</dd>
+            <dt>Action</dt>                <dd>Acquire via <code>FirmsFetcher</code>; build the series; run the cross-check triangulation.</dd>
+            <dt>Expected result</dt>       <dd>Only static-land-source detections retained; cross-check triangulation runs and the report states whether the diagnosis is consistent with VNF.</dd>
+            <dt>Negative expectations</dt> <dd>Vegetation-fire/offshore detections excluded; series not blended with VNF.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_viirs.py</code>, <code>tests/analysis/test_viirs_triangulation.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header"><span class="req-id">AT5</span><span class="card-title">Triangulation via reused robust.py</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-020, REQ-021, REQ-022</dd>
+            <dt>Scenario</dt>              <dd>Synthetic thermal series correlated with a synthetic NO₂ series but uncorrelated with a synthetic CREA series.</dd>
+            <dt>Preconditions</dt>         <dd>Tiny aligned arrays; real <code>robust.py</code>.</dd>
+            <dt>Action</dt>                <dd>Call <code>triangulate</code>.</dd>
+            <dt>Expected result</dt>       <dd>NO₂↔VIIRS and CREA↔VIIRS <code>robust_corr</code> results (r, n_eff, bootstrap CI, permutation p) produced; <code>bh_fdr</code> applied across the family; results match direct <code>robust_corr</code> calls.</dd>
+            <dt>Negative expectations</dt> <dd>Significance not re-implemented; naive Pearson p not used as the headline.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/analysis/test_viirs_triangulation.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header"><span class="req-id">AT6</span><span class="card-title">Interpretation table — feature vs target, incl. honest null</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-023, NFR-005</dd>
+            <dt>Scenario</dt>              <dd>Three synthetic configurations: (i) NO₂ tracks neither; (ii) NO₂↔VIIRS holds but CREA↔VIIRS absent; (iii) VIIRS↔CREA holds but NO₂ tracks neither.</dd>
+            <dt>Preconditions</dt>         <dd>Deterministic synthetic series per configuration.</dd>
+            <dt>Action</dt>                <dd>Run <code>triangulate</code> and read the interpretation table.</dd>
+            <dt>Expected result</dt>       <dd>The table selects, respectively: FEATURE is the weak link; TARGET (CREA) was the weak link; NO₂ blind at this scale / target sound. A no-significant-link case is labelled an honest null (still informative).</dd>
+            <dt>Negative expectations</dt> <dd>No branch is treated as a failure; the null is reported, not suppressed.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/analysis/test_viirs_triangulation.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header"><span class="req-id">AT7</span><span class="card-title">Verification render + committable outputs</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>REQ-030, REQ-031</dd>
+            <dt>Scenario</dt>              <dd>A synthetic store with detections near facilities.</dd>
+            <dt>Preconditions</dt>         <dd>Temp derived dir.</dd>
+            <dt>Action</dt>                <dd>Call the verify render; write the thermal series + triangulation table.</dd>
+            <dt>Expected result</dt>       <dd>A PNG with facility markers over the detections is produced; series/table land under <code>data/derived/</code>; raw stays gitignored (real-data visual check manual).</dd>
+            <dt>Negative expectations</dt> <dd>No raw detections written to a committed path.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_viirs.py</code></dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+
+        <div class="card" id="at-edge-1">
+          <div class="card-header"><span class="req-id edge">AT-EDGE-1</span><span class="card-title">Empty / sparse nights</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>EDGE-001, EDGE-005, REQ-011</dd>
+            <dt>Scenario</dt>              <dd>Some nights have zero AOI detections; some weeks have very few detection-nights.</dd>
+            <dt>Preconditions</dt>         <dd>Synthetic input with empty and sparse periods.</dd>
+            <dt>Action</dt>                <dd>Acquire + build the weekly series.</dd>
+            <dt>Expected result</dt>       <dd>Zero-detection nights recorded as zero-activity (not error, not interpolated); sparse weeks flagged.</dd>
+            <dt>Negative expectations</dt> <dd>No exception; no gap-filling.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/signal/test_thermal.py</code></dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="at-edge-2">
+          <div class="card-header"><span class="req-id edge">AT-EDGE-2</span><span class="card-title">Common-window alignment / short overlap</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>EDGE-003, REQ-020, REQ-021</dd>
+            <dt>Scenario</dt>              <dd>The VIIRS series is longer than the NO₂/CREA overlap.</dd>
+            <dt>Preconditions</dt>         <dd>Series with differing date spans.</dd>
+            <dt>Action</dt>                <dd>Run <code>triangulate</code>.</dd>
+            <dt>Expected result</dt>       <dd>Correlation computed on the common window only; effective-N reflects the reduced overlap; no padding/interpolation.</dd>
+            <dt>Negative expectations</dt> <dd>No spurious inflation of n.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/analysis/test_viirs_triangulation.py</code></dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header"><span class="req-id err">AT-ERR-1</span><span class="card-title">Credential + endpoint + budget + bad-CSV failures</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Related requirements</dt>  <dd>ERR-001, ERR-002, ERR-003, ERR-004, ERR-005, REQ-005</dd>
+            <dt>Scenario</dt>              <dd>Missing/invalid FIRMS key; endpoint error / field-not-found; download failure; measured volume over budget; missing/malformed facilities CSV.</dd>
+            <dt>Preconditions</dt>         <dd>Fakes configured to raise each condition; env-var unset for the key case.</dd>
+            <dt>Action</dt>                <dd>Exercise each failing path.</dd>
+            <dt>Expected result</dt>       <dd>Key error references the env-var name with the value never echoed; endpoint/field errors are descriptive; download failure is recorded and resumable; over-budget stops with a surfaced no-go; bad CSV raises rather than yielding an empty series.</dd>
+            <dt>Negative expectations</dt> <dd>No secret in any message/log; no silent empty output.</dd>
+            <dt>Suggested test location</dt><dd><code>tests/data/test_viirs.py</code>, <code>tests/signal/test_thermal.py</code></dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header"><span class="req-id">AT-REG-1</span><span class="card-title">Existing behavior unchanged</span><span class="badge badge-draft">Draft</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Existing behavior protected</dt> <dd>Existing CLI subcommands, TROPOMI/ERA5/CREA paths, and <code>robust.py</code>/<code>leadlag.py</code> behavior.</dd>
+            <dt>Related requirements</dt>         <dd>REQ-040, NFR-008</dd>
+            <dt>Scenario</dt>                     <dd>New subcommands are added and the significance modules are only imported, not edited.</dd>
+            <dt>Preconditions</dt>                <dd>Full test suite.</dd>
+            <dt>Action</dt>                       <dd>Run <code>uv run pytest</code>.</dd>
+            <dt>Expected result</dt>              <dd>New <code>fetch-viirs</code>/<code>build-thermal-series</code>/<code>triangulate-thermal</code>/<code>verify-viirs</code> commands are wired; all pre-existing tests still pass.</dd>
+            <dt>Negative expectations</dt>        <dd>No change to existing outputs or module signatures.</dd>
+            <dt>Suggested test location</dt>      <dd><code>tests/cli/test_cli.py</code></dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> Main success path (acquire → join → triangulate) is covered.</li>
+          <li><input type="checkbox" disabled> Empty/sparse states are covered.</li>
+          <li><input type="checkbox" disabled> Invalid input / error paths are covered (no secret echoed).</li>
+          <li><input type="checkbox" disabled> Significance is reused from <code>robust.py</code>, not re-implemented.</li>
+          <li><input type="checkbox" disabled> Thermal series is benchmark-blind; radius/aggregate pre-registered.</li>
+          <li><input type="checkbox" disabled> Honest-null branch is a first-class, tested outcome.</li>
+          <li><input type="checkbox" disabled> Non-goals (existing paths) are protected.</li>
+          <li><input type="checkbox" disabled> Tests are feasible offline with synthetic fixtures.</li>
+          <li><input type="checkbox" disabled> Any unresolved behavior is listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests must map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behavior absent from the task or approved assumptions.</li>
+            <li>If a test requires an unresolved decision, update <code>open-questions.html</code>.</li>
+            <li>The implementer creates automated tests from this document where feasible; AT0 and the real-data slice are manual/developer-run and marked so.</li>
+            <li>The reviewer verifies implemented tests cover this document, especially the reused-significance and honest-null requirements.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — VIIRS thermal-anomaly independent benchmark</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — VIIRS thermal-anomaly independent benchmark</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-011</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>viirs-thermal-benchmark</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Three additive pieces in the shape of NOX-002a (acquisition) + NOX-008 (analysis):</p>
+        <ol>
+          <li><strong>Acquisition</strong> — a new <code>noxus/data/viirs.py</code>: a resumable loop that, per
+          date-batch, retrieves VNF per-night thermal detections, filters them to the Tangshan AOI bbox
+          client-side, and writes per-night AOI-clipped detections under gitignored <code>data/raw/viirs/</code>
+          with a JSON manifest and provenance. The network interaction sits behind a <code>Fetcher</code> seam
+          (Protocol, exactly like <code>tropomi.py</code>) so the clip/persist/manifest logic is unit-testable
+          without network or keys. FIRMS is an alternate fetcher implementing the same seam.</li>
+          <li><strong>Facility join + thermal series</strong> — a new <code>noxus/signal/thermal.py</code>:
+          joins detections to the catalogued facilities within a fixed radius (numpy haversine, no geopandas),
+          then aggregates to a weekly (primary) and daily (secondary) thermal-activity series — summed radiant
+          heat (MW) primary, detection count and mean temperature as alternates. Built <strong>benchmark-blind</strong>:
+          the function takes only detections + facilities + fixed parameters, never CREA/NO₂.</li>
+          <li><strong>Triangulation</strong> — a thin orchestration module
+          <code>analysis/viirs_triangulation.py</code> (in the shape of <code>analysis/variance_decomposition.py</code>)
+          that aligns the thermal series with the existing NO₂-footprint and CREA series on the common window
+          and calls <code>noxus.validation.robust.robust_corr</code> / <code>bh_fdr</code> (and
+          <code>leadlag</code>) to produce the NO₂↔VIIRS and CREA↔VIIRS correlations, the BH-FDR family, and the
+          interpretation table. Significance is <strong>reused, never re-implemented</strong>.</li>
+        </ol>
+        <p class="callout"><strong>Gate.</strong> Task <strong>T1</strong> is a feasibility spike: fetch a small
+        VNF window over Tangshan, confirm detections land on the facilities, measure per-night volume + fields +
+        temporal coverage, and record a <strong>go/no-go</strong> against a configured download budget before the
+        loop is built. The exact VNF endpoint/format/auth and per-night volume are the external-access unknowns
+        (Q1); they are safe-defaulted so the spec is complete, and pinned empirically at T1.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="820" height="230" viewBox="0 0 820 230" aria-label="VIIRS thermal triangulation data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="20" width="150" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="40" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">VNF nightfire (EOG)</text>
+            <text x="83" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">+ FIRMS (cross-check)</text>
+            <line x1="158" y1="44" x2="196" y2="44" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="198" y="16" width="164" height="56" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="280" y="36" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">clip AOI + retain fields</text>
+            <text x="280" y="51" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(T,area,radiant heat)</text>
+            <text x="280" y="65" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ manifest (resumable)</text>
+            <line x1="362" y1="44" x2="400" y2="44" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="402" y="20" width="150" height="48" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="477" y="40" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">data/raw/viirs</text>
+            <text x="477" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">per-night detections (gitignored)</text>
+            <line x1="477" y1="68" x2="477" y2="104" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="360" y="106" width="234" height="52" rx="6" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+            <text x="477" y="126" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#7c2d12">facility-radius join (haversine)</text>
+            <text x="477" y="141" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7c2d12">→ weekly/daily thermal series</text>
+            <text x="477" y="154" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c2d12">(benchmark-blind; summed radiant heat)</text>
+            <line x1="360" y1="132" x2="322" y2="132" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="150" y="106" width="170" height="52" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="235" y="126" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">robust_corr + bh_fdr</text>
+            <text x="235" y="141" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">NO₂↔VIIRS, CREA↔VIIRS</text>
+            <text x="235" y="154" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">(reused, not re-implemented)</text>
+            <line x1="235" y1="158" x2="235" y2="188" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="120" y="190" width="230" height="34" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="235" y="211" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">interpretation table: feature vs target</text>
+            <text x="700" y="120" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">Existing NO₂-footprint + CREA series</text>
+            <text x="700" y="135" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">feed the triangulation (aligned on</text>
+            <text x="700" y="150" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">the common overlap window).</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Adds <code>noxus/data/viirs.py</code> (new acquisition, mirrors <code>data/tropomi.py</code>),
+        <code>noxus/signal/thermal.py</code> (new join + aggregation), and
+        <code>analysis/viirs_triangulation.py</code> (new orchestration, mirrors
+        <code>analysis/variance_decomposition.py</code>); adds CLI wiring in <code>noxus/cli/main.py</code>. Reads
+        <code>noxus/config/region.py</code> (AOI, reused), <code>data/derived/tangshan_steel_facilities.csv</code>
+        (join + overlay, reused), and the existing NO₂-footprint + CREA derived series. Reuses
+        <code>noxus/validation/robust.py</code> + <code>leadlag.py</code> unchanged. Writes gitignored
+        <code>data/raw/viirs/</code> and small committable outputs under <code>data/derived/</code>. Any FIRMS key
+        is read via <code>python-dotenv</code> only.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/viirs.py</code></td><td>new</td><td>VNF (+ FIRMS) fetcher seam, AOI clip, per-night persist, manifest, resumable batching, provenance (REQ-001..006).</td></tr>
+            <tr><td><code>noxus/signal/thermal.py</code></td><td>new</td><td>Facility-radius join (numpy haversine) + weekly/daily aggregation; benchmark-blind (REQ-010..012).</td></tr>
+            <tr><td><code>analysis/viirs_triangulation.py</code></td><td>new</td><td>Align + triangulate via <code>robust_corr</code>/<code>bh_fdr</code>/<code>leadlag</code>; interpretation table + FIRMS cross-check (REQ-020..024, 031).</td></tr>
+            <tr><td><code>noxus/data/verify_viirs.py</code></td><td>new</td><td>Detection-over-AOI render with facility overlay (REQ-030). May reuse helpers from <code>verify_no2.py</code>.</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>ViirsAcquisitionConfig</code> (source, endpoint base, date range, AOI buffer, quality thresholds, batch window, download budget, paths, env-var name) + <code>ThermalTriangulationConfig</code> (facility radius, frequency, primary aggregate).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>fetch-viirs</code> (+ <code>--probe</code>), <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code> (REQ-040).</td></tr>
+            <tr><td><code>.env.example</code></td><td>add</td><td>Document <code>FIRMS_MAP_KEY</code> (name only; VNF expected keyless).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td><code>data/raw/viirs/</code>.</td></tr>
+            <tr><td><code>tests/data/test_viirs.py</code>, <code>tests/signal/test_thermal.py</code>, <code>tests/analysis/test_viirs_triangulation.py</code>, <code>tests/cli/test_cli.py</code></td><td>new/extend</td><td>Mocked-fetcher + synthetic-detection unit tests (no network).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/validation/robust.py</code>, <code>leadlag.py</code></td><td>Reused as-is for significance; must not be re-implemented or modified.</td></tr>
+            <tr><td><code>.env</code> / credentials</td><td>Read via dotenv only; never logged/committed.</td></tr>
+            <tr><td><code>noxus/data/tropomi.py</code>, <code>era5.py</code>, <code>benchmark.py</code>, <code>gridding.py</code></td><td>TROPOMI/ERA5/CREA paths unaffected; VIIRS is an additive parallel channel.</td></tr>
+            <tr><td><code>data/derived/tangshan_steel_facilities.csv</code></td><td>Consumed for join + overlay; not modified.</td></tr>
+            <tr><td>attribution / catalyst modules, existing derived NO₂/CREA series</td><td>Consumed read-only; not modified.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Store layout</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/viirs.py  (mirrors tropomi.py's Fetcher seam)
+class ViirsFetcher(Protocol):
+    def fetch_night(self, aoi: Region, day: date) -> "pandas.DataFrame": ...  # AOI detections for one night
+
+@dataclass
+class VnfFetcher:   ...   # real VNF per-night fetch over httpx (endpoint resolved at T1)
+@dataclass
+class FirmsFetcher: ...   # FIRMS area+date API; MAP_KEY from env; keeps static-land-source only
+
+def acquire_viirs(aoi, cfg, fetcher=None, today=None) -> AcquireReport:
+    """Resumable: batch -> fetch night -> clip AOI -> retain fields -> per-night write + manifest."""
+def probe_viirs(aoi, cfg) -> ViirsProbe:   # T1 spike: endpoint/format/auth, volume, fields, coverage, co-location
+
+# noxus/signal/thermal.py  (benchmark-blind: no CREA/NO2 argument anywhere)
+def join_to_facilities(detections: DataFrame, facilities: DataFrame, radius_km: float) -> DataFrame:
+    """Assign each detection to the nearest facility within radius_km (haversine); drop those outside."""
+def build_thermal_series(joined: DataFrame, freq: str = "W", aggregate: str = "radiant_heat") -> DataFrame:
+    """Weekly/daily series: summed radiant heat (primary) + detection count + mean temperature; sparse flag."""
+
+# analysis/viirs_triangulation.py  (reuses robust.py; does NOT re-implement significance)
+def triangulate(thermal: Series, no2: Series, crea: Series, cfg) -> TriangulationReport:
+    """robust_corr(no2, thermal); robust_corr(crea, thermal); leadlag; bh_fdr over the family;
+       interpretation table (feature-vs-target incl. honest null)."""
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>data/raw/viirs/                         # gitignored
+  manifest.json                          # {nights: {YYYY-MM-DD: {fetched_at, source, n_detections, path}}, batches_done, batch_errors}
+  &lt;source&gt;/&lt;YYYY&gt;/&lt;YYYY-MM-DD&gt;.parquet    # AOI-clipped detections for one night
+# per-detection columns kept:
+#   temperature_k, source_area, radiant_heat_mw, latitude, longitude, timestamp, detection_id, quality_flag
+# provenance (sidecar/attrs): source (VNF|FIRMS), aoi_bbox, fetched_at, endpoint, product
+
+data/derived/                           # committable (small)
+  viirs_thermal_series.parquet           # weekly/daily thermal-activity series (per source)
+  viirs_triangulation.csv                # r, n_eff, boot CI, p_perm, BH-FDR, lead/lag, diagnosis
+  verification/viirs/&lt;date&gt;.png           # detections + facility overlay
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus fetch-viirs --probe                                  # T1 spike: small window, measure + go/no-go
+uv run noxus fetch-viirs --source vnf --start 2019-01-01 --end 2025-12-31   # full era (batched, resumable)
+uv run noxus fetch-viirs --source firms --start 2019-01-01 --end 2025-12-31 # FIRMS cross-check
+uv run noxus build-thermal-series --source vnf --freq W --radius-km 3.0     # facility join + aggregate
+uv run noxus triangulate-thermal --source vnf                    # NO2<->VIIRS, CREA<->VIIRS, BH-FDR, diagnosis
+uv run noxus verify-viirs --date 2023-06-15                      # detections over AOI + facility overlay
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New gitignored raw store <code>data/raw/viirs/</code> (per-night parquet + JSON manifest). New small
+        committable derived artifacts under <code>data/derived/</code> (thermal series parquet, triangulation
+        CSV, verification PNGs). No database. No change to existing schemas.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>This feature integrates two <strong>external Earth-observation data services</strong> and (for FIRMS)
+        an <strong>API key</strong>, so verification applies. <strong>The spec-author cannot web-search</strong>;
+        the rows below record the given factual basis and mark the access-detail unknowns explicitly resolved by
+        the <strong>T1 spike</strong> (Q1/Q2) with a documentation check by the developer at that point.</p>
+        <table>
+          <thead><tr><th>External system / dependency</th><th>Docs checked (source, date)</th><th>Version constraints</th><th>Deprecated APIs avoided</th><th>Compatibility notes</th></tr></thead>
+          <tbody>
+            <tr><td>VIIRS Nightfire (VNF), EOG / CSM Payne Institute (<code>mines.edu</code>)</td><td><strong>To verify at T1</strong> (given: nightly per-night files, temperature/area/radiant-heat, ~2012→present, free bulk, likely keyless).</td><td>Product version pinned at T1</td><td>Confirm current download path vs any legacy path at T1</td><td>Night-only; steel is 24/7 baseload so representative (A8). Exact endpoint/format/auth = Q1.</td></tr>
+            <tr><td>NASA FIRMS VIIRS active fire (VNP14IMGT / VJ114)</td><td><strong>To verify at T1</strong> (given: 375&nbsp;m, area+date API + archive, <code>MAP_KEY</code> by email, detection <em>type</em> field).</td><td>S-NPP + NOAA-20 collections</td><td>Use current FIRMS area/archive API, not superseded endpoints (confirm at T1)</td><td>Cross-check only; keep static-land-source detections (Q2, EDGE-004).</td></tr>
+            <tr><td><code>httpx</code> / <code>python-dotenv</code> / <code>pandas</code> / <code>pyarrow</code></td><td>Already in stack (<code>pyproject.toml</code>)</td><td>pinned via uv</td><td>—</td><td>No new dependency; radius join via numpy haversine (no geopandas). New dep only with approval (Q5, NFR-004).</td></tr>
+            <tr><td><code>noxus/validation/robust.py</code></td><td>In-repo (NOX-008)</td><td>—</td><td>—</td><td>Significance reused, not re-implemented (REQ-020).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>The only credential is an optional FIRMS <code>MAP_KEY</code> read from <code>.env</code> via
+        <code>python-dotenv</code>; it is referenced by variable name only and never logged, printed, or committed
+        (if it appears in a request URL, request-URL logging must be scrubbed — same discipline as
+        <code>tropomi.py</code>). VNF is expected keyless. Network egress is limited to the EOG / FIRMS hosts. No
+        protected files are written; no remote mutations. This is a <strong>security-sensitive integration</strong>
+        only in the mild sense of API-key handling; it is <strong>not</strong> a high-risk deep-review category
+        (no auth/authz surface, payments, migrations, or infra). Standard review applies.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>docs/data-access.md</code> (VNF/FIRMS channels, key as env var, client-side-clip rationale,
+        go/no-go result), <code>README.md</code> (Status / Data sources), the project map
+        (<code>data/viirs.py</code>, <code>signal/thermal.py</code>, <code>analysis/viirs_triangulation.py</code>,
+        new raw store + CLI), <code>.env.example</code>, <code>.gitignore</code>, and a decision-log entry (VNF
+        product choice + feature-vs-target diagnosis). Reviewer confirms the final list.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Mocked fetcher</strong>: a fake <code>ViirsFetcher</code> returns synthetic per-night
+          detection frames (some on facilities, some off, some empty nights) so acquire→clip→retain
+          fields→persist→manifest is tested without network/key (AT1); resumability: run twice, second run
+          fetches nothing new; mid-range interruption resumes (AT2).</li>
+          <li><strong>Radius join</strong>: synthetic detections at known offsets from facility centroids →
+          assigned to the nearest within radius, ties resolved, outside-radius dropped (AT3a, EDGE-002).</li>
+          <li><strong>Aggregation</strong>: synthetic joined detections → weekly/daily summed radiant heat,
+          detection count, mean temperature correct; empty/sparse weeks flagged (AT3b, EDGE-001/005).</li>
+          <li><strong>Benchmark-blind</strong>: assert the series-build signature takes no CREA/NO₂ argument
+          (AT3c, REQ-012).</li>
+          <li><strong>Triangulation</strong>: feed a synthetic thermal series correlated with a synthetic NO₂
+          and uncorrelated with a synthetic CREA (and vice-versa) → assert <code>robust_corr</code> is called
+          and the interpretation table selects the correct feature-vs-target branch, incl. the honest-null
+          branch (AT5/AT6); BH-FDR applied across the family (REQ-022). Significance functions are exercised via
+          the real <code>robust.py</code>, not mocked, on tiny arrays.</li>
+          <li><strong>FIRMS cross-check</strong>: synthetic FIRMS frame with mixed detection types → only
+          static-land-source retained; cross-check triangulation runs (AT4, EDGE-004).</li>
+          <li><strong>Verification</strong>: synthetic store → <code>render</code> writes a PNG with facility
+          markers (AT7; real-data visual check manual).</li>
+          <li><strong>Errors</strong>: missing/invalid key (no value echoed), endpoint/field-not-found, download
+          failure/resume, budget no-go, bad facilities CSV (AT-ERR-1).</li>
+          <li><strong>Regression</strong>: existing CLI subcommands + TROPOMI/CREA paths unchanged (AT-REG-1).</li>
+        </ul>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no browser UI). The detection/facility render and triangulation figures are inspected manually as the co-location and results check.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>External-access unknowns (the gate).</strong> The exact VNF endpoint/format, whether auth
+          is needed, and the per-night volume are not verifiable without web access. Mitigation: safe defaults
+          (VNF primary, per-night CSV, keyless) + the <strong>T1 spike</strong> that measures and records a
+          go/no-go (REQ-000, ERR-004) before the loop is built — the GEMS/NOX-007 precedent. This is the main
+          reason for the spike-gated structure.</li>
+          <li><strong>Honest null is designed-for and informative.</strong> A null NO₂↔VIIRS is a valid outcome
+          and, combined with CREA↔VIIRS, <em>localises the weak link</em> either way (the whole point). No result
+          is massaged toward significance (NFR-005). This is called out here so nobody treats a null as a failure
+          at review time.</li>
+          <li><strong>Detection sparsity / VNF vs FIRMS coverage.</strong> Night-only sampling, cloud, and
+          sub-detection-threshold furnaces can make the thermal series sparse; sparse weeks are flagged
+          (EDGE-005) and effective-N shrinks honestly (EDGE-003). VNF and FIRMS may disagree; they are kept
+          independent and any diagnosis divergence is reported, not blended (REQ-024, EDGE-006).</li>
+          <li><strong>Multiple testing.</strong> Several correlations are computed → BH-FDR across the family
+          (REQ-022) and pre-registered radius/thresholds/aggregate (NFR-006) guard against a false positive.</li>
+          <li><strong>Facility-set count discrepancy (Q6).</strong> The committed facilities CSV holds ~39 rows,
+          while roadmap text references &ldquo;84&rdquo;; the committed CSV is treated as the source of truth
+          (A7). Impact if wrong: the join target differs — non-blocking, flagged for developer confirmation.</li>
+          <li><strong>Interpretation is diagnostic, not causal.</strong> VIIRS radiant heat is a proxy for
+          furnace thermal state, not a direct production measurement; the triangulation localises the weak link
+          but does not by itself prove causation. Stated in the interpretation table.</li>
+          <li><strong>Rejected alternatives:</strong> (a) FIRMS as the <em>primary</em> series — it is
+          active-fire-tuned, so VNF (industrial-combustion-tuned, reports radiant heat/temperature) is the
+          better primary and FIRMS the cross-check; (b) adding <code>geopandas</code>/<code>shapely</code> for
+          the join — unnecessary for a point-in-radius test, a numpy haversine avoids a heavy dependency;
+          (c) re-implementing significance — forbidden; reuse <code>robust.py</code>; (d) day+night VIIRS
+          products — night-only VNF is sufficient for 24/7 steel baseload and is the cleaner thermal product.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: new modules behind new CLI subcommands; TROPOMI/ERA5/CREA/attribution paths untouched.
+        Rollback = revert the branch and delete <code>data/raw/viirs/</code> (gitignored) + the VIIRS derived
+        artifacts. If the T1 go/no-go is a <strong>no-go</strong>, the task stops with the measurement recorded
+        and no loop is built — nothing downstream depends on it.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

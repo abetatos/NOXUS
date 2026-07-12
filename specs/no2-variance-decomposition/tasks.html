@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — NO₂ change-variance decomposition</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-009</code></td></tr>
+        <tr><th>Feature slug</th><td><code>no2-variance-decomposition</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark progress with a status class on the <code>&lt;li&gt;</code>
+        (<code>done</code>/<code>in-progress</code>/<code>blocked</code>). Do not start until
+        <code>human_approved</code>. Additive — existing signal/attribution/validation/CLI paths stay intact.
+        The decomposition is <strong>benchmark-blind</strong> throughout (NFR-001).</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Decomposition config (REQ-060).</strong></div>
+            <div class="task-item-body">In <code>noxus/config/run.py</code>: a <code>VarianceDecompConfig</code> (bases = first-diff/deseason, resolutions = W/D, meteo covariates <code>u10,v10,blh,wind_speed</code>, entry order, bootstrap draws, seed, cube/ERA5/facilities/out paths, figures dir). Existing config unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Core partition estimator + tests (REQ-020/021, NFR-001, AT2/AT3).</strong></div>
+            <div class="task-item-body">New <code>noxus/signal/variance.py</code>: <code>partition_change_variance(footprint, background, meteo, *, basis, order)</code> → <code>VarianceBudget</code> via sequential nested-R² (regional → +meteo → +local). Clamp negative ΔR² to 0, record raw (EDGE-002). <strong>No benchmark parameter.</strong> Tests: planted-decomposition shares recovered + sum ≈ 1; signature has no benchmark arg; module does not import <code>noxus.data.benchmark</code>.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>Change bases + signal construction (REQ-001/002/010, AT1).</strong></div>
+            <div class="task-item-body">Reuse <code>noxus.attribution.source</code> (footprint 5 km + background ring 25–60 km), <code>noxus.signal.index.regress_out_meteo</code> and the deseason variants (intensity-model residual / harmonic-K1) read-only. Build the first-difference basis (gap-aware, no interpolation across gaps, record effective <code>n</code>, EDGE-003) and the deseasonalised-residual basis.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Autocorrelation-aware share CI (REQ-040, NFR-002, AT6).</strong></div>
+            <div class="task-item-body">Reuse <code>noxus.validation.robust.block_length</code> + a moving-block bootstrap for the CI on each share and the implied ceiling; report the naïve i.i.d. interval alongside. If a generic statistic-bootstrap helper is cleaner, add <code>block_bootstrap_statistic</code> to <code>robust.py</code> additively (A4). Test: block CI wider than naïve on an AR(1) fixture.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Implied ceiling + contrast (REQ-030/031, AT5).</strong></div>
+            <div class="task-item-body"><code>implied_change_ceiling(f) = sqrt(f)</code> and <code>level_ceiling(attributable_cap) = sqrt([0.30,0.43])</code>; compute a verdict string (ceiling-bound/physical vs headroom/method-bound) framing the observed weekly <code>r ≈ 0.07</code> near-null. Never assert the outcome in advance.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Driver over bases × resolutions (REQ-011/022, AT4).</strong></div>
+            <div class="task-item-body">In <code>noxus/signal/variance.py</code>: <code>decompose(cfg)</code> loads the weekly + daily cubes (ERR-001/002) and ERA5 snapshot (ERR-003), runs the partition per (basis × resolution), attaches share CIs + ceilings, and returns the tidy frame; write <code>data/derived/variance_decomposition.csv</code>. Handle degenerate ring / missing meteo (EDGE-004/005).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>CLI <code>variance</code> (REQ-060, NFR-006).</strong></div>
+            <div class="task-item-body">Add the subcommand in <code>noxus/cli/main.py</code> mirroring <code>_cmd_scale_sweep</code> (flags: bases, resolutions, draws, seed); write the CSV; actionable errors for missing cubes/ERA5. Confirm per-basis NO₂-derived series stay under gitignored <code>data/derived/no2/</code>. Existing commands unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Figures + findings (REQ-050, AT7).</strong></div>
+            <div class="task-item-body">New <code>analysis/variance_decomposition.py</code>: stacked variance-partition figure (regional/meteo/steel-local/noise per basis×resolution) + change-vs-level ceiling comparison with CIs → <code>docs/figures/exploration/</code>; write <code>variance_decomposition_findings.txt</code>. Assert driver determinism (same seed → same table).</div></li>
+          <li class="task-item blocked"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>Real run + honest verdict (REQ-031/051, AT7).</strong></div>
+            <div class="task-item-body">Run <code>decompose</code> on the real committed weekly + daily cubes; state whether the steel-local change-variance share ≈ the level share (null is SNR-bound/physical) or &gt;&gt; it (headroom → motivates NOX-010 deweathering, NOX-011 VIIRS). Report all (basis × resolution) budgets; no cherry-picking.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Validation (NFR-005/007, AC-008).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; confirm existing signal/attribution/validation modules and the existing CLI behave unchanged.</div></li>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Docs + decisions + history.</strong></div>
+            <div class="task-item-body">Exploration HTML change-variance-budget section + stacked figure + ceiling comparison; project map (new module + CLI verb); propose decision-log entries (change-variance share as the SNR-ceiling basis; physical-vs-method verdict); append <code>history.html</code>. Reviewer confirms targets.</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> Core estimator takes no benchmark argument; module never reads CREA (anti-p-hacking guard).</li>
+          <li><input type="checkbox" disabled> Planted-decomposition shares recovered within tolerance; four shares sum to ≈ 1; ΔR² entry order recorded.</li>
+          <li><input type="checkbox" disabled> Negative ΔR² clamped to 0 with raw value recorded; gap-aware daily <code>n</code> recorded.</li>
+          <li><input type="checkbox" disabled> Budget emitted on both bases (first-diff, deseason) × both resolutions (weekly, daily).</li>
+          <li><input type="checkbox" disabled> Change ceiling √f reported and contrasted with level ceiling √cap; verdict stated.</li>
+          <li><input type="checkbox" disabled> Block-bootstrap CI on shares/ceiling wider than naïve; both reported.</li>
+          <li><input type="checkbox" disabled> Stacked figure + ceiling comparison + findings; honest verdict; deterministic under seed.</li>
+          <li><input type="checkbox" disabled> Existing signal/attribution/validation/CLI contracts unchanged; per-basis NO₂-derived gitignored.</li>
+          <li><input type="checkbox" disabled> Tests + lint pass; reviewer approved.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

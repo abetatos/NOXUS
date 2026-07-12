@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — VIIRS thermal-anomaly independent benchmark</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — VIIRS thermal-anomaly independent benchmark</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Feature</th><td><code>viirs-thermal-benchmark</code></td></tr>
+        <tr><th>Task ID</th><td><code>NOX-011</code></td></tr>
+        <tr><th>Created</th><td><code>2026-07-12</code></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Unresolved questions. This is a new-acquisition task with genuine <strong>external-access unknowns</strong>
+        (exact VNF endpoint/format, whether auth is needed, per-night volume, product choice). Following the
+        GEMS/NOX-007 precedent, each is captured with a <strong>safe default</strong> and resolved by the
+        <strong>T1 feasibility spike</strong>, so the spec is complete and reviewable. <strong>No question is
+        blocking</strong> — none would cause the wrong thing to be built given its recorded default, so the task
+        can reach <code>spec_ready</code>.</p>
+      </section>
+      <hr>
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">6</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">0</td></tr>
+        </tbody></table>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No — all non-blocking with safe defaults; access details resolved at the T1 spike.</code></pre>
+      </section>
+      <hr>
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header"><span class="req-id">Q1</span><span class="card-title">VNF download endpoint, file format, auth requirement, and per-night volume</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What is the exact VNF (EOG / CSM) download endpoint and per-night file format, does it require authentication or registration, and what is the per-night (hence full-era) data volume over an AOI-sized filter?</dd>
+            <dt>Why it matters</dt><dd>Drives the acquisition client, the batching/budget strategy, and whether an env-var credential is needed at all.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>VNF per-night CSV, free bulk, <strong>no auth</strong> (or lightweight registration); filter to the AOI client-side. <strong>Resolve at T1</strong>: fetch a small window, measure volume/fields/coverage, record go/no-go (REQ-000, ERR-004).</dd>
+            <dt>Affected files / sections</dt><dd><code>noxus/data/viirs.py</code>, design External-dependencies</dd>
+            <dt>Related requirements</dt><dd>REQ-000, REQ-001, REQ-005</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>T1 spike (developer)</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header"><span class="req-id">Q2</span><span class="card-title">Product choice: VNF primary vs FIRMS primary</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Should VNF be the primary thermal series with FIRMS as the cross-check, or vice-versa?</dd>
+            <dt>Why it matters</dt><dd>Sets which product the headline diagnosis rests on. Both are public/free and both are implemented.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd><strong>VNF primary</strong> (temperature/radiant-heat, industrial-combustion-tuned), <strong>FIRMS active-fire as the independent cross-check</strong> (A1). Confirm suitability at T1.</dd>
+            <dt>Affected files / sections</dt><dd>requirements REQ-001/006/024; assumptions A1</dd>
+            <dt>Related requirements</dt><dd>REQ-001, REQ-006, REQ-024</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>developer / T1</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header"><span class="req-id">Q3</span><span class="card-title">Facility-join radius</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>What fixed radius assigns a detection to a facility, given the VNF/FIRMS pixel footprint and plant extent?</dd>
+            <dt>Why it matters</dt><dd>Too small drops real furnace detections; too large pulls in non-steel hot spots. Must be pre-registered (anti-p-hacking).</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>≈ <strong>3&nbsp;km</strong>, fixed and recorded in <code>assumptions.html</code> (A2) before viewing the triangulation; radius sensitivity reportable as robustness.</dd>
+            <dt>Affected files / sections</dt><dd><code>noxus/signal/thermal.py</code>; assumptions A2</dd>
+            <dt>Related requirements</dt><dd>REQ-010, NFR-006</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header"><span class="req-id">Q4</span><span class="card-title">Primary thermal aggregate</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Which aggregate is the headline thermal-activity index — summed radiant heat, detection count, or mean temperature?</dd>
+            <dt>Why it matters</dt><dd>Different aggregates could yield different correlations; the primary must be pre-registered.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd><strong>Weekly summed radiant heat (MW)</strong> primary, with detection count + mean temperature retained as alternates (A3).</dd>
+            <dt>Affected files / sections</dt><dd><code>noxus/signal/thermal.py</code>; assumptions A3</dd>
+            <dt>Related requirements</dt><dd>REQ-011, NFR-006</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header"><span class="req-id">Q5</span><span class="card-title">Does any source require a new dependency?</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>Do the VNF/FIRMS formats need a client or parser beyond the existing stack (<code>httpx</code>, <code>pandas</code>, <code>pyarrow</code>, <code>python-dotenv</code>)?</dd>
+            <dt>Why it matters</dt><dd>Adding a dependency is a decision that needs approval (project MCP/deps discipline); the join is designed to avoid <code>geopandas</code>/<code>shapely</code> via a numpy haversine.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd><strong>No new dependency</strong> (A4). If T1 shows one is genuinely required, <strong>stop and ask</strong> — do not add it silently.</dd>
+            <dt>Affected files / sections</dt><dd><code>pyproject.toml</code>; design External-dependencies</dd>
+            <dt>Related requirements</dt><dd>NFR-004</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>developer / T1</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q6">
+          <div class="card-header"><span class="req-id">Q6</span><span class="card-title">Facility-count discrepancy (CSV ~39 vs roadmap &ldquo;84&rdquo;)</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>The committed <code>data/derived/tangshan_steel_facilities.csv</code> holds ~39 facility rows, while the task/roadmap text references &ldquo;84 facilities&rdquo;. Which is the intended join target?</dd>
+            <dt>Why it matters</dt><dd>Changes the join input (not the code). A larger canonical set could alter the thermal series.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default assumption if not answered</dt><dd>Use the <strong>committed CSV as the source of truth</strong> (A7); if a fuller 84-facility catalogue is intended, the developer supplies/points to it and the same code consumes it.</dd>
+            <dt>Affected files / sections</dt><dd><code>noxus/signal/thermal.py</code>; assumptions A7</dd>
+            <dt>Related requirements</dt><dd>REQ-010, ERR-005</dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Resolved by</dt><dd>developer</dd>
+            <dt>Resolved at</dt><dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+      <hr>
+      <section id="resolved-questions"><h2>Resolved questions</h2><p>Move here after answers.</p></section>
+      <hr>
+      <section id="deferred-questions"><h2>Deferred questions</h2><p>Move here if explicitly deferred.</p></section>
+      <hr>
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note"><h4>Rules</h4><ol>
+          <li>No question is blocking → the task may reach <code>spec_ready</code> once requirements/design/tasks are complete; the final report must mention the unresolved non-blocking questions.</li>
+          <li>Q1/Q2/Q5 are resolved empirically at the T1 spike; reflect the outcome back into the spec and the decision log.</li>
+          <li>Q3/Q4 (radius, aggregate) must be fixed and recorded in <code>assumptions.html</code> before the triangulation is viewed (anti-p-hacking).</li>
+          <li>Do not answer the product/data/dependency questions silently — surface a change of default to the developer.</li>
+        </ol></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

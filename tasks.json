@@ -339,6 +339,138 @@
         "notes": "Developer approved to begin (\"Comienza\", 2026-06-14). Q1 resolved: sweep resolutions {native, 0.10, 0.15, 0.25} deg."
       },
       "created": "2026-06-14"
+    },
+    {
+      "id": "NOX-009",
+      "title": "NO2 variance decomposition (industrial share of change-variance vs imported mean-share ceiling)",
+      "slug": "no2-variance-decomposition",
+      "description": "SPEC_READY 2026-07-06 (spec authored: requirements/design/tasks/assumptions/open-questions/acceptance-tests; 0 blocking open questions; awaiting human approval). Critique-driven (critique #4: 'level share vs variance share'). The project's SNR ceiling is currently an IMPORTED MEAN-LEVEL share (Wen 2024: steel = 30-43% of Tangshan NO2 concentration), used to argue the ~0.63 (sqrt(0.40)) correlation ceiling for a LEVEL estimator. But a change/activity detector lives in the COVARIANCE OF CHANGES, not the mean level; the mean share is the wrong ceiling and was never measured on our data. This task measures EMPIRICALLY what fraction of the variance of the meteo-normalised, deseasonalised footprint NO2 (footprint-minus-background, NOX-003.1 residual) is attributable to (a) the shared regional mode (background ring 25-60 km), (b) the meteo term (variance explained by the ERA5 regression), (c) the steel-footprint-specific local residual, and (d) unexplained noise -- a variance budget, on first differences and on the deseasonalised residual, at weekly and (NOX-006) daily resolution. Deliverable: a variance-partition table + the implied SNR ceiling for a CHANGE detector, contrasted with the level ceiling, to reframe whether the near-null (weekly r=0.07) is genuinely SNR-bound or target/method-bound. ANTI-P-HACKING (NFR, carries from NOX-003.1): the decomposition is computed on NO2 + meteo + background ALONE, never regressed against the CREA benchmark; no smoothing/threshold is selected against CREA. Pure analysis on the EXISTING cube (data/derived/no2/) -- no new acquisition. Honest result acceptable: it either shows headroom (change-variance share >> level share -> the null is method/target-bound, motivating NOX-010/011) or confirms the ceiling (-> the null is physical). NO2-derived outputs gitignored; small stats + figures committable. NOTE: distinct from the informal 'future NOX-009' GEMS-residual analysis mentioned in NOX-007 (that is blocked behind GEMS and will take a later id).",
+      "sdd": true,
+      "status": "done",
+      "depends_on": [
+        "NOX-002b",
+        "NOX-003.1"
+      ],
+      "spec_path": "specs/no2-variance-decomposition/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-07-06",
+        "notes": "Developer said \"adelante\" 2026-07-06 after reviewing the spec (design.html open in IDE)."
+      },
+      "spec_ready_at": "2026-07-06",
+      "origin": "Critique #4 (level-share vs variance-share confusion), roadmap 2026-07-06.",
+      "created": "2026-07-06",
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-07-12",
+        "report": "specs/no2-variance-decomposition/review.html",
+        "note": "Benchmark-blind change-variance decomposition + `noxus variance`. 166 tests, ruff clean; anti-p-hacking guard (estimator takes no benchmark arg) verified. Real run (T9): across all 4 basis x resolution cells the steel-local change-variance share is ~0 within CI (regional common-mode 0.93-0.95, meteo 0.002-0.005, noise 0.04-0.06); implied change-detector ceiling 0.00-0.08 vs the imported level ceiling 0.55-0.66. VERDICT: SNR-bound/physical -- critique #4's variance-share headroom hypothesis is empirically falsified (change-variance steel share is LOWER than the level share). Data repair during T9: normalized 2617 Windows-backslash manifest paths to POSIX so the grid saw the full 389-week / 2720-day series."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "docs/exploration-results.html",
+        ".claude/context/project-map.md",
+        "history.html",
+        "specs/no2-variance-decomposition/design.html",
+        "specs/no2-variance-decomposition/tasks.html"
+      ],
+      "follow_ups": "Real result reframes the roadmap: meteo is only ~0.3-0.5% of change-variance -> NOX-010 (deweathering) premise weakened, recommend deprioritize/reframe. NOX-011 (VIIRS) rises: only lever left to break the feature-vs-target ambiguity given ~0 steel-local NO2 change-variance. Decision-log candidates D1/D2/D3 await developer approval of exact text. Cubes now built (389 wk / 2720 d) and manifest POSIX-normalized."
+    },
+    {
+      "id": "NOX-010",
+      "title": "Non-linear meteo deweathering + stagnation conditioning (beyond linear ERA5 regress-out)",
+      "slug": "meteo-deweathering",
+      "description": "Critique-driven (critiques #5 'condition vs model wind' and #6 'the residual noise is meteorology, not traffic'). The continuous pipeline currently regresses ERA5 covariates (u10, v10, blh, wind_speed) out of the footprint NO2 LINEARLY (meteo_form=linear). Boundary-layer height and ventilation act MULTIPLICATIVELY on surface concentration, so a linear form under-removes meteo variance; and conditioning on meteorology (stagnant vs ventilated subsamples) was only used in the NOX-004 catalyst, never in the continuous signal. This task adds (1) a NON-LINEAR deweathering normalisation (random-forest / gradient-boosted meteo model in the style of Grange & Carslaw 2019 'rmweather', with BLH x wind interactions and a seasonal term), emitting a meteo-normalised footprint signal as an ADDITIVE, selectable method (meteo_form=rf), the existing linear form retained as default/fallback; and (2) a stagnation-conditioned robustness view (correlate on well-ventilated vs stagnant subsamples using a ventilation index + stagnation flag, reusing NOX-004's screen). SUCCESS TEST (pre-registered before viewing): does non-linear deweathering RAISE the footprint<->CREA correlation under the NOX-008 autocorrelation-robust significance (effective-N + Newey-West + moving-block bootstrap CI + block-permutation null + BH-FDR)? DISCIPLINE: the meteo model is fit on NO2 vs meteo ONLY, never against CREA (anti-p-hacking); cross-validated on the NO2 series alone; honest null acceptable (a linear form may already capture most meteo variance, in which case critique #6's 'residual is meteorology' is bounded). Likely new dependency scikit-learn (justify + lazy-import, harmonic/linear fallback if absent) -- open question. Depends on the meteo-normalisation stage (NOX-003) + robust significance (NOX-008) + ERA5 snapshot. NO2-derived outputs gitignored.",
+      "sdd": true,
+      "status": "pending",
+      "depends_on": [
+        "NOX-003.1",
+        "NOX-008"
+      ],
+      "spec_path": "specs/meteo-deweathering/",
+      "approval": {
+        "human_approved": false
+      },
+      "origin": "Critiques #5 (condition vs model wind) + #6 (residual noise is meteorology), roadmap 2026-07-06.",
+      "created": "2026-07-06",
+      "status_note": "DEPRIORITISED 2026-07-12 by NOX-009: the change-variance decomposition measured meteo at only ~0.3-0.5% of the footprint change-variance, so non-linear deweathering has little to rescue for the continuous correlation. Premise weakened; reframe (e.g. fold the stagnation-conditioning robustness into NOX-012) or keep as a low-priority robustness check. NOX-011 (VIIRS) sequenced ahead."
+    },
+    {
+      "id": "NOX-011",
+      "title": "VIIRS thermal-anomaly independent benchmark (triangulate to break the target-vs-feature ambiguity)",
+      "slug": "viirs-thermal-benchmark",
+      "description": "Critique-driven (critique #1: the 'fraudulent target' -- the most letal critique, partly defused because the CREA benchmark is a commercial trader survey (WIND/Custeel), not official statistics, but its provenance is not independently verifiable and Chinese activity data is chronically massaged). CONVERSION into something actionable: triangulate NO2 against a HARD-TO-FALSIFY PHYSICAL activity proxy that no statistical office can dress up -- VIIRS thermal anomalies (nightfire / active-fire radiative power) over the catalogued Tangshan steel facilities (39 rows in data/derived/tangshan_steel_facilities.csv; the earlier \"84\" was a mis-count) (data/derived/tangshan_steel_facilities.csv). Blast furnaces, sinter plants and coke ovens are high-temperature combustion sources VIIRS detects from orbit. Acquire a free VIIRS thermal series (NOAA VIIRS Nightfire VNF and/or NASA FIRMS VNP14 active fire; source resolved in the spec) clipped to the facility footprints over the TROPOMI era, aggregate to the analysis frequency, and run the DECISIVE triangulation: (i) NO2 <-> VIIRS and (ii) CREA <-> VIIRS, with the NOX-008 autocorrelation-robust significance. LOGIC: if NO2 does not even track the physical heat of the furnaces -> the FEATURE is the weak link; if NO2 <-> VIIRS holds but CREA <-> VIIRS does not -> the TARGET (CREA) was the weak link, retroactively re-interpreting every prior near-null. This is the one lever against 'maquillaje': a space-based thermometer cannot be faked. NEW ACQUISITION path (style of NOX-002a): free/public data only, credentials by env-var reference only, resumable manifest, VIIRS-derived outputs gitignored. Honest null acceptable and INFORMATIVE either way. Heaviest of the roadmap on new data; independent of NOX-009/010.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": [
+        "NOX-002b",
+        "NOX-001"
+      ],
+      "spec_path": "specs/viirs-thermal-benchmark/",
+      "approval": {
+        "human_approved": false
+      },
+      "origin": "Critique #1 (fraudulent/unverifiable target) converted to an independent physical benchmark, roadmap 2026-07-06.",
+      "created": "2026-07-06",
+      "spec_ready_at": "2026-07-12",
+      "status_note": "SPEC_READY 2026-07-12: 8 files, 0 blocking open questions (6 non-blocking with defaults + a T1 feasibility spike, GEMS-style). Sequenced AHEAD of NOX-010 per NOX-009 (D3). Product default: VNF (VIIRS Nightfire, EOG/CSM) primary + NASA FIRMS active-fire cross-check. NOTE: facility CSV has 39 rows, not 84."
+    },
+    {
+      "id": "NOX-012",
+      "title": "2023 regime event study + public curtailment calendar (explain the one window the signal appeared)",
+      "slug": "regime-2023-event-study",
+      "description": "Critique-driven (critique #2: 'you looked at the aggregate coefficient, not the residuals -- the structure of the divergences is the product'). Most residual structure was already examined (rolling-18mo correlation, period splits, Simpson-in-levels diagnostic; docs/exploration-results.html) -- so this task targets the SPECIFIC un-closed thread: the rolling-18-month correlation PEAKED at r~0.76 around 2023-06 (clearing the 0.5-0.75 literature bar) and COLLAPSED through 2024, and the public curtailment calendar that the decision log flags as NOT-YET-APPLIED. Assemble a public/free curtailment + air-quality-control calendar for Tangshan/Hebei steel (heating-season production restrictions, blue-sky/anti-smog campaigns, sudden shutdowns/restarts, holiday effects) and run an EVENT STUDY around the 2023 regime using the NOX-004 catalyst machinery on the completed series (the 2023-06 data gap was just filled, 2026-07-06, so June 2023 is now 29/30 days): is the 2023 coupling driven by a few large curtailment events (i.e. the signal is real but EVENT-bound, not continuous), and was the 2024 collapse a change in curtailment regime or accelerating intensity-decoupling (NOX-003.1)? DISCIPLINE: strict no-look-ahead (curtailment dates are exogenous/public; causal baselines), multiple-testing transparency (fix the event windows before viewing outcomes), honest null acceptable (the 2023 peak may be a multiple-comparisons artefact of the rolling window). Reuses NOX-004 event-study + the curtailment calendar (NOX-003/004 follow-up Q4/Q6a). Depends on completed TROPOMI series + NOX-003.1 residual + NOX-004. NO2-derived + calendar-derived outputs gitignored; small stats + figures committable.",
+      "sdd": true,
+      "status": "pending",
+      "depends_on": [
+        "NOX-003.1",
+        "NOX-004"
+      ],
+      "spec_path": "specs/regime-2023-event-study/",
+      "approval": {
+        "human_approved": false
+      },
+      "origin": "Critique #2 (residual structure / the 2023 regime peak) + long-deferred curtailment calendar, roadmap 2026-07-06.",
+      "created": "2026-07-06"
+    },
+    {
+      "id": "NOX-013",
+      "title": "Investment-grade activity nowcast (weekly surprise signal + independent-signal triangulation QC)",
+      "slug": "activity-nowcast-signal",
+      "description": "Developer-directed reframing (2026-07-12): the project's product is an INVESTMENT-GRADE signal, not a correlation study. Convert the physical activity measurement into a weekly, latency-aware NOWCAST of Tangshan steel activity expressed as a SURPRISE: deviation of the satellite-implied activity from an expectation baseline (own seasonal/trend model + last published official print), emitted as a causal z-score tradable at the next session after overpass + processing latency. FEATURE INPUT IS CONTINGENT ON THE ROADMAP: NOX-009 measured the steel-local share of NO2 change-variance at ~0 (93-95% regional common-mode), so the continuous NO2 residual alone is NOT a viable nowcast feature; the candidate features are (a) VIIRS thermal-anomaly series over the facility footprints (NOX-011) as primary physical activity proxy, (b) NO2 event/catalyst markers (NOX-004/NOX-012) for discrete curtailment starts/stops, and (c) NO2 continuous residual only as a contextual covariate. TRIANGULATION AS QC (from the 2026-07-12 discussion): cross-check the nowcast against hard-to-falsify quantities measured OUTSIDE China -- exporter-side iron-ore shipments (Pilbara Ports monthly tonnage to China, Vale shipments), Capesize/Baltic freight, coking-coal exports -- used as signal quality control and as the discrepancy-vs-official-statistics diagnostic (latent-factor / residual-analysis framing: periods where official prints diverge from the independent-signal consensus are flagged with uncertainty, NOT labelled 'fake'). INCUMBENT TEST: the benchmark to beat is the weekly Mysteel/WIND blast-furnace operating-rate survey (the CREA series) -- the nowcast must show INCREMENTAL information (earlier or orthogonal), else no edge exists. DISCIPLINE: strict no-look-ahead (causal baselines, publication-lag-aware alignment of official prints), anti-p-hacking (expectation model fit without reference to market returns), public/free data only, honest null acceptable. Scale caveat explicit: Tangshan ~13% of national steel; provincial (Hebei) statistics preferred where available. Derived series gitignored; small stats + figures committable.",
+      "sdd": true,
+      "status": "pending",
+      "depends_on": [
+        "NOX-011",
+        "NOX-012"
+      ],
+      "spec_path": "specs/activity-nowcast-signal/",
+      "approval": {
+        "human_approved": false
+      },
+      "origin": "Developer direction 2026-07-12: project reframed toward investment-grade signals; triangulation (shipments/freight) retained as QC, not as the goal.",
+      "created": "2026-07-12"
+    },
+    {
+      "id": "NOX-014",
+      "title": "Market mapping + event-study backtest (iron ore & virtual-steel-mill margin spread)",
+      "slug": "market-mapping-backtest",
+      "description": "Second half of the investment-signal reframing (2026-07-12): map the NOX-013 nowcast surprise to instruments whose price responds MONOTONICALLY to Tangshan activity, and backtest honestly. SIGN DISCIPLINE (the core design constraint): steel PRICE responds to production with regime-dependent sign (supply cut -> rebar UP), so naive 'activity up -> long steel' is wrong. Two clean mappings: (1) IRON ORE demand -- blast-furnace activity IS ore consumption; instruments: SGX iron ore 62% Fe (offshore-accessible) / DCE best-effort, miners basket (BHP/RIO/VALE/FMG via yfinance, reusing the NOX-004 market path), AUD as macro proxy; (2) VIRTUAL STEEL MILL margin spread (rebar - iron ore - coking coal): a production cut raises steel AND lowers ore, so the margin widens monotonically -- the regime-unambiguous translation of the physical signal. EVALUATION: (a) event study -- cumulative abnormal returns around detected production events (reusing NOX-004 machinery on the upgraded event set from NOX-012/NOX-011), (b) information coefficient of the weekly surprise vs forward returns with the NOX-008 autocorrelation-robust inference (effective-N, Newey-West, moving-block bootstrap, block-permutation null) + BH-FDR across instruments x horizons, (c) INCREMENTAL-INFORMATION test: does the satellite surprise add predictive content beyond the freely published Mysteel/CREA operating rate known at trade time? DISCIPLINE: strict no-look-ahead (trade at next session after data availability, publication lags modelled), defaults fixed before viewing returns (multiple-testing transparency), transaction-cost-aware summary, honest null acceptable and publishable ('candidate signal, event-study proof of concept' is the realistic deliverable given ~6 years of weekly data; NO validated-alpha claim). Public/free price data only (yfinance + exchange daily-settlement snapshots best-effort, per NOX-004 Q1); price snapshots + derived signals gitignored; small stats + figures committable.",
+      "sdd": true,
+      "status": "pending",
+      "depends_on": [
+        "NOX-013",
+        "NOX-004",
+        "NOX-008"
+      ],
+      "spec_path": "specs/market-mapping-backtest/",
+      "approval": {
+        "human_approved": false
+      },
+      "origin": "Developer direction 2026-07-12: investment-signal reframing, part 2 (market translation + honest backtest).",
+      "created": "2026-07-12"
     }
   ]
 }

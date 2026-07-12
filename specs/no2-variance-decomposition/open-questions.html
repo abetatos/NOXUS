@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — NO₂ change-variance decomposition</h1>
+
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>NO₂ change-variance decomposition</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>no2-variance-decomposition</code></td></tr>
+          <tr><th>Source document</th> <td>Critique roadmap 2026-07-06 (critique #4)</td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-009</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document records unresolved questions found while converting critique #4 into an SDD spec.</p>
+        <p>Blocking questions must be answered before implementation. <strong>There are no blocking questions</strong> — NOX-009 is pure analysis on the existing cube, so both open questions are non-blocking (safe defaults are recorded and let the task proceed to <code>spec_ready</code>).</p>
+      </section>
+
+      <hr>
+
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+
+        <table>
+          <thead>
+            <tr><th>Type</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">2</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+
+        <p><strong>Blocking questions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header">
+            <span class="req-id">Q1</span>
+            <span class="card-title">Should a commonality/Shapley variance split be added alongside the sequential ΔR²?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>The budget is estimated as sequential nested ΔR² in a fixed entry order (A1/A2). If regional, meteo and steel-local variance are strongly collinear, the order determines who "owns" the shared part. Do you want a symmetric commonality / Shapley (LMG) decomposition reported alongside, so the steel-local share is bracketed between the conservative (last-entry) and symmetric estimates?</dd>
+              <dt>Why it matters</dt>                  <dd>It changes how defensible the headline steel-local share is if collinearity is high; a Shapley bracket makes the order-dependence quantitative rather than a caveat.</dd>
+              <dt>Blocking</dt>                        <dd>No</dd>
+              <dt>Default assumption if not answered</dt><dd>Ship the conservative sequential ΔR² only (A1/A2), report the raw per-step ΔR² and state the order-dependence (EDGE-001). A Shapley variant can be added later without changing the public interface.</dd>
+              <dt>Affected files / sections</dt>       <dd><code>noxus/signal/variance.py</code>; design "Variance-partition estimator"; REQ-020/021, EDGE-001</dd>
+              <dt>Related requirements</dt>            <dd>REQ-020, REQ-021, EDGE-001</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header">
+            <span class="req-id">Q2</span>
+            <span class="card-title">Is the sqrt(share) → correlation-ceiling mapping the ceiling you want quoted?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>REQ-030 reports the change-detector ceiling as ≈ <code>sqrt(steel-local variance share)</code> — the maximum |r| attainable if the steel-local component were a perfect proxy for true steel-activity change and the rest were independent noise. This is an upper bound under an independence assumption. Do you want any additional ceiling framing (e.g. an attenuation-for-retrieval-noise variant, or an R²-based statement), or is the single sqrt(f) mapping sufficient?</dd>
+              <dt>Why it matters</dt>                  <dd>Only affects how the ceiling is <em>presented</em>; the measured shares are unchanged. A single clear mapping keeps the message crisp; extra variants add rigour but clutter.</dd>
+              <dt>Blocking</dt>                        <dd>No</dd>
+              <dt>Default assumption if not answered</dt><dd>Report the single ≈ <code>sqrt(f)</code> ceiling with an explicit statement of the independence assumption behind it, contrasted with ≈ <code>sqrt(attributable_cap)</code> for the level ceiling (REQ-030/031).</dd>
+              <dt>Affected files / sections</dt>       <dd>design "Implied change-detector ceiling"; REQ-030/031; findings note</dd>
+              <dt>Related requirements</dt>            <dd>REQ-030, REQ-031</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="resolved-questions">
+        <h2>Resolved questions</h2>
+        <p>Move questions here after the developer answers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="deferred-questions">
+        <h2>Deferred questions</h2>
+        <p>Move non-blocking questions here if the developer explicitly decides to defer them. Deferred questions must not block implementation.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>If any question has <strong>Blocking: Yes</strong> and <strong>Decision: Pending</strong>, do not implement. (None here is blocking.)</li>
+            <li>If only non-blocking questions remain, the task may be marked <code>spec_ready</code> if all assumptions are explicit.</li>
+            <li>Do not answer product, security, data, billing, or architecture questions silently.</li>
+            <li>When the developer answers a question, update this file and reflect the decision in <code>requirements.html</code>, <code>design.html</code>, <code>tasks.html</code>, or <code>acceptance-tests.html</code>.</li>
+            <li>Before moving a task to <code>human_approved</code>, verify that no blocking question remains pending.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

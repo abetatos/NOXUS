@@ -260,6 +260,56 @@ class ScaleSweepConfig:
     findings_name: str = "scale_sensitivity_findings.txt"
 
 
+@dataclass(frozen=True)
+class VarianceDecompConfig:
+    """Configuration for the NO2 change-variance decomposition (NOX-009, REQ-060).
+
+    Measures — benchmark-blind — what fraction of the *variance of changes* in the meteo-normalised
+    footprint NO2 signal is attributable to a four-term budget (regional / meteo / steel-local /
+    noise), on two change bases (first differences; deseasonalised residual) at two resolutions
+    (weekly cube; NOX-006 daily cube), and converts the steel-local share into an implied SNR ceiling
+    for a *change* detector, contrasted with the imported mean-level (Wen) ceiling. Defaults are fixed
+    here so the run is reproducible and no basis/resolution is selected to flatter the conclusion
+    (NFR-003/004). The CREA benchmark is *never* referenced (NFR-001).
+    """
+
+    # --- Change bases & resolutions (REQ-010/011) ---------------------------------------------
+    # "first-diff" = gap-aware first differences; "deseason" = the deseasonalised residual.
+    bases: tuple[str, ...] = ("first-diff", "deseason")
+    # Cube resolutions to run: "W" weekly cube, "D" NOX-006 daily cube.
+    resolutions: tuple[str, ...] = ("W", "D")
+    # Deseasonalisation variant for the "deseason" basis (reuses noxus.signal.index.deseasonalize):
+    # "harmonic" = NOX-003.1 intensity trend + K=1 annual harmonic (dependency-free); "intensity-model"
+    # = the NOX-003.1 intensity residual. Never selected against the benchmark (NFR-001).
+    deseason_method: str = "harmonic"
+
+    # --- Partition (REQ-020/021) --------------------------------------------------------------
+    # ERA5 covariates forming the meteo term (linear regress-out, A5). "wind_speed" is derived.
+    meteo_covariates: tuple[str, ...] = ("u10", "v10", "blh", "wind_speed")
+    # Fixed nested entry order (A2): regional common mode -> meteo -> steel-local footprint residual.
+    order: tuple[str, ...] = ("regional", "meteo", "local")
+    # Imported mean-level attributable cap (Wen 2024) used ONLY for the level-ceiling contrast.
+    attributable_cap: tuple[float, float] = (0.30, 0.43)
+
+    # --- Autocorrelation-aware CI (REQ-040, A4) -----------------------------------------------
+    n_boot: int = 5000  # moving-block bootstrap draws for each share/ceiling CI
+    seed: int = 20260706  # fixed RNG seed (NFR-004)
+    block_exponent: float = 1.0 / 3.0  # moving-block length rule (reused from NOX-008, A4)
+    block_floor: int = 2
+
+    # --- Paths --------------------------------------------------------------------------------
+    cube_path_weekly: Path = Path("data/derived/no2/no2_cube_w.nc")
+    cube_path_daily: Path = Path("data/derived/no2/no2_cube_d.nc")
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "variance_decomposition.csv"
+    figures_dir: Path = Path("docs/figures/exploration")
+    findings_name: str = "variance_decomposition_findings.txt"
+    # Optional gitignored per-basis change-series cache (NO2-derived, NFR-006).
+    series_cache_dir: Path = Path("data/derived/no2/variance")
+
+
 # Default market instruments (NOX-004). Free/reproducible via yfinance: global miners + a steel ETF.
 # Chinese ferrous futures (SHFE rebar / DCE iron ore / coking coal) lack a clean free API (Q1) and are
 # left out of the default set — added behind a best-effort exchange-settlement snapshot when available.

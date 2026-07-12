@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — NO₂ change-variance decomposition</h1>
+
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>NO₂ change-variance decomposition</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>no2-variance-decomposition</code></td></tr>
+          <tr><th>Source document</th>  <td>Critique roadmap 2026-07-06 (critique #4)</td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-009</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document defines acceptance-level test scenarios for NOX-009.</p>
+        <p>These describe the observable behaviour that must be true for the feature to be accepted. They map back to the <code>REQ</code>/<code>NFR</code>/<code>EDGE</code>/<code>ERR</code>/<code>AC</code> IDs in <code>requirements.html</code>.</p>
+        <ul>
+          <li>The implementer should use this file to create or update automated tests.</li>
+          <li>The reviewer should use this file to verify that the implementation satisfies the approved spec.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <p>The acceptance tests must verify:</p>
+        <ul>
+          <li>the main success scenario (a four-term variance budget is produced on both change bases at both resolutions);</li>
+          <li>the anti-p-hacking invariant (no benchmark ever enters the estimator);</li>
+          <li>quantitative recovery on a planted-decomposition synthetic;</li>
+          <li>autocorrelation-aware CIs (block bootstrap wider than i.i.d.);</li>
+          <li>edge cases (order-dependence, negative ΔR² clamp, gap-aware daily differencing);</li>
+          <li>error cases (missing cube / ERA5, benchmark refusal);</li>
+          <li>non-regression of existing signal/attribution/validation/CLI behaviour.</li>
+        </ul>
+
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest with synthetic fixtures (deterministic, no network/credentials), mirroring the NOX-003.1 / NOX-008 test style: a planted-signal generator with known variance shares; a fake/xarray cube fixture; fixed RNG seeds. In-repo real-data smoke on the committed cube is a separate, opt-in task, not a unit test.</code></pre>
+
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/signal/test_variance.py          # partition, ceiling, bootstrap CI, anti-p-hacking guard
+tests/cli/test_variance_cli.py         # `noxus variance` wiring, config echo, error messages
+tests/fixtures/                        # planted-decomposition synthetic + small cube fixture</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001, REQ-002</span></td><td>AT1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-003, NFR-001, ERR-004</span></td><td>AT2, AT-ERR-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-020, REQ-021</span></td><td>AT3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-010, REQ-011, REQ-022</span></td><td>AT4</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-030, REQ-031</span></td><td>AT5</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-040, NFR-002</span></td><td>AT6</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-050, REQ-051, NFR-003</span></td><td>AT7</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-004, NFR-005, NFR-007</span></td><td>AT8, AT-REG-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">EDGE-001</span></td><td>AT3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">EDGE-002</span></td><td>AT-EDGE-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">EDGE-003</span></td><td>AT-EDGE-2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">EDGE-004, EDGE-005, EDGE-006</span></td><td>AT-EDGE-3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">ERR-001, ERR-002, ERR-003</span></td><td>AT-ERR-2</td><td class="ok">Yes</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header">
+            <span class="req-id">AT1</span>
+            <span class="card-title">Series built via existing attribution + meteo/deseason reuse</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-001, REQ-002</dd>
+              <dt>Scenario</dt>              <dd>The decomposition constructs its footprint (5 km) and background-ring (25–60 km) series and its meteo-normalised / deseasonalised inputs by calling the existing attribution + <code>noxus.signal.index</code>/<code>intensity</code> pathways, not a re-implementation.</dd>
+              <dt>Preconditions</dt>         <dd>A small synthetic cube fixture with a footprint region, a background ring, and injected meteo covariates.</dd>
+              <dt>Action</dt>                <dd>Invoke the series-construction step of the decomposition on the fixture.</dd>
+              <dt>Expected result</dt>       <dd>The produced footprint / background / meteo-normalised series equal those from the existing modules on the same fixture (byte-for-byte / within float tolerance); no attribution or index algorithm is altered.</dd>
+              <dt>Negative expectations</dt> <dd>No new footprint/background/deseason algorithm is introduced; existing functions are not modified.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at2">
+          <div class="card-header">
+            <span class="req-id">AT2</span>
+            <span class="card-title">Anti-p-hacking: estimator takes no benchmark argument and never reads CREA</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-003, NFR-001, AC-002</dd>
+              <dt>Scenario</dt>              <dd>The core decomposition function's signature is inspected and the module's imports/reads are checked; the benchmark cannot influence any share.</dd>
+              <dt>Preconditions</dt>         <dd>The variance module is importable.</dd>
+              <dt>Action</dt>                <dd>Use <code>inspect.signature</code> on the core estimator; scan the module for any import/read of the CREA benchmark path or a benchmark parameter (mirrors the NOX-003.1 <code>fit_intensity_trend</code> guard).</dd>
+              <dt>Expected result</dt>       <dd>The estimator exposes <strong>no</strong> benchmark/output parameter; the module never imports or opens the CREA parquet/CSV; the guard test passes.</dd>
+              <dt>Negative expectations</dt> <dd>No hidden keyword accepts a benchmark; no smoothing/threshold/df is selectable against CREA.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header">
+            <span class="req-id">AT3</span>
+            <span class="card-title">Planted-decomposition shares recovered; ΔR² order recorded</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-020, REQ-021, EDGE-001, AC-001</dd>
+              <dt>Scenario</dt>              <dd>A synthetic change signal is built as <code>footprint_change = regional + β·meteo + local + noise</code> with known variance shares.</dd>
+              <dt>Preconditions</dt>         <dd>Planted-signal generator with configurable, known shares and low cross-term collinearity; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run the nested-model partition (regional → +meteo → +local → noise).</dd>
+              <dt>Expected result</dt>       <dd>The four recovered shares match the planted shares within tolerance and sum to ≈ 1; the entry order and per-step ΔR² are recorded in the output.</dd>
+              <dt>Negative expectations</dt> <dd>Shares are not silently renormalised to hide a mismatch; the order is not chosen to maximise the steel-local share.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header">
+            <span class="req-id">AT4</span>
+            <span class="card-title">Both change bases × both resolutions, one table row each</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-010, REQ-011, REQ-022, AC-003</dd>
+              <dt>Scenario</dt>              <dd>The budget is produced on first differences and on the deseasonalised residual, at weekly and daily resolution.</dd>
+              <dt>Preconditions</dt>         <dd>Weekly and daily cube fixtures available.</dd>
+              <dt>Action</dt>                <dd>Run the full decomposition; read the emitted variance-partition CSV.</dd>
+              <dt>Expected result</dt>       <dd>Four rows (2 bases × 2 resolutions), each carrying <code>n</code>, the four shares, the entry-order ΔR² terms, and the headline steel-local share.</dd>
+              <dt>Negative expectations</dt> <dd>No basis/resolution is omitted from the table; levels are not used as a "change" basis.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code>, <code>tests/cli/test_variance_cli.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header">
+            <span class="req-id">AT5</span>
+            <span class="card-title">Change-detector ceiling contrasted with the level ceiling; verdict stated</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-030, REQ-031, AC-004</dd>
+              <dt>Scenario</dt>              <dd>From the steel-local share <code>f</code>, the implied change ceiling ≈ <code>sqrt(f)</code> is reported and compared with the level ceiling ≈ <code>sqrt(attributable_cap)</code>.</dd>
+              <dt>Preconditions</dt>         <dd>A budget with a known steel-local share; <code>attributable_cap = [0.30, 0.43]</code> from config.</dd>
+              <dt>Action</dt>                <dd>Compute the ceiling comparison and the physical-vs-method-bound verdict.</dd>
+              <dt>Expected result</dt>       <dd>The output states both ceilings numerically and a verdict: ceiling-bound/physical if change share ≈ level share, headroom/method-bound if change share ≫ level share; the observed near-null (weekly r≈0.07) is framed against the ceiling.</dd>
+              <dt>Negative expectations</dt> <dd>No verdict is asserted independent of the measured shares; the sqrt-independence assumption is stated, not hidden.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header">
+            <span class="req-id">AT6</span>
+            <span class="card-title">Moving-block bootstrap CI wider than naïve on an autocorrelated fixture</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-040, NFR-002, AC-005</dd>
+              <dt>Scenario</dt>              <dd>On an AR(1)-autocorrelated fixture, the CI on the steel-local share is computed both by moving-block bootstrap and by naïve i.i.d. resampling.</dd>
+              <dt>Preconditions</dt>         <dd>Fixture with strong positive serial correlation; fixed seed; block length from the reused NOX-008 rule.</dd>
+              <dt>Action</dt>                <dd>Compute both CIs via <code>noxus.validation.robust</code>.</dd>
+              <dt>Expected result</dt>       <dd>The block-bootstrap CI is strictly wider than the i.i.d. CI; both are reported; the block length used is recorded.</dd>
+              <dt>Negative expectations</dt> <dd>The naïve CI is never reported alone; the seed is not left unset.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header">
+            <span class="req-id">AT7</span>
+            <span class="card-title">Figures + findings note; honest verdict; no cherry-picking</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-050, REQ-051, NFR-003, AC-007</dd>
+              <dt>Scenario</dt>              <dd>The run emits a stacked variance-partition figure (regional/meteo/steel-local/noise per basis×resolution), a ceiling-comparison figure, and a findings note.</dd>
+              <dt>Preconditions</dt>         <dd>A completed budget over all four cells.</dd>
+              <dt>Action</dt>                <dd>Generate the report artefacts.</dd>
+              <dt>Expected result</dt>       <dd>All four cells appear in the figure; the findings note states the physical-vs-method-bound verdict and its implication for NOX-010/011; a confirmed ceiling is worded as a valid finding.</dd>
+              <dt>Negative expectations</dt> <dd>No basis/resolution is dropped to flatter the conclusion; a null is not worded as a failure.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code> (artefact presence + content assertions)</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header">
+            <span class="req-id">AT8</span>
+            <span class="card-title">Determinism, additivity, lint/tests pass</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>NFR-004, NFR-005, NFR-007, AC-008</dd>
+              <dt>Scenario</dt>              <dd>Re-running with the same seed/config reproduces the table identically; existing behaviour is untouched.</dd>
+              <dt>Preconditions</dt>         <dd>Same cube + ERA5 snapshot + config; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run the decomposition twice; run the full suite and lint.</dd>
+              <dt>Expected result</dt>       <dd>Byte-identical variance-partition table across runs; <code>uv run pytest</code> and <code>uv run ruff check .</code> pass; no new dependency added.</dd>
+              <dt>Negative expectations</dt> <dd>No nondeterministic ordering; no new third-party dependency in <code>pyproject.toml</code>.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+
+        <div class="card" id="at-edge-1">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-1</span>
+            <span class="card-title">Negative incremental ΔR² is clamped and flagged</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-002, AC-006</dd>
+              <dt>Scenario</dt>              <dd>A fixture where adding a term yields a small negative ΔR² (suppression / sampling noise).</dd>
+              <dt>Preconditions</dt>         <dd>Planted signal tuned so one incremental step is slightly negative.</dd>
+              <dt>Action</dt>                <dd>Run the partition.</dd>
+              <dt>Expected result</dt>       <dd>The reported share for that term is clamped to 0, the raw ΔR² is recorded, and the term is flagged; no negative variance share is emitted.</dd>
+              <dt>Negative expectations</dt> <dd>The pipeline does not crash; the negative value is not silently propagated.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-2">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-2</span>
+            <span class="card-title">Gap-aware daily first differencing records effective n</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-003, AC-006</dd>
+              <dt>Scenario</dt>              <dd>A daily fixture with cloud gaps; first differences must only be taken across genuine adjacent observations.</dd>
+              <dt>Preconditions</dt>         <dd>Daily series fixture with missing days.</dd>
+              <dt>Action</dt>                <dd>Run the first-difference basis at daily resolution.</dd>
+              <dt>Expected result</dt>       <dd>No difference is computed across a gap; no interpolation is introduced; the effective <code>n</code> after gap-aware differencing is recorded; a too-sparse basis is labelled low-power, not crashed.</dd>
+              <dt>Negative expectations</dt> <dd>No interpolation across gaps; no silent inflation of <code>n</code>.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-3">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-3</span>
+            <span class="card-title">Degenerate background / missing meteo / near-zero local share</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-004, EDGE-005, EDGE-006</dd>
+              <dt>Scenario</dt>              <dd>Three sub-cases: (a) an empty/near-empty background ring at some period; (b) a meteo covariate missing for part of the series; (c) a steel-local share whose CI includes ~0.</dd>
+              <dt>Preconditions</dt>         <dd>Fixtures exercising each degeneracy.</dd>
+              <dt>Action</dt>                <dd>Run the decomposition on each.</dd>
+              <dt>Expected result</dt>       <dd>(a) reuses the attribution <code>GeometryError</code> handling and reports the budget without the regional split, labelled; (b) fits meteo on jointly-available rows and records the covered fraction, no extrapolation; (c) the implied ceiling collapses toward 0 and the report states the null is SNR-bound rather than quoting a spuriously precise tiny ceiling.</dd>
+              <dt>Negative expectations</dt> <dd>No crash; no fabricated regional/meteo split; no over-precise near-zero ceiling.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-1</span>
+            <span class="card-title">Benchmark passed into the estimator is refused</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-004, NFR-001</dd>
+              <dt>Scenario</dt>              <dd>A caller attempts to pass a benchmark/output series into the decomposition estimator.</dd>
+              <dt>Preconditions</dt>         <dd>The variance module is importable.</dd>
+              <dt>Action</dt>                <dd>Attempt to call the estimator with a benchmark keyword/positional argument.</dd>
+              <dt>Expected result</dt>       <dd>The call fails (the estimator exposes no such parameter — <code>TypeError</code>), the runtime face of NFR-001.</dd>
+              <dt>Negative expectations</dt> <dd>No hidden path accepts and uses a benchmark.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/signal/test_variance.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-2">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-2</span>
+            <span class="card-title">Missing weekly/daily cube or ERA5 snapshot fails with an actionable message</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-001, ERR-002, ERR-003</dd>
+              <dt>Scenario</dt>              <dd>Run with (a) the weekly cube absent, (b) daily requested but <code>no2_cube_d.nc</code> absent, (c) the ERA5 snapshot absent.</dd>
+              <dt>Preconditions</dt>         <dd>Temp working dir missing the respective artefact.</dd>
+              <dt>Action</dt>                <dd>Invoke <code>noxus variance</code> in each condition.</dd>
+              <dt>Expected result</dt>       <dd>(a) fails naming <code>noxus grid</code>; (b) fails naming the NOX-006 daily-cube command rather than silently reporting weekly-only; (c) fails naming the ERA5 ingest command rather than dropping the meteo split.</dd>
+              <dt>Negative expectations</dt> <dd>No silent degradation; no partial table presented as complete.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/cli/test_variance_cli.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header">
+            <span class="req-id">AT-REG-1</span>
+            <span class="card-title">Existing signal / attribution / validation / CLI behaviour unchanged</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Existing behavior protected</dt> <dd>NOX-003/003.1 attribution + index/intensity, NOX-008 robust significance, and all existing <code>noxus</code> subcommands and their defaults.</dd>
+              <dt>Related requirements</dt>         <dd>NFR-005</dd>
+              <dt>Scenario</dt>                     <dd>The pre-existing test suite runs unchanged after the NOX-009 code is added.</dd>
+              <dt>Preconditions</dt>                <dd>Full repo suite.</dd>
+              <dt>Action</dt>                       <dd>Run <code>uv run pytest</code>.</dd>
+              <dt>Expected result</dt>              <dd>All pre-existing tests pass unmodified; no existing public function signature or CLI default changed; the only new surface is <code>noxus variance</code> + the new module.</dd>
+              <dt>Negative expectations</dt>        <dd>No edits to existing signal/validation algorithms; no change to existing subcommand defaults.</dd>
+              <dt>Suggested test location</dt>      <dd>whole suite; <code>tests/cli/</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <p>Use during human review.</p>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> Main success path (four-cell budget + ceiling) is covered.</li>
+          <li><input type="checkbox" disabled> Anti-p-hacking guard (no benchmark argument) is covered.</li>
+          <li><input type="checkbox" disabled> Autocorrelation-aware CI (block vs i.i.d.) is covered.</li>
+          <li><input type="checkbox" disabled> Edge cases (order-dependence, ΔR² clamp, gap-aware n) are covered.</li>
+          <li><input type="checkbox" disabled> Error cases (missing cube/ERA5, benchmark refusal) are covered.</li>
+          <li><input type="checkbox" disabled> Non-goals (existing behaviour) are protected.</li>
+          <li><input type="checkbox" disabled> Tests are feasible with the current project test setup.</li>
+          <li><input type="checkbox" disabled> No acceptance test depends on hidden assumptions.</li>
+          <li><input type="checkbox" disabled> Any unresolved behavior is listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests must map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behavior that is absent from the critique brief or approved assumptions.</li>
+            <li>If a test requires an unresolved decision, add or update <code>open-questions.html</code>.</li>
+            <li>The implementer must create automated tests based on this document where feasible.</li>
+            <li>The reviewer must verify that implemented tests cover this document.</li>
+            <li>The real-data run on the committed cube is an opt-in task, not a unit test (no network at test time).</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

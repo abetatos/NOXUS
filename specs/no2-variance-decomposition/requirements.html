@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — NO₂ change-variance decomposition (industrial share vs the imported mean-share ceiling)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-009</code></td></tr>
+        <tr><th>Feature slug</th><td><code>no2-variance-decomposition</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-002b</code> (cube), <code>NOX-003.1</code> (intensity residual, anti-p-hacking discipline), <code>NOX-006</code> (daily cube), <code>NOX-008</code> (autocorr-robust tooling)</td></tr>
+        <tr><th>Origin</th><td>Critique #4 — "level share vs variance share confusion"</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The project currently justifies its signal-to-noise <strong>ceiling</strong> with an
+        <strong>imported mean-level share</strong>: Wen (2024) reports steel ≈ <strong>30–43%</strong> of Tangshan
+        NO₂ <em>concentration</em>, and we argued a level-correlation ceiling of ≈ <code>sqrt(0.40) ≈ 0.63</code>.
+        That is the <strong>wrong ceiling for a change detector</strong>. A steel-<em>activity</em> detector's
+        signal lives in the <strong>covariance of changes</strong>, not the mean level — and the mean share was
+        never measured on <em>our</em> data. The full-series result is a near-null (weekly Pearson
+        <code>r = 0.07</code>, <code>p = 0.18</code>, <code>N = 358</code>; monthly ≈ 0.13); one regime shows a
+        rolling-18-month <code>r ≈ 0.76</code> at 2023-06; NOX-008 found <strong>0/128</strong>
+        scale×variant×lag tests robust after FDR.</p>
+        <p>This feature <strong>empirically measures</strong> what fraction of the <strong>variance of changes</strong>
+        in the meteo-normalised, deseasonalised footprint NO₂ signal is attributable to a budget of four terms,
+        and converts that steel-local share into an <strong>implied SNR ceiling for a change detector</strong>,
+        explicitly contrasted with the imported level ceiling. It is <strong>pure analysis on the existing
+        analysis-ready cube</strong> (<code>data/derived/no2/</code>) — no new acquisition.</p>
+        <ul>
+          <li><strong>(a) Shared regional mode</strong> — the variance captured by the background ring
+          (25–60 km) anomaly (the Beijing-Tianjin-Hebei common mode).</li>
+          <li><strong>(b) Meteo term</strong> — the variance explained by the existing ERA5 regression
+          (<code>u10</code>, <code>v10</code>, <code>blh</code>, <code>wind_speed</code>).</li>
+          <li><strong>(c) Steel-footprint-specific LOCAL residual</strong> — the <em>incremental</em> variance of
+          the footprint (5 km) over the background+meteo model: the part that could carry an activity signal.</li>
+          <li><strong>(d) Unexplained noise</strong> — the residual white/retrieval component.</li>
+        </ul>
+        <p>The budget is computed on <strong>two change bases</strong> — <strong>first differences</strong> and the
+        <strong>deseasonalised residual</strong> (NOX-003.1 intensity-model residual / harmonic-K1) — at
+        <strong>weekly</strong> and <strong>daily</strong> (NOX-006) resolution. The deliverable is a
+        <strong>variance-partition table</strong> plus the <strong>implied change-detector ceiling</strong>
+        (≈ <code>sqrt(local share)</code>) reported against the level ceiling (≈ <code>sqrt</code> of the Wen
+        cap). The interpretation reframes the near-null: if the steel-local change-variance share ≈ the level
+        share, the null is <strong>SNR-bound (physical)</strong>; if it is <strong>&gt;&gt;</strong> the level
+        share, there is <strong>headroom</strong> and the null is <strong>method/target-bound</strong> — which
+        motivates NOX-010 (deweathering) and NOX-011 (VIIRS triangulation).</p>
+        <p><strong>Honesty (carried over):</strong> the decomposition is computed on NO₂ + meteo + background
+        <strong>alone</strong>, never regressed against or tuned to the CREA benchmark (mirrors NOX-003.1's
+        benchmark-blind discipline). An honest result is designed for: it may <strong>confirm the ceiling</strong>
+        (null is physical) or reveal <strong>headroom</strong> (null is method-bound) — both are reportable
+        products (Morris &amp; Zhang 2019).</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-inputs">Signal construction (benchmark-blind)</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When given the analysis-ready cube, the system shall build the <strong>footprint (5 km)</strong> and <strong>background-ring (25–60 km)</strong> per-period series using the <strong>existing</strong> attribution pathway (<code>noxus.attribution.source</code> footprint mask + background ring; radii from <code>SignalConfig</code>), with no change to those algorithms (additive reuse).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When constructing the analysis series, the system shall meteo-normalise via the <strong>existing</strong> ERA5 regression (<code>regress_out_meteo</code>: <code>u10</code>, <code>v10</code>, <code>blh</code>, <code>wind_speed</code>) and deseasonalise via the <strong>existing</strong> variants (NOX-003.1 <code>intensity-model</code> residual and <code>harmonic-K1</code>), reusing <code>noxus.signal.index</code> read-only.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>The decomposition inputs shall be <strong>NO₂ + meteo + background only</strong>; the CREA benchmark (or any steel-output series) shall <strong>never</strong> be an input to, or a selection criterion for, any step of the decomposition (anti-p-hacking, NFR-001; enforced by the estimator taking no benchmark argument, mirroring NOX-003.1 <code>fit_intensity_trend</code>).</span></div>
+
+        <h3 id="fr-basis">Change bases &amp; resolutions</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When decomposing, the system shall compute the variance budget on <strong>both</strong> change bases: (i) <strong>first differences</strong> of the series, and (ii) the <strong>deseasonalised residual</strong> (intensity-model residual / harmonic-K1), so the "variance of changes" is measured on a difference basis and on a deseasonalised basis, not on levels.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When decomposing, the system shall run at <strong>weekly</strong> (<code>no2_cube_w.nc</code>) and <strong>daily</strong> (<code>no2_cube_d.nc</code>, NOX-006) resolution, reporting each (basis × resolution) combination as its own budget so the reader sees the scale/cadence dependence.</span></div>
+
+        <h3 id="fr-partition">Variance partition</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When computing the budget, the system shall partition the total variance of the footprint change signal into a <strong>sequential/hierarchical budget</strong> of four non-negative shares that sum to 1 (within rounding): <strong>(a) regional</strong> — variance explained by the background-ring change; <strong>(b) meteo</strong> — the <em>incremental</em> variance explained by adding the ERA5 covariates; <strong>(c) steel-local</strong> — the <em>incremental</em> variance of the footprint over the background+meteo model; and <strong>(d) noise</strong> — the remaining unexplained residual.</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When partitioning, the system shall record the <strong>entry order</strong> of the nested model (regional → +meteo → +local footprint) and shall report the incremental R² (ΔR²) attributed at each step, so the partition is auditable and its order-dependence is explicit (EDGE-001).</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>When a share estimate is required, the system shall emit a <strong>variance-partition table</strong> with one row per (basis, resolution) carrying: <code>n</code>, the four shares (regional, meteo, steel-local, noise), the entry-order ΔR² terms, and the <strong>steel-local share</strong> as the headline quantity.</span></div>
+
+        <h3 id="fr-ceiling">Implied change-detector ceiling</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When the steel-local change-variance share <code>f</code> is estimated, the system shall report the <strong>implied SNR ceiling for a change detector</strong> as ≈ <code>sqrt(f)</code> (the maximum attainable correlation of a change detector with the true steel-activity change), <strong>explicitly contrasted</strong> with the imported <strong>level ceiling</strong> ≈ <code>sqrt</code> of the Wen attributable cap (<code>attributable_cap = [0.30, 0.43]</code>).</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>When reporting the ceiling, the system shall state which regime holds — <strong>ceiling-bound / physical</strong> (steel-local change share ≈ level share) or <strong>headroom / method-bound</strong> (change share &gt;&gt; level share) — and shall frame the observed near-null (weekly <code>r ≈ 0.07</code>) against that ceiling, without asserting either outcome in advance.</span></div>
+
+        <h3 id="fr-robust">Autocorrelation-aware uncertainty</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When a share (or the implied ceiling) is reported with a confidence interval, the system shall use an <strong>autocorrelation-aware</strong> estimate — a <strong>moving-block bootstrap</strong> that preserves serial dependence, reusing the block-length / bootstrap tooling in <code>noxus/validation/robust.py</code> (NOX-008) — with a configurable draw count and a fixed seed, and shall report the naïve i.i.d. interval alongside so the gap is explicit.</span></div>
+
+        <h3 id="fr-report">Reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-050</span><span>When reporting, the system shall present the budget as a <strong>stacked variance-partition figure</strong> (regional / meteo / steel-local / noise, per basis × resolution) and a <strong>ceiling-comparison</strong> (change ceiling vs level ceiling with CIs), and shall write a findings note stating the physical-vs-method-bound verdict and its implication for NOX-010/011.</span></div>
+        <div class="req-row"><span class="req-id">REQ-051</span><span>When the outcome is a confirmed ceiling (no headroom), the system shall report it as a <strong>valid finding</strong> ("the null is SNR-bound / physical"), not as a failure, and shall not cherry-pick the most favourable basis/resolution without reporting all of them (Morris &amp; Zhang 2019).</span></div>
+
+        <h3 id="fr-cli">CLI / orchestration</h3>
+        <div class="req-row"><span class="req-id">REQ-060</span><span>When the user runs the decomposition, the system shall expose it reproducibly as a <code>noxus</code> subcommand driven by a recorded config (bases, resolutions, bootstrap draws, seed, paths), following the NOX-008 <code>scale-sweep</code> wiring; existing subcommands and their defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Anti-p-hacking.</strong> The decomposition is computed on NO₂ + meteo + background alone; the benchmark is never an input or a selection target; no smoothing/threshold/df is chosen against CREA. The core estimator takes <strong>no benchmark argument</strong> (mirrors NOX-003.1 <code>fit_intensity_trend</code>), and a guard test asserts this.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Autocorrelation-aware.</strong> Every CI on a share or ceiling accounts for serial correlation via the moving-block bootstrap (reusing <code>robust.py</code>); naïve i.i.d. intervals are reported only alongside, never alone.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Honest null designed-for.</strong> Both outcomes — confirmed ceiling (physical) or headroom (method-bound) — are valid, reportable products; the report states which and never buries an unfavourable basis/resolution.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Reproducibility &amp; determinism.</strong> The whole decomposition reproduces from the committed cube + ERA5 snapshot + recorded config; no live fetch at analysis time; bootstrap uses a fixed seed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Additive.</strong> Existing signal/attribution/validation/CLI contracts are unchanged; new code is opt-in.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>No-publish.</strong> NO₂-derived per-basis series are gitignored (<code>data/derived/no2/</code>); the small variance-partition CSV + figures may be committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-007</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run pytest</code> + <code>uv run ruff check .</code>; <strong>no new dependency</strong> (numpy/pandas/xarray/scipy/statsmodels already present; the partition needs none).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>The nested partition is <strong>order-dependent</strong> when regional/meteo/local share variance (collinearity) → the system fixes and records the entry order (regional → meteo → local, REQ-021) and states that a commonality/Shapley alternative would redistribute the shared part; it does not silently pick the order that flatters the steel-local share.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>An <strong>incremental ΔR² comes out negative</strong> (suppression / sampling noise) → the system clamps the reported share to 0, records the raw ΔR², and flags the term, rather than reporting a negative variance share.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>The daily series has <strong>heavy cloud gaps</strong> → first differences are taken across genuine adjacent observations only (no interpolation across gaps); the effective <code>n</code> after gap-aware differencing is recorded; a basis with too few points is labelled low-power, not crashed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>The background ring is <strong>degenerate</strong> (empty/near-empty at some period) → the regional term reuses the existing attribution <code>GeometryError</code> handling; if the regional model cannot be fit, the budget is reported without the regional split and clearly labelled.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>A meteo covariate is <strong>missing</strong> for part of the series → the meteo term is fit on the jointly-available rows and the covered fraction is recorded; the meteo share is not extrapolated over missing periods.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>The steel-local share is <strong>near zero within its CI</strong> → the implied change ceiling collapses toward 0; the report states the null is SNR-bound rather than reporting a spuriously precise tiny ceiling.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the weekly cube is missing, the decomposition fails with an actionable message naming <code>noxus grid</code>.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the daily resolution is requested but <code>no2_cube_d.nc</code> is absent, the system fails with an actionable message naming the NOX-006 daily-cube command, rather than silently reporting weekly-only.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If the ERA5 snapshot required for the meteo term is missing, the system fails with an actionable message naming the ERA5 ingest command, rather than dropping the meteo split without notice.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If a caller attempts to pass a benchmark/output series into the decomposition estimator, the system shall refuse (the estimator exposes no such parameter); this is the runtime face of NFR-001.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>On a <strong>planted-decomposition</strong> synthetic signal (<code>footprint_change = regional + β·meteo + local + noise</code> with known variance shares), the partition recovers the four shares within tolerance and they sum to ≈ 1 (REQ-020/021).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span><strong>Anti-p-hacking guard:</strong> the core decomposition function takes <strong>no benchmark argument</strong> (asserted by signature inspection), and the module never imports/reads the CREA benchmark (REQ-003, NFR-001, ERR-004).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The budget is emitted on <strong>both</strong> change bases (first differences, deseasonalised residual) at <strong>both</strong> resolutions (weekly, daily), one table row each (REQ-010/011/022).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The implied <strong>change-detector ceiling</strong> ≈ <code>sqrt(steel-local share)</code> is reported and <strong>contrasted</strong> with the level ceiling ≈ <code>sqrt(attributable_cap)</code>; the physical-vs-method-bound verdict is stated (REQ-030/031).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>The CI on the steel-local share (and the ceiling) uses the <strong>moving-block bootstrap</strong> and is <strong>wider</strong> than the naïve i.i.d. interval on an autocorrelated fixture; both are reported (REQ-040, NFR-002).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span>A negative incremental ΔR² is clamped to 0, the raw value recorded and the term flagged (EDGE-002); daily gap-aware differencing records the effective <code>n</code> (EDGE-003).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span>The stacked variance-partition figure + ceiling-comparison + findings note are produced; a confirmed ceiling is framed as a valid finding; no basis/resolution is cherry-picked (REQ-050/051, NFR-003).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span>Re-running with the same seed/config reproduces the table identically (NFR-004); existing signal/attribution/validation/CLI behaviour is unchanged (NFR-005); <code>uv run pytest</code> and <code>uv run ruff check .</code> pass (NFR-007).</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, a small stats CSV, static figures (stacked variance budget + ceiling comparison), folded into the exploration HTML report.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. Output figures: the stacked variance-partition (regional/meteo/steel-local/noise) per basis×resolution, and the change-ceiling vs level-ceiling comparison with CIs.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>Analysis-ready cubes</strong> — <code>data/derived/no2/no2_cube_w.nc</code> (weekly) and <code>no2_cube_d.nc</code> (daily, NOX-006); gitignored, read-only.</li>
+          <li><strong>ERA5 snapshot</strong> — <code>data/raw/era5/</code> (<code>u10</code>, <code>v10</code>, <code>blh</code>, <code>wind_speed</code>) for the meteo term.</li>
+          <li><strong>Facilities</strong> — <code>data/derived/tangshan_steel_facilities.csv</code> (footprint geometry).</li>
+          <li><strong>NOX-003 attribution / NOX-003.1 intensity / NOX-008 robust</strong> — <code>noxus.attribution.source</code>, <code>noxus.signal.index</code>/<code>intensity</code>, <code>noxus.validation.robust</code>; reused read-only.</li>
+          <li><strong>NumPy / SciPy / statsmodels</strong> — already present (regression R², bootstrap); <strong>no new dependency</strong>.</li>
+          <li><strong>CREA benchmark</strong> — <strong>explicitly NOT a dependency</strong> of the decomposition (NFR-001); used only in the interpretive narrative to name the observed near-null.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: the exploration HTML report (a variance-budget section + the stacked figure and
+        ceiling comparison), the project map (new <code>noxus/signal/variance.py</code> module + CLI verb),
+        <code>decisions/</code> (change-variance share replaces the imported mean-level share as the SNR-ceiling
+        basis; the physical-vs-method-bound verdict), and <code>history.html</code>. Reviewer confirms the
+        final list.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Likely decision-log candidates (proposed at review, not pre-written): (1) adopting the
+        <strong>measured change-variance share</strong> — not the imported Wen mean-level share — as the
+        SNR-ceiling basis for change/activity detectors going forward; (2) the empirical verdict on whether the
+        Tangshan near-null is <strong>SNR-bound (physical)</strong> or has <strong>headroom
+        (method/target-bound)</strong>, which sets the go/no-go rationale for NOX-010 (deweathering) and NOX-011
+        (VIIRS triangulation). Both are methodological choices future sessions should not re-litigate.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Series built via existing attribution + meteo/deseason reuse.</td></tr>
+            <tr><td><span class="req-id">REQ-003</span></td><td>AT2</td><td>Anti-p-hacking: no benchmark argument; benchmark never read.</td></tr>
+            <tr><td><span class="req-id">REQ-020/021</span></td><td>AT3</td><td>Planted-decomposition shares recovered; ΔR² order recorded.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011/022</span></td><td>AT4</td><td>Both bases × both resolutions; table rows.</td></tr>
+            <tr><td><span class="req-id">REQ-030/031</span></td><td>AT5</td><td>Change ceiling vs level ceiling; verdict stated.</td></tr>
+            <tr><td><span class="req-id">REQ-040</span></td><td>AT6</td><td>Block-bootstrap CI wider than naïve on AR(1) fixture.</td></tr>
+            <tr><td><span class="req-id">REQ-050/051</span></td><td>AT7</td><td>Figures + findings; honest verdict; determinism.</td></tr>
+            <tr><td><span class="req-id">NFR-005/007</span></td><td>AT8</td><td>Additive; tests + lint.</td></tr>
+            <tr><td><span class="req-id">EDGE-001..006</span></td><td>AT3, AT4, AT6</td><td>Order-dependence; negative ΔR² clamp; gap-aware n.</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1</td><td>Missing weekly/daily cube; missing ERA5; benchmark refusal.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

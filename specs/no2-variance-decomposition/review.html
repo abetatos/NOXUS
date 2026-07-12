@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+  <style>
+    .verdict-approved { color: #14532d; font-weight: 700; }
+    .blocking { background: #fee2e2; }
+    .warning  { background: #fef9c3; }
+    .ok       { background: #dcfce7; }
+    table td, table th { vertical-align: top; }
+    code { word-break: break-word; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — NO₂ change-variance decomposition (NOX-009)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-009</code></td></tr>
+        <tr><th>Feature slug</th><td><code>no2-variance-decomposition</code></td></tr>
+        <tr><th>Branch</th><td><code>feature/no2-variance-decomposition</code></td></tr>
+        <tr><th>Reviewed at</th><td><code>2026-07-07</code></td></tr>
+        <tr><th>Decision</th><td><span class="verdict-approved">APPROVED (code / tests / traceability)</span> — completion gated on T9 real run + required documentation</td></tr>
+        <tr><th>Next state</th><td><code>in_progress</code> (finish T9 + T11 docs; do <strong>not</strong> mark <code>done</code> yet)</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The implementation is a faithful, benchmark-blind realisation of the approved spec. The cardinal
+        anti-p-hacking invariant holds structurally: the core estimator exposes <strong>no benchmark
+        argument</strong> and the module never imports or reads the CREA benchmark. All 20 new tests plus the
+        full pre-existing suite (166 total) pass, <code>ruff</code> is clean, no dependency was added and no
+        existing signature/CLI default changed. The one substantive design realisation — term (c)/(d) implemented
+        as a <strong>structured-vs-white</strong> split of the post-meteo residual rather than a third nested
+        regressor — is defensible, documented in-code, preserves the sum-to-1 property and correctly handles the
+        negative-increment edge case, but it is a methodological choice worth surfacing as a decision-log entry
+        (below). The verdict is <strong>approved</strong> for code correctness and spec conformance. The task
+        must <strong>not</strong> be marked <code>done</code> yet: T9 (the numeric run on the real cube) is still
+        executing in the main conversation and documentation (T11) is pending.</p>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <table>
+          <thead><tr><th>Command</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run pytest -q</code></td><td class="ok">166 passed in ~4.4s</td></tr>
+            <tr><td><code>uv run pytest tests/signal/test_variance.py tests/cli/test_variance_cli.py -q</code></td><td class="ok">20 passed (the new NOX-009 tests)</td></tr>
+            <tr><td><code>uv run ruff check .</code></td><td class="ok">All checks passed!</td></tr>
+            <tr><td><code>inspect.signature(partition_change_variance)</code></td><td class="ok"><code>(footprint, background, meteo, *, basis, resolution='', order=('regional','meteo','local'))</code> — no benchmark/target/output/crea param</td></tr>
+            <tr><td><code>grep import benchmark/crea in variance.py</code></td><td class="ok">No benchmark/crea imports; benchmark string appears only in explanatory docstrings</td></tr>
+            <tr><td><code>git diff master --stat</code> + <code>git status</code></td><td class="ok">Only additive edits (robust.py, config/run.py, cli/main.py, tasks.json) + new files (variance.py, analysis, 2 test files)</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="changed-files">
+        <h2>Changed files reviewed</h2>
+        <table>
+          <thead><tr><th>File</th><th>Kind</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/signal/variance.py</code></td><td>new</td><td class="ok">Core estimator + driver + ceilings. Benchmark-blind. Sum-to-1 holds; EDGE handling present.</td></tr>
+            <tr><td><code>noxus/validation/robust.py</code></td><td>additive</td><td class="ok"><code>block_bootstrap_statistic</code> added; existing <code>robust_corr</code>/<code>block_bootstrap_ci</code>/<code>block_permutation_p</code> untouched.</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>additive</td><td class="ok"><code>VarianceDecompConfig</code> frozen dataclass; existing configs unchanged.</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>additive</td><td class="ok"><code>noxus variance</code> subcommand mirrors <code>scale-sweep</code> wiring; existing verbs/defaults unchanged.</td></tr>
+            <tr><td><code>analysis/variance_decomposition.py</code></td><td>new</td><td class="ok">Stacked budget + ceiling-comparison figures + findings note; reads only the committable CSV; honest wording.</td></tr>
+            <tr><td><code>tests/signal/test_variance.py</code>, <code>tests/cli/test_variance_cli.py</code></td><td>new</td><td class="ok">20 deterministic synthetic tests; no network/benchmark.</td></tr>
+            <tr><td><code>tasks.json</code></td><td>edit</td><td class="ok">NOX-009 <code>human_approved: true</code> (abetatos, 2026-07-06), <code>status: in_progress</code>; NOX-010/011/012 added as pending downstream tasks.</td></tr>
+            <tr><td><code>tasks.html</code></td><td>edit</td><td class="ok">T1–T8, T10 <code>done</code>; T9 <code>blocked</code>; T11 <code>in-progress</code> — matches actual state.</td></tr>
+          </tbody>
+        </table>
+        <p>All edits fall inside the design's declared spec-drift scope glob. No protected file (<code>.env</code>,
+        credentials) touched; no committed raw NO₂ field; no <code>uv.lock</code>/dependency change.</p>
+      </section>
+
+      <section id="focus-items">
+        <h2>Implementer-flagged focus items (verified hardest)</h2>
+        <table>
+          <thead><tr><th>#</th><th>Item</th><th>Verdict</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><strong>Anti-p-hacking (NFR-001/ERR-004).</strong> Core estimator takes no benchmark argument; module never imports/reads CREA.</td>
+              <td class="ok"><strong>PASS (blocking check cleared).</strong> Signature inspection confirms no <code>benchmark/crea/output/target/y_benchmark</code> param. No benchmark import (grep + <code>test_module_never_reads_the_benchmark</code>). Passing <code>benchmark=</code> raises <code>TypeError</code> (<code>test_passing_a_benchmark_is_refused</code>). The <code>attributable_cap</code> Wen constant is used only for the level-ceiling contrast, never as an input/selection target.</td></tr>
+            <tr><td>2</td><td><strong>Structured-vs-white realisation of term (c)/(d).</strong></td>
+              <td class="warning"><strong>Defensible; surfaced as a decision-log candidate.</strong> The estimator inputs are only footprint/background/meteo — there is no observed "local" regressor to add as the design's literal nested step. The implementer splits the post-meteo residual variance <code>γ0</code> into structured = <code>γ0 − ½·mean(Δresidual²)</code> and white = <code>½·mean(Δresidual²)</code>. This is a concrete instantiation of the design's own acknowledged "local structured vs noise boundary" risk and its definition of <code>local*</code> as "the footprint's own structure orthogonal to background+meteo". It is documented in the module docstring (lines 17–24) and inline (lines 172–182). The four shares sum to 1 exactly on the core sample (regional + meteo = R²_full since the models are nested → both ΔR² ≥ 0; local + noise = residual_frac = 1 − R²_full). EDGE-002 is handled: a negative structured increment is recorded raw in <code>dr2_local</code>, the effective noise is capped at <code>γ0</code> so the local share clamps to 0, the noise share never exceeds the residual, and the term is flagged <code>local_clamped</code> (<code>test_negative_incremental_dr2_is_clamped_and_flagged</code>). <em>Not</em> a silent deviation — see finding F1.</td></tr>
+            <tr><td>3</td><td><strong>CLI verb <code>noxus variance</code> per A3.</strong></td>
+              <td class="warning"><strong>A3 governs; doc nit.</strong> Assumption A3 explicitly names the module <code>noxus/signal/variance.py</code> and the <code>noxus variance</code> verb; the implementation matches A3, and A3 is part of the approved spec set. <code>design.html</code> (Files-to-change + CLI tab) and tasks T7 still say <code>variance-decomp</code>. Non-blocking documentation inconsistency — see finding F2.</td></tr>
+            <tr><td>4</td><td><strong>Autocorrelation-aware CI (REQ-040/NFR-002).</strong></td>
+              <td class="ok"><strong>PASS.</strong> <code>block_bootstrap_statistic</code> added additively to <code>robust.py</code>; <code>_share_ci</code> computes the moving-block CI (block from the reused NOX-008 <code>block_length</code> rule) and the naïve i.i.d. interval (<code>block=1</code>) alongside, both under a fixed seed. <code>test_block_bootstrap_ci_wider_than_iid_on_ar1</code> asserts the block CI is strictly wider on an AR(1) fixture.</td></tr>
+            <tr><td>5</td><td><strong>Additivity / determinism (NFR-004/005/007).</strong></td>
+              <td class="ok"><strong>PASS.</strong> No existing public signature, CLI default or algorithm changed; new surface is only <code>noxus variance</code> + the new module/config/helper. No new dependency (numpy/pandas/xarray/matplotlib already present). Full pre-existing suite passes unmodified. <code>test_decompose_is_deterministic_under_seed</code> asserts byte-identical tables across runs.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="traceability">
+        <h2>Requirement → acceptance-test → code traceability</h2>
+        <table>
+          <thead><tr><th>REQ / NFR / EDGE / ERR</th><th>AT</th><th>Test(s)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-001/002 (reuse attribution + meteo/deseason read-only)</td><td>AT1</td><td><code>_level_series_for_cube</code> reuses <code>attribution.source</code> + <code>era5</code>; <code>build_basis_series</code> reuses <code>signal.index.deseasonalize</code>; driver tests exercise both bases</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-003, NFR-001, ERR-004 (anti-p-hacking)</td><td>AT2, AT-ERR-1</td><td><code>test_estimator_has_no_benchmark_argument</code>, <code>test_module_never_reads_the_benchmark</code>, <code>test_passing_a_benchmark_is_refused</code></td><td class="ok">Met</td></tr>
+            <tr><td>REQ-020/021 (four shares sum to 1; ΔR² order recorded)</td><td>AT3</td><td><code>test_planted_shares_recovered_and_sum_to_one</code> (shares within 0.04; sum ≈ 1; order + raw ΔR² recorded)</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-010/011/022 (both bases × both resolutions; table rows)</td><td>AT4</td><td><code>test_both_bases_both_resolutions_one_row_each</code> (4 rows; all columns present)</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-030/031 (change ceiling vs level ceiling; verdict)</td><td>AT5</td><td><code>test_implied_and_level_ceilings_and_verdict</code>; <code>classify_verdict</code> is a function of measured shares only</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-040, NFR-002 (block-bootstrap CI wider than i.i.d., both reported)</td><td>AT6</td><td><code>test_block_bootstrap_ci_wider_than_iid_on_ar1</code></td><td class="ok">Met</td></tr>
+            <tr><td>REQ-050/051, NFR-003 (figures + findings; honest verdict; no cherry-pick)</td><td>AT7</td><td><code>test_report_artefacts_are_produced_and_honest</code> (all cells present; NOX-010/011 named; "failure" absent)</td><td class="ok">Met</td></tr>
+            <tr><td>NFR-004/005/007 (determinism; additive; lint/tests; no new dep)</td><td>AT8, AT-REG-1</td><td><code>test_decompose_is_deterministic_under_seed</code>, <code>test_existing_subcommands_unchanged</code>, full suite + ruff</td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-001 (order-dependence recorded)</td><td>AT3</td><td>Fixed <code>order</code> recorded on <code>VarianceBudget</code>; commonality/Shapley caveat in docstring + Q1</td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-002 (negative ΔR² clamp + raw + flag)</td><td>AT-EDGE-1</td><td><code>test_negative_incremental_dr2_is_clamped_and_flagged</code></td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-003 (gap-aware daily n; low-power label)</td><td>AT-EDGE-2</td><td><code>test_gap_aware_first_difference_records_effective_n</code>, <code>test_too_sparse_basis_is_labelled_low_power_not_crashed</code></td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-004 (degenerate ring → drop regional split, labelled)</td><td>AT-EDGE-3</td><td><code>test_degenerate_background_drops_regional_split</code> (partition level)</td><td class="warning">Met at partition level; see F3 for disk-driver path</td></tr>
+            <tr><td>EDGE-005 (missing meteo → jointly-available rows; covered fraction)</td><td>AT-EDGE-3</td><td><code>test_missing_meteo_rows_records_covered_fraction</code></td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-006 (near-zero local → SNR-bound, no over-precise ceiling)</td><td>AT-EDGE-3</td><td><code>test_near_zero_local_share_gives_snr_bound_verdict</code></td><td class="ok">Met</td></tr>
+            <tr><td>ERR-001/002/003 (missing weekly/daily cube, missing ERA5 → actionable)</td><td>AT-ERR-2</td><td><code>test_missing_weekly_cube_names_grid</code>, <code>test_missing_daily_cube_names_daily_command</code>, <code>test_missing_era5_names_ingest</code> (verb name <code>ingest-era5</code> matches the real CLI)</td><td class="ok">Met</td></tr>
+            <tr><td>ERR-004 (benchmark refusal)</td><td>AT-ERR-1</td><td><code>test_passing_a_benchmark_is_refused</code></td><td class="ok">Met</td></tr>
+          </tbody>
+        </table>
+        <p>Every REQ/NFR/EDGE/ERR/AC in the approved spec maps to at least one passing automated test. No orphaned
+        requirement. REQ-031/051 narrative verdict on the <em>real</em> data is delivered by T9 (below), not by CI —
+        consistent with the design's test plan (statistics asserted on synthetic fixtures; real run is an opt-in task).</p>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+
+        <h3>Non-blocking</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Finding</th><th>Recommended action</th></tr></thead>
+          <tbody>
+            <tr class="warning"><td>F1</td>
+              <td><strong>Term (c)/(d) is a structured-vs-white split, not the literal third nested regressor.</strong>
+              The <code>dr2_local</code> field carries the raw <em>structured share</em> <code>(γ0 − ½·mean(Δresidual²))/v</code>,
+              not a regression ΔR². This is a reasonable and honest realisation of the design's own definition of
+              <code>local*</code> and its acknowledged "structured vs noise boundary" risk, and it is documented in-code.
+              It is a genuine methodological choice that a future reader should not have to re-derive.</td>
+              <td>Surface as a decision-log entry (see Decision-log proposals D1) and add one sentence to the exploration
+              write-up + findings note stating the ½·mean(Δresidual²) white-noise estimator and its smooth-structured /
+              white-retrieval assumption (already stated in Q2's independence caveat). Reconcile the design prose so the
+              nested-regressor description and the structured-vs-white implementation agree.</td></tr>
+            <tr class="warning"><td>F2</td>
+              <td><strong>CLI verb naming inconsistency.</strong> Implementation ships <code>noxus variance</code> (per
+              assumption A3, which governs). <code>design.html</code> (Files-to-change + CLI tab) and tasks T7 still say
+              <code>variance-decomp</code>.</td>
+              <td>Documenter to reconcile design.html + T7 to <code>variance</code> (or add an explicit "A3 supersedes"
+              note). No code change required.</td></tr>
+            <tr class="warning"><td>F3</td>
+              <td><strong>EDGE-004 GeometryError path is not exercised end-to-end.</strong> The partition gracefully
+              drops the regional split when the background series is missing/degenerate (tested), but the disk driver
+              <code>_level_series_for_cube</code> calls the real <code>background_ring</code>, which raises
+              <code>GeometryError</code> before the partition sees a degenerate ring. A truly empty ring on the real cube
+              would surface as an uncaught <code>GeometryError</code> rather than a labelled "budget without regional split".</td>
+              <td>Low risk on the real Tangshan cube (ring is well populated). Optional: wrap the regional-series build in
+              the driver to fall back to <code>background=None</code> + <code>no_regional</code> flag, or note the
+              limitation in the findings. Not required for approval.</td></tr>
+            <tr class="warning"><td>F4</td>
+              <td><strong>Single deseason variant per run.</strong> REQ-002 references both the intensity-model residual
+              and harmonic-K1 variants; the driver runs one config-selected <code>deseason_method</code> (default
+              <code>harmonic</code>) as the single "deseason" basis. This is consistent with the 4-cell design
+              (AT4 expects exactly 4 rows = 2 bases × 2 resolutions), so it is not a coverage gap — the variant is a
+              config knob, not a separate row.</td>
+              <td>No action required; noted for clarity. If the developer wants both variants contrasted, that is a
+              follow-up, not a spec violation.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Blocking</h3>
+        <p class="ok">None.</p>
+      </section>
+
+      <section id="high-risk-review">
+        <h2>High-risk review record</h2>
+        <ul>
+          <li><strong>Categories touched:</strong> <code>None</code> of the high-risk categories (no auth, payments,
+          database migrations, infrastructure/deployment, public API break, data-loss risk). Purely internal analysis
+          on the committed cube + ERA5 snapshot; all new outputs additive; NO₂-derived series remain gitignored.</li>
+          <li><strong>Escalation rungs run:</strong> Standard review + a targeted <strong>integrity pass</strong> on the
+          project's cardinal anti-p-hacking rule (signature inspection, import scan, benchmark-refusal test, confirmation
+          that the Wen <code>attributable_cap</code> enters only the contrast, never a fit/selection). No adversarial
+          second pass or paid deep-review mode was warranted (not a high-risk category); the anti-p-hacking property is
+          enforced structurally (no benchmark parameter exists) rather than by convention, which is the strongest
+          available guarantee.</li>
+          <li><strong>Security findings:</strong> None. No secrets read/written; no network egress; no credential handling.</li>
+          <li><strong>Correctness / edge findings:</strong> Sum-to-1 verified analytically (nested models → non-negative
+          regional/meteo ΔR²; residual split preserves total). Negative-increment, gap-aware-n, degenerate-ring,
+          missing-meteo and near-zero-local edges all covered by passing tests. See F3 for the one un-exercised
+          end-to-end degenerate-ring path.</li>
+          <li><strong>External dependencies / freshness:</strong> No new external dependency, SDK, API or framework
+          config. Statistical building blocks (numpy lstsq, <code>numpy.random.default_rng</code>, reused NOX-008
+          <code>block_length</code>) are all already present. This section is therefore <code>None</code> for
+          freshness-evidence purposes — no version constraints or deprecation review required.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <p><strong>documentation_required: true</strong> &nbsp;|&nbsp; <strong>documentation_status: pending</strong></p>
+        <p>The change adds a new module, a new CLI verb, new committable artefacts and a methodological reframing of the
+        SNR ceiling — documentation targets are affected. Recommend invoking the <code>documenter</code> after T9's real
+        numbers land. Targets:</p>
+        <table>
+          <thead><tr><th>Target</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>docs/exploration-results.html</code></td><td>New change-variance-budget section: the stacked figure, the change-vs-level ceiling comparison, and the physical-vs-method-bound verdict from the real run (REQ-050/051). Also state the structured-vs-white estimator + assumption (F1).</td></tr>
+            <tr><td><code>.claude/context/project-map.md</code></td><td>New <code>noxus/signal/variance.py</code> module + <code>noxus variance</code> CLI verb + <code>data/derived/variance_decomposition.csv</code> / figures.</td></tr>
+            <tr><td><code>decisions/architecture-decisions.md</code></td><td>Decision-log entries D1–D3 below (subject to developer approval).</td></tr>
+            <tr><td><code>history.html</code></td><td>Append a NOX-009 completion entry after the <code>INSERT-ENTRY-HERE</code> marker (after T9 + docs land; the documenter may append it).</td></tr>
+            <tr><td><code>design.html</code> / <code>tasks.html</code> (T7)</td><td>Reconcile the <code>variance-decomp</code> → <code>variance</code> verb naming (F2).</td></tr>
+          </tbody>
+        </table>
+        <p>Docs re-check after the documenter reports: confirm each target updated or justified unaffected, text matches
+        the reviewed implementation, no secrets/unreviewed details. Only then set <code>documentation_status: updated</code>.</p>
+      </section>
+
+      <section id="decision-log-proposals">
+        <h2>Decision-log proposals (proposed only — require developer approval)</h2>
+        <ul>
+          <li><strong>D1 — Structured-vs-white estimator for the steel-local term.</strong> The steel-local /
+          noise split is realised as a difference-based structured-vs-white decomposition of the post-meteo residual
+          (<code>structured = γ0 − ½·mean(Δresidual²)</code>), not a third nested regressor, because the estimator's
+          inputs are footprint/background/meteo only (no observed local proxy). Records the smooth-structured /
+          white-retrieval assumption and the EDGE-002 clamp. Future sessions should not re-litigate this without a new
+          local regressor.</li>
+          <li><strong>D2 — Measured change-variance share replaces the imported Wen mean-level share as the
+          SNR-ceiling basis</strong> for change/activity detectors going forward (the whole motivation of critique #4).
+          The Wen <code>attributable_cap</code> is retained only as the contrast level ceiling, never as a fit target.</li>
+          <li><strong>D3 — The physical-vs-method-bound verdict</strong> (SNR-bound / ceiling-bound / headroom) becomes
+          the recorded go/no-go rationale for NOX-010 (deweathering) and NOX-011 (VIIRS triangulation). <em>The concrete
+          verdict value is produced by T9 and should be recorded once its numbers are in.</em></li>
+        </ul>
+      </section>
+
+      <section id="t9-note">
+        <h2>Note on T9 (real-data run)</h2>
+        <p>T9 (the numeric decomposition on the real committed cubes) is being executed separately in the main
+        conversation while the restored TROPOMI cube is rebuilt. Per the review scope it was <strong>not</strong> a
+        gating condition for this code review, which stands on code correctness + spec conformance. No
+        <code>data/derived/variance_decomposition.csv</code> or figures were present at review time. Before NOX-009 is
+        marked <code>done</code>: (i) T9 must complete and its verdict recorded (REQ-031/051), (ii) all four
+        (basis × resolution) cells reported with no cherry-picking (NFR-003), and (iii) documentation updated (T11).</p>
+      </section>
+
+      <section id="final-decision">
+        <h2>Final decision</h2>
+        <p><span class="verdict-approved">APPROVED</span> — the implementation is correct, benchmark-blind, fully
+        traceable and non-regressive. Findings F1–F4 are all non-blocking. <strong>The task remains
+        <code>in_progress</code> and must not be marked <code>done</code></strong> until T9 (real run + honest verdict)
+        completes and the required documentation (T11) is written and re-checked. Recommended next agent:
+        finish T9 in the main conversation, then run <code>documenter</code> for the targets above, then a lightweight
+        docs re-check.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

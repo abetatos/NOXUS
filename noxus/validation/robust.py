@@ -142,6 +142,49 @@ def block_bootstrap_ci(
     return lo, hi
 
 
+def block_bootstrap_statistic(
+    fn,
+    *arrays: np.ndarray,
+    block: int,
+    n_draws: int = 1000,
+    seed: int = 20260706,
+    alpha: float = 0.05,
+) -> tuple[float, float]:
+    """Moving-block bootstrap (1-alpha) CI of an arbitrary statistic ``fn(*arrays)`` (NOX-009 REQ-040).
+
+    Generic companion to :func:`block_bootstrap_ci` (which is specialised to Pearson ``r``): resamples
+    contiguous blocks of *row indices* and applies them jointly to every array (1-D series or a 2-D
+    ``n x k`` covariate matrix, indexed on its first axis), preserving serial dependence, then recomputes
+    ``fn`` on each resample. With ``block=1`` this reduces to the naive i.i.d. bootstrap, so the same
+    helper yields both the autocorrelation-aware and the i.i.d. interval reported alongside it. A fixed
+    ``seed`` makes it reproducible (NFR-004). Non-finite statistics are dropped before the percentiles.
+    """
+    n = int(len(arrays[0]))
+    block = max(1, int(block))
+    if n < 1:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    n_blocks = int(np.ceil(n / block))
+    max_start = max(0, n - block)
+    starts_pool = np.arange(0, max_start + 1)
+    vals: list[float] = []
+    for _ in range(n_draws):
+        starts = rng.choice(starts_pool, size=n_blocks, replace=True)
+        idx = np.concatenate([np.arange(s, s + block) for s in starts])[:n]
+        idx = idx[idx < n]
+        try:
+            v = float(fn(*(a[idx] for a in arrays)))
+        except Exception:  # noqa: BLE001 - a degenerate resample contributes no draw
+            continue
+        if np.isfinite(v):
+            vals.append(v)
+    if not vals:
+        return float("nan"), float("nan")
+    lo = float(np.nanpercentile(vals, 100 * alpha / 2))
+    hi = float(np.nanpercentile(vals, 100 * (1 - alpha / 2)))
+    return lo, hi
+
+
 def block_permutation_p(
     x, y, *, block: int, n_draws: int = 5000, seed: int = 20260614, r_obs: float | None = None
 ) -> float:

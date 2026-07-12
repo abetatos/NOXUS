@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — NO₂ change-variance decomposition</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — NO₂ change-variance decomposition</h1>
+
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>NO₂ change-variance decomposition</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>no2-variance-decomposition</code></td></tr>
+          <tr><th>Source document</th> <td>Critique roadmap 2026-07-06 (critique #4 — level-share vs variance-share)</td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-009</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document records assumptions made while converting critique #4 into an SDD spec.</p>
+        <p>Assumptions are not hidden decisions. They must be explicit, reviewable, and either accepted, corrected, or removed before implementation. All assumptions here are <strong>reversible</strong> methodological choices on an analysis that runs on the existing cube; none is blocking (see <code>open-questions.html</code> for the two non-blocking questions).</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+
+        <table>
+          <thead>
+            <tr><th>Risk level</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">4</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">3</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header">
+            <span class="req-id">A1</span>
+            <span class="card-title">Variance partition = sequential nested-model ΔR² (not commonality/Shapley)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The four-term budget (regional → +meteo → +steel-local → noise) is estimated as the <strong>incremental R²</strong> of a nested regression entered in that fixed order, rather than by a commonality analysis or Shapley/LMG variance decomposition that redistributes shared variance symmetrically.</dd>
+              <dt>Reason</dt>                <dd>Sequential ΔR² is transparent, dependency-free (numpy/statsmodels only, NFR-007), and auditable; the entry order is recorded (REQ-021) and the collinearity caveat is stated (EDGE-001). Shapley/LMG would need extra tooling and obscures which term "owns" shared variance.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If regional/meteo/local variance is strongly collinear, the order flatters whichever term enters last-but-one; the steel-local share could be under- or over-stated. Mitigated by reporting the raw ΔR² per step and stating order-dependence; a Shapley variant can be added later without changing the interface.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-020, REQ-021, EDGE-001</dd>
+              <dt>Related design sections</dt><dd>Variance-partition estimator</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a2">
+          <div class="card-header">
+            <span class="req-id">A2</span>
+            <span class="card-title">Nested entry order = regional → meteo → steel-local</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>Terms enter in the order regional common-mode first, then meteo, then the steel-local footprint residual — i.e. the steel-local share is what remains <em>after</em> the confounders that the project already treats as nuisance (BTH background, ERA5 meteo) are removed.</dd>
+              <dt>Reason</dt>                <dd>This is the conservative order for the headline quantity: it credits shared variance to the confounders, so the steel-local share is a <strong>lower bound</strong>, consistent with the project's honest-null discipline (NFR-003).</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>A different order would raise the nominal steel-local share; since we deliberately want the conservative estimate, choosing this order cannot inflate the conclusion.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-020, REQ-021</dd>
+              <dt>Related design sections</dt><dd>Variance-partition estimator</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a3">
+          <div class="card-header">
+            <span class="req-id">A3</span>
+            <span class="card-title">Module placement under <code>noxus/signal/variance.py</code> + a <code>variance</code> CLI verb</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The decomposition lives in a new module <code>noxus/signal/variance.py</code> with a <code>noxus variance</code> subcommand wired in <code>noxus/cli/main.py</code>, following the additive pattern NOX-008 used for <code>scale-sweep</code>.</dd>
+              <dt>Reason</dt>                <dd>It reuses <code>noxus.signal.index</code>/<code>intensity</code> (series construction) and <code>noxus.validation.robust</code> (bootstrap); placing it beside the signal modules matches the existing layout. Purely organisational.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>A file move; no behavioural effect. The reviewer may prefer <code>noxus/validation/variance.py</code> — trivial to relocate.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-060, NFR-005</dd>
+              <dt>Related design sections</dt><dd>Files to change</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a4">
+          <div class="card-header">
+            <span class="req-id">A4</span>
+            <span class="card-title">Moving-block bootstrap block length reuses the NOX-008 rule</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The autocorrelation-aware CI on the steel-local share (REQ-040) uses the moving-block bootstrap already in <code>noxus/validation/robust.py</code>, with the same block-length heuristic NOX-008 adopted (effective-N / first-order autocorrelation based), rather than a new block-length rule tuned for this task.</dd>
+              <dt>Reason</dt>                <dd>Consistency with the project's established significance tooling; avoids introducing a second, divergent autocorrelation convention.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>Block length that is too short understates the CI width; too long wastes power. Mitigated by reporting the block length used and the naïve i.i.d. interval alongside (REQ-040), so the reader sees the autocorrelation inflation explicitly.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-040, NFR-002</dd>
+              <dt>Related design sections</dt><dd>Autocorrelation-aware uncertainty</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a5">
+          <div class="card-header">
+            <span class="req-id">A5</span>
+            <span class="card-title">Meteo term reuses the existing linear ERA5 regression (not a non-linear model)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The meteo share (term b) is the variance explained by the <strong>existing linear</strong> ERA5 regress-out (<code>u10</code>, <code>v10</code>, <code>blh</code>, <code>wind_speed</code>), not a non-linear deweathering model.</dd>
+              <dt>Reason</dt>                <dd>Non-linear deweathering is the scope of NOX-010; NOX-009 measures the budget under the meteo treatment the pipeline uses <em>today</em>, so its verdict is about the current method. If NOX-009 finds a large "noise" term, that is exactly the evidence that motivates NOX-010 — keeping them separate avoids conflating "meteo under-removed by a linear form" with "genuinely unexplained".</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>Some variance a non-linear model would attribute to meteo lands in the "noise" term, slightly deflating the meteo share and inflating noise. This is a <em>designed</em> hand-off to NOX-010, not an error; it is stated in the findings.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-002, REQ-020</dd>
+              <dt>Related design sections</dt><dd>Signal construction; interpretation</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header">
+            <span class="req-id">A6</span>
+            <span class="card-title">Reported headline basis = deseasonalised residual at weekly resolution</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>All four (basis × resolution) budgets are computed and reported (REQ-011, NFR-003), but the <strong>headline</strong> ceiling quoted in the findings narrative is the deseasonalised-residual / weekly cell — the basis the validation chain actually correlates against CREA.</dd>
+              <dt>Reason</dt>                <dd>The weekly deseasonalised residual is the series behind the reported weekly r=0.07, so its change-variance ceiling is the one that directly reframes that null. The other three are reported for scale/cadence context, not cherry-picked away.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>Only a narrative emphasis; every basis/resolution is in the table regardless (NFR-003 forbids hiding any).</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-030, REQ-031, REQ-051</dd>
+              <dt>Related design sections</dt><dd>Reporting</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a7">
+          <div class="card-header">
+            <span class="req-id">A7</span>
+            <span class="card-title">Daily basis uses the completed post-2026-07-06 cube (June-2023 gap filled)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The daily-resolution budgets are computed on the cube rebuilt after the 2026-07-06 fetch that filled the 2023-06-06..30 gap (TROPOMI now ~97.1% daily coverage), so gap-aware first differencing (EDGE-003) operates on the most complete series available.</dd>
+              <dt>Reason</dt>                <dd>The daily basis is the most gap-sensitive; using the completed series maximises effective <code>n</code> and avoids the truncated-June-2023 artefact.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If the daily cube is not rebuilt first, daily <code>n</code> is lower and the June-2023 window is under-represented; the fix is a <code>noxus grid --freq D</code> re-run before the decomposition (a task step).</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-011, EDGE-003, ERR-002</dd>
+              <dt>Related design sections</dt><dd>Change bases &amp; resolutions</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="accepted-assumptions">
+        <h2>Accepted assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts them.</p>
+      </section>
+
+      <hr>
+
+      <section id="rejected-or-replaced-assumptions">
+        <h2>Rejected or replaced assumptions</h2>
+        <p>Move assumptions here when the developer rejects or replaces them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>. (None here is blocking.)</li>
+            <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
+            <li>If an assumption affects security, permissions, data deletion, billing, public API behavior, or irreversible migrations, prefer moving it to <code>open-questions.html</code>.</li>
+            <li>If the implementation requires a new assumption, stop and update this file before proceeding.</li>
+            <li>If assumptions contradict <code>requirements.html</code>, <code>design.html</code>, or developer instructions, stop and ask for clarification.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

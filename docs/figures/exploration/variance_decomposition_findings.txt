@@ -1,0 +1,39 @@
+NOX-009 — NO2 change-variance decomposition — findings
+================================================================
+
+Benchmark-blind (NFR-001): the partition is computed on NO2 + meteo + background only; the CREA benchmark is never an input. Both change bases (first-diff, deseason) at both resolutions (W, D) are reported below — none is cherry-picked (NFR-003).
+
+[first-diff × W]  n=388  block=7
+  shares: regional=0.944  meteo=0.005  steel-local=0.000  noise=0.051
+  raw ΔR²: regional=0.944  meteo=0.005  local=-0.021  (entry order regional->meteo->local)
+  change ceiling √f=0.000  block CI=[0.000,0.000]  i.i.d. share CI=[0.000,0.005]
+  level ceiling √cap=[0.548,0.656]
+  flags: local_clamped
+  verdict: SNR-bound: the steel-local change-variance share is ~0 within its CI; the near-null (weekly r≈0.07) is physical, not method-bound.
+
+[deseason × W]  n=389  block=7
+  shares: regional=0.951  meteo=0.002  steel-local=0.006  noise=0.040
+  raw ΔR²: regional=0.951  meteo=0.002  local=0.006  (entry order regional->meteo->local)
+  change ceiling √f=0.080  block CI=[0.000,0.115]  i.i.d. share CI=[0.000,0.005]
+  level ceiling √cap=[0.548,0.656]
+  flags: nan
+  verdict: SNR-bound: the steel-local change-variance share is ~0 within its CI; the near-null (weekly r≈0.07) is physical, not method-bound.
+
+[first-diff × D]  n=1555  block=12
+  shares: regional=0.933  meteo=0.005  steel-local=0.000  noise=0.062
+  raw ΔR²: regional=0.933  meteo=0.005  local=-0.026  (entry order regional->meteo->local)
+  change ceiling √f=0.000  block CI=[0.000,0.000]  i.i.d. share CI=[0.000,0.003]
+  level ceiling √cap=[0.548,0.656]
+  flags: local_clamped
+  verdict: SNR-bound: the steel-local change-variance share is ~0 within its CI; the near-null (weekly r≈0.07) is physical, not method-bound.
+
+[deseason × D]  n=2003  block=13
+  shares: regional=0.944  meteo=0.003  steel-local=0.000  noise=0.052
+  raw ΔR²: regional=0.944  meteo=0.003  local=-0.000  (entry order regional->meteo->local)
+  change ceiling √f=0.000  block CI=[0.000,0.053]  i.i.d. share CI=[0.000,0.002]
+  level ceiling √cap=[0.548,0.656]
+  flags: local_clamped
+  verdict: SNR-bound: the steel-local change-variance share is ~0 within its CI; the near-null (weekly r≈0.07) is physical, not method-bound.
+
+HEADLINE (deseasonalised residual, weekly — the basis behind the reported r≈0.07):
+  SNR-bound: the steel-local change-variance share is ~0 within its CI; the near-null (weekly r≈0.07) is physical, not method-bound.

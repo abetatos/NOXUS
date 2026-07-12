@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — VIIRS thermal-anomaly independent benchmark</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — VIIRS thermal-anomaly independent benchmark</h1>
+
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>VIIRS thermal-anomaly independent benchmark</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>viirs-thermal-benchmark</code></td></tr>
+          <tr><th>Source document</th> <td><code>tasks.json (NOX-011) + roadmap critique #1</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-011</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-07-12</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records the explicit, reviewable assumptions taken to reach a complete, implementable spec. Several are
+        <strong>pre-registration</strong> assumptions (A2/A3/A9): they fix methodological knobs <em>before</em> the
+        triangulation is viewed, which is the anti-p-hacking guard (NFR-006). None block implementation; all are
+        low/medium risk and reversible at review.</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table>
+          <thead><tr><th>Risk level</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">6</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">4</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>No — all assumptions are non-blocking (safe defaults; access details confirmed at the T1 spike).</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header"><span class="req-id">A1</span><span class="card-title">VNF Nightfire is the primary series; FIRMS is the cross-check</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The <strong>primary</strong> thermal series is VIIRS Nightfire (VNF, EOG / CSM), which reports per-detection temperature, source area and radiant heat (industrial-combustion-tuned). NASA FIRMS active fire (VNP14IMGT + VJ114) is an <strong>independent cross-check</strong> using its static-land-source detections.</dd>
+            <dt>Reason</dt>                <dd>VNF is physically matched to steel furnaces (radiant heat/temperature); FIRMS is active-fire-tuned, so better as robustness than as primary. Both are free/public.</dd>
+            <dt>Risk level</dt>            <dd>Medium</dd>
+            <dt>Impact if wrong</dt>       <dd>If FIRMS turned out more usable at Tangshan, the primary/cross-check roles swap — the pipeline supports both, so the change is a config flip, not a rewrite.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-001, REQ-006, REQ-024</dd>
+            <dt>Related design sections</dt><dd>Technical summary; External dependencies</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header"><span class="req-id">A2</span><span class="card-title">Facility-radius join, fixed before viewing results</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>Each detection is assigned to the <strong>nearest facility centroid within a fixed radius</strong> (config default ≈ 3&nbsp;km, chosen to bracket the VNF/FIRMS pixel footprint + plant extent), computed by a <strong>numpy haversine</strong>. The radius is fixed and recorded here <strong>before</strong> the triangulation is viewed.</dd>
+            <dt>Reason</dt>                <dd>A point-in-radius test is sufficient for point detections vs facility centroids; pre-registering the radius avoids tuning it to the correlation (anti-p-hacking, NFR-006).</dd>
+            <dt>Risk level</dt>            <dd>Medium</dd>
+            <dt>Impact if wrong</dt>       <dd>Too small → drops real furnace detections; too large → pulls in non-steel hot spots. Sensitivity to radius can be reported as robustness, but the primary radius is pre-registered.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-010, NFR-006</dd>
+            <dt>Related design sections</dt><dd>Interfaces (<code>join_to_facilities</code>)</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header"><span class="req-id">A3</span><span class="card-title">Primary aggregate = weekly summed radiant heat</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The <strong>primary thermal-activity index is weekly summed radiant heat (MW)</strong> over the joined detections; <strong>detection count</strong> and <strong>mean detection temperature</strong> are retained as alternates. The primary aggregate is fixed before viewing the triangulation.</dd>
+            <dt>Reason</dt>                <dd>Summed radiant heat is the most physically direct proxy for total furnace thermal output; the alternates guard against an aggregate-choice artefact.</dd>
+            <dt>Risk level</dt>            <dd>Medium</dd>
+            <dt>Impact if wrong</dt>       <dd>A different aggregate could change the correlation; keeping all three and pre-registering the primary makes the choice transparent and testable.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-011, NFR-006</dd>
+            <dt>Related design sections</dt><dd>Interfaces (<code>build_thermal_series</code>)</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-medium" id="a9">
+          <div class="card-header"><span class="req-id">A9</span><span class="card-title">Benchmark-blind construction / pre-registration</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The thermal series is built <strong>benchmark-blind</strong>: the facility radius (A2), quality thresholds, aggregation frequency and primary aggregate (A3) are fixed and recorded in this file <strong>before</strong> the NO₂↔VIIRS / CREA↔VIIRS results are computed. The series-build functions take no CREA/NO₂ argument.</dd>
+            <dt>Reason</dt>                <dd>Prevents tuning the thermal index to produce a desired correlation (the same honest-null discipline as NOX-008/009).</dd>
+            <dt>Risk level</dt>            <dd>Medium</dd>
+            <dt>Impact if wrong</dt>       <dd>If knobs were tuned post-hoc, any positive correlation would be suspect; pre-registration makes the result credible either way.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-012, NFR-005, NFR-006</dd>
+            <dt>Related design sections</dt><dd>Technical summary; Risks</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a4">
+          <div class="card-header"><span class="req-id">A4</span><span class="card-title">No new dependency: haversine join, existing HTTP stack</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The join uses a <strong>numpy haversine</strong> (no <code>geopandas</code>/<code>shapely</code>); downloads reuse <code>httpx</code>; credentials via <code>python-dotenv</code> — all already in <code>pyproject.toml</code>. <strong>No new dependency is added</strong>; if one proves necessary, stop and ask (Q5).</dd>
+            <dt>Reason</dt>                <dd>A point-in-radius test needs no geospatial engine; keeps the core install light and reproducible.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>If a source truly needs a new client/parser, it is a dependency decision that must be approved, not assumed.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>NFR-004</dd>
+            <dt>Related design sections</dt><dd>External dependencies and freshness</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a5">
+          <div class="card-header"><span class="req-id">A5</span><span class="card-title">Weekly is the primary analysis frequency</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>Triangulation is primarily <strong>weekly</strong> (to match the CREA weekly benchmark and the weekly NO₂ cube), with a <strong>daily</strong> secondary series retained.</dd>
+            <dt>Reason</dt>                <dd>The benchmark and the existing NO₂ analysis are weekly; aligning frequencies keeps the correlation apples-to-apples.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>Daily is available if a finer comparison is wanted; low cost to switch.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-011, REQ-020, REQ-021</dd>
+            <dt>Related design sections</dt><dd>Interfaces (<code>build_thermal_series</code>)</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header"><span class="req-id">A6</span><span class="card-title">Triangulate on the common overlap window</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The correlations are computed on the <strong>common window</strong> where VIIRS, NO₂ and CREA all exist; effective-N shrinks accordingly and is reported. VNF (~2012→) is longer than the TROPOMI era (~2019→), so the TROPOMI/CREA overlap bounds the window.</dd>
+            <dt>Reason</dt>                <dd>Correlating series requires a shared time base; never pad or interpolate to extend it.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>None material; this is standard alignment.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>EDGE-003, REQ-020, REQ-021</dd>
+            <dt>Related design sections</dt><dd>Risks (detection sparsity / effective-N)</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a7">
+          <div class="card-header"><span class="req-id">A7</span><span class="card-title">Committed facilities CSV is the join source of truth</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>The join target is <code>data/derived/tangshan_steel_facilities.csv</code> <strong>as committed</strong>, whatever its row count. (The committed file holds ~39 facility rows; roadmap text references &ldquo;84&rdquo; — see Q6.)</dd>
+            <dt>Reason</dt>                <dd>The committed CSV is the reproducible, versioned facility set already used by <code>region.py</code>; a differing count is a data-provenance question, not a blocker for the join logic.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>If a larger canonical facility set is intended, swapping the CSV changes only the join input, not the code.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-010, ERR-005</dd>
+            <dt>Related design sections</dt><dd>External dependencies; Risks</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a8">
+          <div class="card-header"><span class="req-id">A8</span><span class="card-title">Night-only VIIRS is representative of 24/7 steel</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>VNF's night-only sampling is representative of steel activity because integrated steelmaking (BF/coke/sinter) is <strong>24/7 baseload</strong>, not shift-cyclical.</dd>
+            <dt>Reason</dt>                <dd>Blast furnaces run continuously; a nightly thermal snapshot tracks sustained furnace state.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>If activity were strongly diurnal, night-only would bias the index; not expected for baseload steel.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>REQ-001, REQ-011</dd>
+            <dt>Related design sections</dt><dd>Risks (rejected day+night)</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+        <div class="card risk-low" id="a10">
+          <div class="card-header"><span class="req-id">A10</span><span class="card-title">Tests are network-free with synthetic fixtures</span><span class="badge badge-pending">Pending</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Assumption</dt>            <dd>All automated tests mock the fetcher and use synthetic detection fixtures; no network or credential is required in CI. The real-data slice (T12) and the T1 spike are developer-run and not CI-asserted.</dd>
+            <dt>Reason</dt>                <dd>Matches the project convention (TROPOMI/GEMS tests inject a fake fetcher); keeps CI deterministic and offline.</dd>
+            <dt>Risk level</dt>            <dd>Low</dd>
+            <dt>Impact if wrong</dt>       <dd>None; consistent with existing tests.</dd>
+            <dt>Blocks implementation</dt> <dd>No</dd>
+            <dt>Related requirements</dt>  <dd>AC-006, NFR-004</dd>
+            <dt>Related design sections</dt><dd>Test design</dd>
+            <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Developer decision</dt>    <dd>Pending</dd>
+          </dl></div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="accepted-assumptions">
+        <h2>Accepted assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts them.</p>
+      </section>
+
+      <hr>
+
+      <section id="rejected-or-replaced-assumptions">
+        <h2>Rejected or replaced assumptions</h2>
+        <p>Move assumptions here when the developer rejects or replaces them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong> (none currently).</li>
+            <li>A2/A3/A9 are pre-registration knobs: they must be fixed and recorded here <strong>before</strong> the triangulation is viewed. Do not tune them to the result.</li>
+            <li>Do not add a new dependency (A4) without developer approval — stop and ask (Q5).</li>
+            <li>If implementation requires a new assumption, stop and update this file before proceeding.</li>
+            <li>If assumptions contradict <code>requirements.html</code>, <code>design.html</code>, or developer instructions, stop and ask.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
