@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-012</code></td></tr>
+        <tr><th>Feature slug</th><td><code>regime-2023-event-study</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Two small new modules plus a thin orchestration layer, built <strong>on top of</strong> the NOX-004
+        catalyst and NOX-008 robust-significance machinery — <em>not</em> parallel to them.</p>
+        <ol>
+          <li><strong>Calendar assembly</strong> (<code>noxus/catalyst/calendar.py</code>, new): a
+          <code>probe_sources()</code> T1 feasibility spike (coverage + provenance report + go/no-go), and
+          <code>assemble_calendar()</code> / <code>validate_calendar()</code> that curate the dated, source-cited
+          <code>tangshan_hebei_curtailment.csv</code>. Output conforms to the <strong>existing</strong>
+          <code>load_curtailment_calendar</code> schema (<code>start,end,direction,cause</code>) with extra
+          provenance columns the loader tolerates — so NOX-004 code is untouched.</li>
+          <li><strong>Regime study</strong> (<code>noxus/catalyst/regime.py</code>, new): (a)
+          <code>rolling_regime()</code> — recompute the rolling-18-month / 52-week NO₂↔CREA correlation (reuse
+          <code>validation.preprocess</code>/<code>leadlag</code>), locate the 2023 peak + 2024 collapse, segment
+          by a fixed rule, score each regime with <code>robust_corr</code>; (b)
+          <code>regime_event_study()</code> — reuse <code>detect_events</code> + <code>production_events</code> +
+          <code>match_events</code> per regime; (c) <code>event_bound_jackknife()</code> — leave-one-large-event-out
+          on the 2023 regime; (d) <code>collapse_attribution()</code> — the 2024 dual diagnostic (calendar-cadence
+          change vs NOX-003.1 secular-trend behaviour); (e) <code>scan_max_null()</code> — the rolling-window
+          scan-maximum null reusing <code>robust.py</code> block-permutation tooling; and BH-FDR
+          (<code>bh_fdr</code>) across the fixed grid.</li>
+        </ol>
+        <p>Why this shape: the event-study primitives (detection, ground truth, matching), the curtailment-calendar
+        <em>loader</em>, and the autocorrelation-robust significance are all already tested code. NOX-012 adds only
+        the two genuinely-new pieces — <strong>a curated public calendar</strong> and a
+        <strong>regime-conditioned orchestration with a scan-maximum null</strong> — and reuses everything else
+        read-only. The market linkage is deliberately excluded (NOX-013/014, A1).</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="230" viewBox="0 0 720 230" aria-label="Regime-study data flow">
+            <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
+            <rect x="8" y="16" width="168" height="40" rx="6" fill="#fef9e7" stroke="#d4ac0d" stroke-width="1.5"/>
+            <text x="92" y="32" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7d6608">public sources (free)</text>
+            <text x="92" y="47" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7d6608">MEE/DEE · CREA/Mysteel · news</text>
+            <line x1="176" y1="36" x2="214" y2="36" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="216" y="14" width="150" height="46" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="291" y="31" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">T1 probe + assemble</text>
+            <text x="291" y="45" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">calendar.py → CSV+prov</text>
+            <line x1="366" y1="40" x2="404" y2="66" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+
+            <rect x="8" y="90" width="168" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="92" y="106" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">NOX-003.1 residual</text>
+            <text x="92" y="121" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1e3a8a">(+coverage, +meteo)</text>
+            <rect x="8" y="150" width="168" height="40" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="92" y="174" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">CREA BF rate</text>
+
+            <line x1="176" y1="110" x2="404" y2="96" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <line x1="176" y1="170" x2="404" y2="120" stroke="#6b7280" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+            <rect x="406" y="70" width="150" height="86" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="481" y="88" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">regime.py</text>
+            <text x="481" y="103" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">rolling regime + segment</text>
+            <text x="481" y="117" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">event study (reuse NOX-004)</text>
+            <text x="481" y="131" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">jackknife · collapse-attr</text>
+            <text x="481" y="145" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4c1d95">scan-max null · BH-FDR</text>
+
+            <line x1="556" y1="113" x2="594" y2="113" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+            <rect x="596" y="86" width="116" height="56" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="654" y="106" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">verdict + figures</text>
+            <text x="654" y="121" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#14532d">event-bound | continuous</text>
+            <text x="654" y="134" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#14532d">| artefact | inconclusive</text>
+            <text x="360" y="216" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">No look-ahead: causal detection baselines; exogenous public curtailment dates; grid fixed before viewing outcomes.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Adds <code>noxus/catalyst/calendar.py</code> (assembly + T1 probe) and
+        <code>noxus/catalyst/regime.py</code> (regime study), reusing <code>noxus.catalyst.{events,groundtruth,study}</code>
+        and <code>noxus.validation.robust</code>/<code>{preprocess,leadlag}</code> read-only, plus the NOX-003.1
+        residual (<code>noxus.signal.intensity</code>) and the NOX-001 benchmark. New <code>RegimeStudyConfig</code>
+        in <code>noxus/config/run.py</code>; new CLI verbs. Curated calendar CSV under <code>data/curtailment/</code>.
+        NO₂-derived regime/event series + raw calendar scrapes gitignored.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table>
+          <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/catalyst/calendar.py</code></td><td>new</td><td><code>probe_sources</code> (T1 coverage+provenance report + go/no-go), <code>assemble_calendar</code>, <code>validate_calendar</code> (schema + provenance + granularity flags) (REQ-001..003).</td></tr>
+            <tr><td><code>noxus/catalyst/regime.py</code></td><td>new</td><td><code>rolling_regime</code>, <code>regime_event_study</code>, <code>event_bound_jackknife</code>, <code>collapse_attribution</code>, <code>scan_max_null</code>, grid + BH-FDR (REQ-010/011/020/021/022/030/031).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>RegimeStudyConfig</code> (rolling window, deseason variants, match/threshold grid, regime rule, bootstrap draws, FDR α, seed, calendar path, out paths). Existing config unchanged (REQ-051).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td><code>assemble-calendar</code> (with <code>--probe</code> T1 mode) and <code>regime-study</code> subcommands; existing subcommands unchanged (REQ-051).</td></tr>
+            <tr><td><code>analysis/regime_2023_event_study.py</code></td><td>new</td><td>Figure driver: rolling-corr + regime bands + event overlay; per-regime precision/recall/lead; jackknife; scan-max-null histogram; findings file (REQ-050).</td></tr>
+            <tr><td><code>data/curtailment/tangshan_hebei_curtailment.csv</code></td><td>new (committed)</td><td>The curated, source-cited calendar deliverable (small, public) (REQ-002, A2/Q2).</td></tr>
+            <tr><td><code>data/curtailment/SOURCES.md</code></td><td>new (committed)</td><td>Per-event provenance notes + the T1 coverage verdict (REQ-001/003).</td></tr>
+            <tr><td><code>docs/exploration-results.html</code></td><td>extend</td><td>Close the 2023-regime thread: regime figure, event-study verdict, scan-max-null framing (REQ-050).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>NO₂-derived regime/event series + bulk raw calendar scrapes (curated CSV stays committed) (NFR-006).</td></tr>
+            <tr><td><code>tests/catalyst/test_calendar.py</code>, <code>tests/catalyst/test_regime.py</code>, <code>tests/cli/test_regime_cli.py</code></td><td>new</td><td>Calendar schema/provenance/loader-compat; planted-regime recovery; jackknife; scan-max null; FDR; no-look-ahead guard; CLI wiring (AT1–AT10).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead><tr><th>File or directory</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/catalyst/events.py</code>, <code>groundtruth.py</code>, <code>study.py</code>, <code>report.py</code></td><td>Reused read-only via their contracts (<code>detect_events</code>, <code>bf_rate_events</code>, <code>load_curtailment_calendar</code>, <code>production_events</code>, <code>match_events</code>). The calendar CSV is designed to fit the existing loader — no change.</td></tr>
+            <tr><td><code>noxus/validation/robust.py</code>, <code>leadlag.py</code>, <code>preprocess.py</code></td><td>NOX-008 significance + lead-lag reused <strong>unchanged</strong> (effective-N, block bootstrap, block-permutation, BH-FDR).</td></tr>
+            <tr><td><code>noxus/signal/**</code>, <code>noxus/attribution/**</code>, <code>noxus/data/**</code></td><td>NOX-003.1 residual + cube consumed read-only; algorithms unchanged.</td></tr>
+            <tr><td>Market / flux-divergence / GEMS / VIIRS modules</td><td>Out of scope (NOX-005/007/011/013/014).</td></tr>
+            <tr><td><code>.env</code>, credentials</td><td>Protected; no secrets touched (no keyed source needed).</td></tr>
+          </tbody>
+        </table>
+        <p><strong>spec-drift scope (tasks.json <code>scope</code> glob):</strong>
+        <code>noxus/catalyst/**</code>, <code>noxus/config/run.py</code>, <code>noxus/cli/main.py</code>,
+        <code>analysis/**</code>, <code>data/curtailment/**</code>, <code>docs/exploration-results.html</code>,
+        <code>tests/**</code>, <code>.gitignore</code>.</p>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Outputs</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/catalyst/calendar.py  (new)
+def probe_sources(cfg) -&gt; ProbeReport:            # T1: coverage+provenance per candidate + go/no-go verdict
+def assemble_calendar(cfg) -&gt; pd.DataFrame:       # curated events: start,end,direction,cause,+source,url,granularity,confidence
+def validate_calendar(df) -&gt; None:               # schema + provenance + granularity; raises on unsourced/fabricated
+
+# noxus/catalyst/regime.py  (new)  — reuses events/groundtruth/study/robust read-only
+def rolling_regime(resid, bench, *, window_months, variant) -&gt; RegimeResult:   # rolling r, peak/collapse, segments, robust_corr per segment
+def regime_event_study(resid, coverage, meteo, bench, calendar, *, regimes, cfg) -&gt; EventStudyResult:  # precision/recall/lead per regime
+def event_bound_jackknife(resid, bench, events, *, regime) -&gt; JackknifeResult:  # leave-one-large-event-out contribution to peak r
+def collapse_attribution(resid, bench, calendar, secular_trend, *, regimes) -&gt; CollapseDiagnosis:  # dual diagnostic, no forced verdict
+def scan_max_null(resid, bench, *, window_months, n_draws, block, seed) -&gt; ScanMaxNull:  # block-permutation scan-max distribution + percentile
+def regime_study(cfg) -&gt; RegimeArtifacts:         # driver: fixed grid -&gt; tables + BH-FDR + verdict
+
+# reused unchanged:
+#   noxus.catalyst.events.detect_events / groundtruth.{bf_rate_events,load_curtailment_calendar,production_events}
+#   noxus.catalyst.study.match_events
+#   noxus.validation.robust.{robust_corr, block_permutation_p, bh_fdr}
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># data/curtailment/  (COMMITTED — small, public, source-cited)
+tangshan_hebei_curtailment.csv   # start,end,direction,cause,source,url,granularity,confidence
+SOURCES.md                       # T1 coverage verdict + per-event provenance narrative
+
+# data/derived/no2/  (gitignored — NO2-derived)
+regime_events.parquet            # detected NO2 events tagged by regime
+# data/curtailment/_raw/  (gitignored — bulk scrapes, if any)
+
+# data/derived/  (small stats — committable)
+regime_study.csv                 # regime,variant,window,threshold,n,r,p_naive,p_eff_nw,boot_lo,boot_hi,p_perm,p_fdr,verdict
+regime_study_summary.txt         # plain-language verdict incl. the scan-max-null artefact conclusion + n_tests
+# docs/figures/exploration/  (committed)
+regime_rolling_bands.png, regime_precision_recall.png, regime_jackknife.png, regime_scanmax_null.png
+docs/figures/exploration/regime_2023_findings.txt
+</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code>uv run noxus assemble-calendar --probe        # T1 feasibility spike: coverage+provenance report + go/no-go
+uv run noxus assemble-calendar                # curate/validate the calendar CSV (source-cited)
+uv run noxus regime-study                     # rolling regime + event study + jackknife + scan-max null + FDR -&gt; verdict
+uv run noxus regime-study --window-months 18 --draws 5000 --seed 20260720
+uv run python analysis/regime_2023_event_study.py   # figures + findings from the tables
+</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>New committed curated calendar CSV + <code>SOURCES.md</code> under <code>data/curtailment/</code>; a
+        gitignored NO₂-derived regime-event parquet; a small committable <code>regime_study.csv</code> stats table +
+        figures. No database, no schema migration. The calendar conforms to the existing
+        <code>load_curtailment_calendar</code> column contract (extra provenance columns are additive).</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Adds one <strong>data</strong> dependency — a public/free curtailment calendar — and <strong>no code
+        dependency</strong>. Current-source verification is required at implementation (the calendar's existence,
+        coverage and granularity is the central feasibility risk, Q1; the T1 spike measures it before the build).</p>
+        <table>
+          <thead><tr><th>Dependency</th><th>Sources to check</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Curtailment / AQ-control calendar</strong></td><td>MEE (mee.gov.cn) + Hebei DEE + Tangshan municipal heating-season restriction notices; CREA / Custeel / Mysteel public reports; reputable news (Reuters/SMM/industry) for sudden shutdowns/campaigns; official public-holiday calendars for Golden Week / Spring Festival.</td><td>New <strong>data</strong> dep. Public/free only (NFR-002); every event cited (REQ-003). T1 records source, date, granularity, confidence and the go/no-go verdict.</td></tr>
+            <tr><td><strong>NOX-004 catalyst / NOX-008 robust / NOX-003.1 residual / NOX-001 benchmark</strong></td><td>Internal contracts.</td><td>Reused read-only / unchanged.</td></tr>
+            <tr><td><strong>NumPy / SciPy / statsmodels / pandas</strong></td><td>Already present (bootstrap, permutation, rolling correlation).</td><td>No version change; <strong>no new dependency</strong> (NFR-007).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>Read-only ingestion of public web/PDF/CSV sources for the calendar (no credentials required; if any
+        source needs a key it is referenced by name only and flagged in Q1). No remote mutation. NO₂-derived
+        regime/event series + bulk raw scrapes gitignored; the curated source-cited CSV is committed. Standard
+        protected-area rules unchanged.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>docs/exploration-results.html</code> (close the 2023-regime thread), project map (new
+        <code>catalyst/</code> calendar+regime modules + CLI verbs), <code>docs/data-access.md</code>
+        (curtailment-calendar sources), <code>decisions/</code> (the curtailment calendar is now APPLIED — the
+        NOX-003/004 Q4/Q6a follow-up; the 2023-peak event-bound-vs-artefact verdict), <code>history.html</code>,
+        possibly <code>references.bib</code> (event-study + multiple-testing methodology). Reviewer confirms.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Calendar schema/provenance</strong> (AT1/AT2): a fixture CSV with + without provenance → <code>validate_calendar</code> accepts sourced events, rejects/flags unsourced; <code>assemble_calendar</code> output loads cleanly through the <strong>unchanged</strong> <code>load_curtailment_calendar</code>.</li>
+          <li><strong>Planted regime</strong> (AT3): a synthetic residual+benchmark with a coupling switched on in one 18-month window → <code>rolling_regime</code> recovers the peak window; the segmentation rule is seed/order-stable and takes no CREA-tuning argument.</li>
+          <li><strong>Event-bound jackknife</strong> (AT4): a fixture where the regime r is created by a few large step events → leave-one-out attributes the peak to them; a broadly-coupled fixture → jackknife shows no single-event dominance.</li>
+          <li><strong>Regime match</strong> (AT5): planted NO₂ events + planted calendar/BF events → precision/recall/lead per regime recovered (reuses <code>match_events</code>).</li>
+          <li><strong>Scan-maximum null</strong> (AT6): independent AR(1) series → the scan-max-of-rolling-r test holds false-positive near α across seeds; a planted-regime peak sits beyond the null band.</li>
+          <li><strong>Multiplicity</strong> (AT7): the fixed grid records <code>n_tests</code>; <code>bh_fdr</code> across the grid matches a reference; a lone favourable cell not surviving FDR is flagged non-significant.</li>
+          <li><strong>No-look-ahead guard</strong> (AT8): detection at <em>t</em> unchanged by appended future data; any lead-vs-publication window is causal (reuses the NOX-004 guard).</li>
+          <li><strong>Honest-null path</strong> (AT9): a null fixture drives the report to the "multiple-comparisons artefact" verdict, asserted to be a PASS.</li>
+          <li><strong>CLI + determinism</strong> (AT10/AT-REG-1): subcommands wired; same seed → identical tables; existing commands unchanged.</li>
+        </ul>
+        <p>All statistics tested on synthetic, seeded fixtures; no network at test time (source probing mocked; the
+        calendar under test is a small fixture CSV).</p>
+      </section>
+
+      <section id="ui-verification-plan"><h2>UI verification plan</h2><p>None (no UI). The rolling-band, precision/recall, jackknife and scan-max-null figures are eyeballed as outputs.</p></section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Calendar existence / coverage / granularity (top risk, Q1).</strong> A rich event-level public calendar may not be assemblable; like the NOX-007 (GEMS) and NOX-011 (VIIRS) T1 spikes, this is gated. <strong>Mitigation:</strong> the T1 assembly spike (REQ-001) records a go/no-go, and a <strong>safe coarse-floor default</strong> (heating-season windows + Golden Week/Spring Festival + securely-dated campaigns) lets the task proceed with reduced power (EDGE-001) — so the risk is non-blocking.</li>
+          <li><strong>The 2023 peak is a rolling-window multiple-comparisons artefact (the honest-null crux).</strong> Many overlapping 18-month windows were effectively scanned; a peak of 0.76 may be unsurprising under the scan-maximum null. <strong>Mitigation:</strong> REQ-030's scan-max null + REQ-031's BH-FDR make this conclusion first-class and reportable (AC-009).</li>
+          <li><strong>Look-ahead leakage.</strong> Regime <em>identification</em> is in-sample/descriptive; only the exogenous-curtailment event study and causal detection support any timing claim. <strong>Mitigation:</strong> causal baselines (reused) + grid fixed before outcomes + a guard test (REQ-040); the report labels regime identification as descriptive, not predictive.</li>
+          <li><strong>Anti-p-hacking on regime boundaries.</strong> Choosing the boundary that maximises r would manufacture the result. <strong>Mitigation:</strong> a fixed pre-registered rule (REQ-011, Q4); estimators take no CREA-agreement objective (ERR-004); a boundary-robustness sweep is reported.</li>
+          <li><strong>Few events / low power per regime.</strong> Sub-period samples are small. <strong>Mitigation:</strong> autocorrelation-robust CIs widen honestly; low-power segments labelled (EDGE-003); event-level jackknife refused below a minimum (ERR-003).</li>
+          <li><strong>Cloud-gapped curtailments.</strong> A real curtailment hidden by cloud lowers recall honestly (EDGE-004), not silently absorbed.</li>
+          <li><strong>Deep-review category.</strong> This task is not in a high-risk category (no auth/payments/migrations/infra); it is analysis on existing data + a public calendar. Standard review applies; the emphasis is the no-look-ahead + multiple-testing + anti-p-hacking disciplines above.</li>
+          <li><strong>Rejected:</strong> re-implementing event detection / matching / robust significance (they exist and are tested — reuse); a paywalled curtailment dataset (public/free only, NFR-002); selecting the regime boundary or window against CREA (p-hacking).</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>Additive: two self-contained new modules + new CLI subcommands + new config + a committed calendar CSV;
+        no existing behaviour changes. Rollback = revert the feature branch and delete the gitignored regime/event
+        artifacts; the committed calendar CSV + <code>regime_study.csv</code> + figures can stay as a record or be
+        removed. NOX-001..011 remain intact.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -36,55 +36,55 @@
         human approval.</p>
 
         <ol class="task-timeline">
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T1</span>
             <strong>GATE — VNF feasibility spike + go/no-go (REQ-000, ERR-004).</strong> <em>(developer-run)</em></div>
             <div class="task-item-body">Fetch a small VNF window over Tangshan. Record: download endpoint + file format + whether auth is required (Q1/Q2); per-night data volume + implied full-era volume; the detection fields available (temperature K, source area, radiant heat MW, lat/lon, timestamp, id, quality/cloud); temporal coverage over the AOI (nights with detections vs gaps); and confirmation that detections <strong>co-locate with the facilities</strong> (overlay a few nights). Write a <strong>go/no-go</strong> vs the download budget into <code>open-questions.html</code> (Q1) and the decision log. <em>If no-go → stop; record the measurement.</em></div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
             <strong>Config + env var + gitignore + deps check (REQ-040, NFR-002/003/004).</strong></div>
             <div class="task-item-body"><code>ViirsAcquisitionConfig</code> (source, endpoint base, date range, AOI buffer, quality thresholds, batch window, download budget, paths, env-var name) + <code>ThermalTriangulationConfig</code> (facility radius, frequency, primary aggregate) in <code>noxus/config/run.py</code>; document <code>FIRMS_MAP_KEY</code> in <code>.env.example</code> (name only); add <code>data/raw/viirs/</code> to <code>.gitignore</code>; confirm <strong>no new dependency</strong> is needed (httpx/pandas/pyarrow present; haversine join) — if one is, stop and ask (Q5).</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
             <strong>VNF acquisition: fetcher seam + clip + persist + manifest (REQ-001..005, ERR-001/002/003).</strong></div>
             <div class="task-item-body"><code>ViirsFetcher</code> Protocol + <code>VnfFetcher</code> (httpx, key/keyless per T1, retry/backoff, request-URL scrubbing); AOI bbox clip; retain the required per-detection fields; per-night parquet write + provenance; resumable manifest (batch by date window; re-run skips done nights); clear error referencing the env-var name on key failure; descriptive error on endpoint/field-not-found.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
             <strong>Tests: mocked fetcher + synthetic detections for acquire/clip/persist/resume (REQ-001..004).</strong></div>
             <div class="task-item-body">Fake <code>ViirsFetcher</code> returns synthetic per-night frames (on/off facilities + empty nights); assert AOI clip, fields retained, provenance written, manifest resumable (second run fetches nothing new; interruption resumes). No network.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
             <strong>FIRMS cross-check fetcher + static-land-source filter (REQ-006, EDGE-004, ERR-001).</strong></div>
             <div class="task-item-body"><code>FirmsFetcher</code> on the same seam (area+date API; <code>FIRMS_MAP_KEY</code> from env by reference); keep only static-land-source detections; tests with a synthetic mixed-type FIRMS frame.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
             <strong>Facility-radius join + weekly/daily aggregation, benchmark-blind (REQ-010/011/012, NFR-006).</strong></div>
             <div class="task-item-body"><code>noxus/signal/thermal.py</code>: <code>join_to_facilities</code> (numpy haversine; nearest within radius; drop outside) + <code>build_thermal_series</code> (weekly primary + daily secondary; summed radiant heat primary; count + mean-temp alternates; flag sparse weeks). The functions take <strong>no CREA/NO₂ argument</strong>. Fix radius/thresholds/frequency/aggregate in config and record them in <code>assumptions.html</code> before viewing triangulation.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
             <strong>Tests: join + aggregation edge cases (REQ-010/011/012, EDGE-001/002/005).</strong></div>
             <div class="task-item-body">Synthetic detections at known offsets → nearest-within-radius assignment, ties, outside-radius dropped; weekly/daily aggregates correct; empty/sparse nights flagged; assert the series-build signature is benchmark-blind.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
             <strong>Triangulation orchestration (REQ-020..024, 031).</strong></div>
             <div class="task-item-body"><code>analysis/viirs_triangulation.py</code>: align thermal + existing NO₂-footprint + CREA on the common window (EDGE-003); call <code>noxus.validation.robust.robust_corr</code> for NO₂↔VIIRS and CREA↔VIIRS + <code>leadlag</code>; <code>bh_fdr</code> across the family; repeat on the FIRMS series; emit the committable triangulation CSV + the <strong>interpretation table</strong> (feature-vs-target incl. honest null). <strong>Do not re-implement significance.</strong></div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
             <strong>Tests: triangulation + interpretation branches (REQ-020..024).</strong></div>
             <div class="task-item-body">Synthetic thermal correlated with NO₂ but not CREA (and the reverse, and neither) → assert <code>robust_corr</code> used, BH-FDR applied, and the interpretation table selects the correct feature-vs-target branch incl. the honest-null branch. Significance exercised via the real <code>robust.py</code> on tiny arrays.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T10</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
             <strong>Verification render + committable outputs (REQ-030/031).</strong></div>
             <div class="task-item-body"><code>noxus/data/verify_viirs.py</code>: <code>render</code> detections-over-AOI PNG with facility overlay; write the thermal series + triangulation table + figures under <code>data/derived/</code>. Synthetic-store test asserts the PNG + facility markers are produced.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T11</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T11</span>
             <strong>Wire CLI + smoke test (REQ-040).</strong></div>
             <div class="task-item-body">Config-driven <code>fetch-viirs</code> (+ <code>--probe</code>), <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code>; CLI smoke test (mocked); confirm existing subcommands unaffected (AT-REG-1).</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T12</span>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T12</span>
             <strong>Real acquisition slice + triangulation run (AC-001..005).</strong> <em>(developer-run; needs the resolved endpoint / any key)</em></div>
             <div class="task-item-body">Fetch a real VNF slice over the overlap era, build the thermal series, run <code>triangulate-thermal</code> (+ FIRMS cross-check), eyeball the detection/facility overlay, and <strong>record the diagnosis honestly</strong> (a null is a valid, informative outcome). Note which link the pattern localises.</div></li>
 
-          <li class="task-item"><div class="task-item-header"><span class="req-id t">T13</span>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T13</span>
             <strong>Run validation (AC-006).</strong></div>
             <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; network/auth mocked; VIIRS raw gitignored; no key logged or committed.</div></li>
 

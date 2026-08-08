@@ -310,6 +310,91 @@ class VarianceDecompConfig:
     series_cache_dir: Path = Path("data/derived/no2/variance")
 
 
+@dataclass(frozen=True)
+class ViirsAcquisitionConfig:
+    """Configuration for VIIRS thermal-anomaly acquisition over the AOI (NOX-011, REQ-001..006/040).
+
+    Mirrors :class:`AcquisitionConfig` (TROPOMI): a resumable, provenance-tagged, credentials-by-
+    reference acquisition. Two sources share the fetcher seam: ``vnf`` (VIIRS Nightfire, EOG/CSM — the
+    industrial-combustion-tuned *primary*, expected keyless) and ``firms`` (NASA FIRMS active fire —
+    the *cross-check*, key ``FIRMS_MAP_KEY`` by reference). The exact VNF endpoint/format/auth and the
+    per-night volume are the external-access unknowns confirmed by the **T1 spike** (Q1/Q2); the
+    defaults below are the safe defaults recorded in the spec and are verified before any bulk fetch.
+    """
+
+    source: str = "vnf"  # "vnf" (primary) | "firms" (cross-check)
+    # VNF (EOG / Colorado School of Mines) per-night bulk store. Verified/pinned at T1 (Q1). The
+    # per-night file is filtered to the AOI bbox client-side (VNF is global per night).
+    vnf_endpoint_base: str = "https://eogdata.mines.edu/wwwdata/viirs_products/vnf"
+    vnf_file_template: str = "VNF_npp_d{yyyymmdd}_noaa_v30.csv.gz"  # confirm exact name at T1
+    # NASA FIRMS area+date CSV API. product = collection id; key read from the env var by name only.
+    firms_endpoint_base: str = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+    firms_products: tuple[str, ...] = ("VIIRS_SNPP_SP", "VIIRS_NOAA20_SP")
+    firms_env_key: str = (
+        "FIRMS_MAP_KEY"  # referenced by NAME only; value never read into logs/output
+    )
+    # FIRMS detection "type" code kept for the industrial cross-check: 2 == "other static land source"
+    # (0 presumed vegetation fire, 1 active volcano, 3 offshore are excluded — EDGE-004).
+    firms_static_land_type: int = 2
+
+    start: date = date(2019, 1, 1)  # TROPOMI/CREA overlap era (VNF itself is ~2012->present, A6)
+    end: date | None = None  # None => today at runtime
+    aoi_buffer_deg: float = DEFAULT_AOI_BUFFER_DEG
+    raw_dir: Path = Path("data/raw/viirs")
+
+    # Politeness / resumability (NFR-007): batch by date window, retry with backoff.
+    batch_window_days: int = 30
+    max_retries: int = 3
+    backoff_seconds: float = 2.0
+    request_timeout: float = 120.0
+
+    # Download budget gate (REQ-000/ERR-004): the T1 spike measures per-night volume; if the implied
+    # full-era volume exceeds this, the spike records a no-go and no bulk download starts.
+    download_budget_mb: float = 2048.0
+    probe_days: int = 7  # size of the T1 feasibility window
+
+    # Optional quality screen retained per detection (REQ-002); None => keep all detections.
+    min_temperature_k: float | None = None
+
+
+@dataclass(frozen=True)
+class ThermalTriangulationConfig:
+    """Configuration for the VIIRS facility join, thermal series and triangulation (NOX-011).
+
+    Pre-registration knobs (A2/A3/A9, NFR-006): the facility radius, aggregation frequency and primary
+    aggregate are fixed here **before** the triangulation is viewed, so the thermal index cannot be
+    tuned to the correlation. The triangulation reuses ``noxus.validation.robust`` unchanged (REQ-020).
+    """
+
+    # --- Facility-radius join (REQ-010, A2) ---------------------------------------------------
+    radius_km: float = 3.0  # pre-registered; brackets the VIIRS pixel footprint + plant extent (Q3)
+
+    # --- Aggregation (REQ-011, A3/A5) ---------------------------------------------------------
+    freq: str = "W"  # weekly primary (matches the CREA benchmark + NO2 cube); "D" secondary
+    primary_aggregate: str = "radiant_heat"  # summed radiant heat (MW) is the headline index
+    sparse_min_nights: int = 2  # weeks with fewer detection-nights than this are flagged (EDGE-005)
+
+    # --- Robust significance (REQ-020..022; reused from NOX-008) -------------------------------
+    n_boot: int = 5000  # moving-block bootstrap draws for the CI of r
+    n_perm: int = 5000  # block-permutation null draws
+    seed: int = 20260712  # fixed RNG seed (NFR-001)
+    max_lag: int = 8  # +/- lead/lag window (periods)
+    min_overlap: int = 26  # refuse a correlation below this many overlapping periods
+    fdr_alpha: float = 0.05  # Benjamini-Hochberg level across the correlation family (REQ-022)
+
+    # --- Inputs (read-only) + committable outputs (REQ-031) -----------------------------------
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    # Existing NO2-footprint series + CREA benchmark, aligned on the common window (EDGE-003).
+    no2_series_path: Path = Path("data/derived/no2/steel_footprint_daily.parquet")
+    no2_series_column: str = "no2_attributed"
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    raw_dir: Path = Path("data/raw/viirs")
+    out_dir: Path = Path("data/derived")
+    series_name: str = "viirs_thermal_series.parquet"
+    results_name: str = "viirs_triangulation.csv"
+    figures_dir: Path = Path("data/derived/verification/viirs")
+
+
 # Default market instruments (NOX-004). Free/reproducible via yfinance: global miners + a steel ETF.
 # Chinese ferrous futures (SHFE rebar / DCE iron ore / coking coal) lack a clean free API (Q1) and are
 # left out of the default set — added behind a best-effort exchange-settlement snapshot when available.
@@ -359,3 +444,117 @@ class CatalystConfig:
     out_dir: Path = Path("data/derived")
     results_name: str = "catalyst_results.json"
     summary_name: str = "catalyst_summary.txt"
+
+
+# Chinese public-holiday windows that securely bound the coarse-floor curtailment calendar
+# (NOX-012 T1/T2). These are matters of public record (State Council holiday arrangements /
+# fixed National-Day Golden Week) — used as the *safe coarse floor* (A3/EDGE-001), never as
+# fabricated event-level curtailment campaigns. Dates are (start, end) inclusive, ISO strings.
+# Spring Festival (Lunar New Year) — steel demand + logistics slow; a documented production dip.
+SPRING_FESTIVAL_WINDOWS = (
+    ("2019-02-04", "2019-02-10"),
+    ("2020-01-24", "2020-01-30"),
+    ("2021-02-11", "2021-02-17"),
+    ("2022-01-31", "2022-02-06"),
+    ("2023-01-21", "2023-01-27"),
+    ("2024-02-10", "2024-02-16"),
+    ("2025-01-28", "2025-02-03"),
+)
+# National Day Golden Week — fixed Oct 1–7 every year (public record).
+GOLDEN_WEEK_YEARS = tuple(range(2019, 2026))
+
+
+@dataclass(frozen=True)
+class RegimeStudyConfig:
+    """Configuration for the 2023-regime event study + curtailment calendar (NOX-012, REQ-051).
+
+    Drives calendar assembly (T1 probe + T2 build), rolling-regime identification, the
+    regime-conditioned event study, the leave-one-event-out jackknife, the 2024-collapse dual
+    diagnostic, the rolling-window scan-maximum null and the BH-FDR grid. Every knob is fixed here
+    **before** any CREA outcome is viewed (anti-p-hacking, NFR-005): no window, threshold, deseason
+    variant or regime boundary is selected to maximise agreement with the benchmark. The estimators
+    expose **no** CREA-agreement objective (ERR-004). Reuses ``noxus.validation.robust`` and the
+    NOX-004 catalyst primitives unchanged.
+    """
+
+    # --- Rolling-regime identification (REQ-010/011) ------------------------------------------
+    freq: str = "W"  # residual cadence (weekly cube); "ME" monthly secondary
+    window_months: int = 18  # the rolling-correlation window of record (~78 weeks)
+    window_weeks_secondary: int = 52  # a 52-week secondary window reported alongside
+    # Deseason variants in the fixed grid; the harmonic-K1 method of record headlines (Q3).
+    variants: tuple[str, ...] = ("harmonic", "intensity-model")
+    headline_variant: str = "harmonic"
+
+    # --- Regime segmentation (fixed pre-registered rule, Q4/A5) -------------------------------
+    # The "2023 peak" regime is the ``window_months`` window centred on the located rolling-r peak;
+    # the "2024 collapse" is a fixed calendar-year split. Boundaries are NEVER tuned to CREA.
+    collapse_year: int = 2024
+    pre_period: tuple[str, str] = ("2022-01-01", "2023-12-31")  # cadence baseline for the collapse
+    boundary_robustness_periods: tuple[int, ...] = (-4, 0, 4)  # +/- shift sweep on the peak centre
+
+    # --- Regime-conditioned event study (REQ-020) --------------------------------------------
+    z_thresh: float = 2.0  # NO2 event detector threshold (reused detect_events default)
+    detect_min_periods: int = 12
+    min_coverage: float = 0.25
+    meteo_screen: bool = True
+    ventilation_z: float = 1.5
+    bf_event_z: float = 1.5  # BF-rate jump threshold for ground-truth production events
+    match_windows: tuple[int, ...] = (2,)  # +/- periods for the NO2<->production match grid
+
+    # --- Event-magnitude-threshold grid (REQ-031) --------------------------------------------
+    thresholds: tuple[float, ...] = (1.5, 2.0, 2.5)
+
+    # --- Event-bound jackknife (REQ-021, ERR-003) --------------------------------------------
+    jackknife_event_window: int = 4  # +/- periods removed around each large event
+    min_events: int = 3  # refuse the event-level jackknife below this many (ERR-003 -> coarse)
+    # Fraction of the peak r that must be lost by removing the top events to call it "event-bound".
+    event_bound_drop_frac: float = 0.5
+
+    # --- Scan-maximum null (REQ-030, A6) -----------------------------------------------------
+    scanmax_draws: int = 2000  # block-permutation draws for the scan-max distribution
+    n_boot: int = 5000  # moving-block bootstrap draws for the robust CI of r
+    n_perm: int = 5000  # block-permutation null draws per regime robust_corr
+    seed: int = 20260720  # fixed RNG seed (NFR-001)
+    block_exponent: float = 1.0 / 3.0  # moving-block length rule (reused from NOX-008)
+    block_floor: int = 2
+
+    # --- Multiple testing (REQ-031/032) ------------------------------------------------------
+    fdr_alpha: float = 0.05  # Benjamini-Hochberg level across the fixed grid
+
+    # --- Calendar assembly + T1 probe (REQ-001/002) ------------------------------------------
+    calendar_start_year: int = 2019
+    calendar_end_year: int = 2025
+    # Heating-season restriction window months (Tangshan/Hebei ~Nov 15 -> Mar 15).
+    heating_season: tuple[str, str] = ("11-15", "03-15")
+    # T1 go/no-go thresholds (REQ-001): event-level needs >= this many securely-dated day/week events
+    # spanning the era with >=1 in the 2023-peak window and >=1 in 2024.
+    min_event_level: int = 6
+    peak_window: tuple[str, str] = ("2023-01-01", "2023-12-31")
+    collapse_window: tuple[str, str] = ("2024-01-01", "2024-12-31")
+
+    # --- Inputs (read-only) ------------------------------------------------------------------
+    decomposition_path: Path = Path("data/derived/no2/steel_intensity_decomposition.parquet")
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    calendar_path: Path = Path("data/curtailment/tangshan_hebei_curtailment.csv")
+    sources_path: Path = Path("data/curtailment/SOURCES.md")
+    raw_calendar_dir: Path = Path("data/curtailment/_raw")  # gitignored bulk scrapes (if any)
+
+    # --- Outputs (small stats committable; NO2-derived gitignored) ---------------------------
+    out_dir: Path = Path("data/derived")
+    results_name: str = "regime_study.csv"
+    event_study_name: str = (
+        "regime_event_study.csv"  # per-regime precision/recall/lead (REQ-020/050)
+    )
+    summary_name: str = "regime_study_summary.txt"
+    events_out: Path = Path("data/derived/no2/regime_events.parquet")  # gitignored (NO2-derived)
+    figures_dir: Path = Path("docs/figures/exploration")
+    findings_name: str = "regime_2023_findings.txt"
+
+    def window_periods(self) -> int:
+        """The rolling window length in observation periods for the configured cadence."""
+        if self.freq.upper().startswith("W"):
+            return int(round(self.window_months * 52.0 / 12.0))
+        if self.freq.upper() in ("M", "ME", "MS"):
+            return int(self.window_months)
+        return int(round(self.window_months * 52.0 / 12.0))

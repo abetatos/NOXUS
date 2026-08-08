@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — 2023 regime event study + public curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-012</code></td></tr>
+        <tr><th>Feature slug</th><td><code>regime-2023-event-study</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-003.1</code> (intensity residual + secular-trend diagnostic), <code>NOX-004</code> (catalyst event-study machinery + curtailment-calendar loader), <code>NOX-008</code> (autocorrelation-robust significance + BH-FDR), <code>NOX-001</code> (CREA benchmark)</td></tr>
+        <tr><th>Origin</th><td>Critique #2 — "you looked at the aggregate coefficient, not the residuals"; the one un-closed thread in <code>docs/exploration-results.html</code></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Most residual structure of the NO₂↔CREA relationship is already documented in
+        <code>docs/exploration-results.html</code> (rolling-18-month correlation, period splits, the
+        Simpson's-paradox "decoupling" diagnostic). One thread is <strong>un-closed</strong>: the rolling-18-month
+        correlation of de-trended NO₂ against the blast-furnace (BF) operating rate <strong>peaked at
+        r ≈ 0.73–0.76 around 2023-06</strong> — clearing the 0.5–0.75 literature bar — and then
+        <strong>collapsed through 2024</strong>. The full TROPOMI series is now complete (the 2023-06 gap was
+        filled 2026-07-06, so June 2023 is 29/30 days), making this the moment to test the thread properly.</p>
+        <p>This feature has <strong>two deliverables</strong>:</p>
+        <ol>
+          <li><strong>A public/free curtailment + air-quality-control calendar</strong> for Tangshan/Hebei steel:
+          heating-season production restrictions, blue-sky / anti-smog campaigns, sudden shutdowns/restarts, and
+          major public-holiday effects (Golden Week, Spring Festival, major-event blue-sky enforcement). This is
+          the long-deferred NOX-003/004 follow-up (Q4 / Q6a) the decision log flags as
+          <strong>NOT-YET-APPLIED</strong>. Its existence, coverage and date-granularity are the central
+          <strong>data-feasibility risk</strong> and are gated by a T1 assembly spike.</li>
+          <li><strong>An event study around the 2023 regime</strong>, reusing the NOX-004 catalyst machinery on the
+          now-completed series: <em>is the 2023 coupling driven by a few large curtailment events</em> (the signal
+          is real but <strong>event-bound</strong>, not a continuous tracker), and <em>was the 2024 collapse a
+          change in curtailment regime or an accelerating intensity-decoupling</em> (NOX-003.1)?</li>
+        </ol>
+        <p><strong>Honesty (carried, non-negotiable).</strong> Strict <strong>no-look-ahead</strong> (curtailment
+        dates are exogenous/public; causal detection baselines; any lead/timeliness claim uses causal windows
+        fixed before viewing outcomes). <strong>Multiple-testing transparency</strong> (event windows + test grid
+        fixed <em>before</em> viewing outcomes; <code>n_tests</code> recorded; BH-FDR across the
+        window×variant×threshold grid). <strong>Anti-p-hacking</strong> (no window/threshold/regime boundary
+        selected against CREA). The rigorous <strong>NULL is a first-class, designed-for outcome</strong>: the
+        2023 peak may be a <em>multiple-comparisons artefact of the rolling window</em> (many overlapping 18-month
+        windows were effectively scanned), and the report must be able to conclude exactly that as a valid finding
+        (Morris &amp; Zhang 2019).</p>
+        <p><strong>Scope boundary.</strong> This task explains the <em>NO₂↔CREA</em> regime structure. The
+        <strong>market linkage</strong> (abnormal returns, tradeable signal) is deferred to NOX-013/NOX-014 and is
+        <em>out of scope</em> here (assumption A1). Pure analysis on the existing completed cube + benchmark plus a
+        newly assembled public calendar — no new satellite acquisition.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-calendar">Curtailment-calendar assembly (T1 gate + build)</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>Before the calendar is built, the system shall run a <strong>calendar-assembly feasibility spike</strong> (T1) that probes the public/free candidate sources (MEE / Hebei DEE / Tangshan municipal notices, CREA / Custeel / Mysteel public reports, reputable news) and emits a <strong>coverage-and-provenance report</strong> stating, per candidate event: source, publication/effective date, date-<strong>granularity</strong> (day | week | month | season), direction, and a securely-dated confidence flag — and a <strong>go/no-go verdict</strong> (see EDGE-001) on whether an <em>event-level</em> calendar is assemblable or only the <em>coarse floor</em>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When assembling the calendar, the system shall produce a <code>tangshan_hebei_curtailment.csv</code> spanning the TROPOMI era (2019-01 → present) with, at minimum, the <strong>coarse floor</strong>: annual <strong>heating-season</strong> production-restriction windows, <strong>Golden Week</strong> and <strong>Spring Festival</strong> holiday windows, and any <strong>securely-dated</strong> blue-sky / anti-smog campaigns or sudden shutdowns/restarts — each as a discrete interval (<code>start</code>, <code>end</code>, <code>direction ∈ {up,down}</code>, <code>cause</code>).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When recording each calendar event, the system shall attach <strong>provenance</strong> (<code>source</code>, citation/URL, <code>granularity</code>, <code>confidence</code>) as additional columns; an event that cannot be sourced shall be <strong>excluded or explicitly flagged</strong>, never fabricated (a curtailment hidden from public reporting becomes a documented gap, not an invented date).</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>When the calendar is consumed downstream, the system shall feed it through the <strong>existing</strong> <code>noxus.catalyst.groundtruth.load_curtailment_calendar</code> contract (columns <code>start,end,direction,cause</code>) <strong>unchanged</strong>; the extra provenance columns are tolerated and ignored by the loader (additive reuse, no change to NOX-004 code).</span></div>
+
+        <h3 id="fr-regime">Regime identification (the 2023 peak, the 2024 collapse)</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>When characterising the regime, the system shall recompute the <strong>rolling-18-month</strong> (and a 52-week) correlation of the deseasonalised footprint NO₂ against the CREA BF operating rate on the completed series, reusing the <strong>existing</strong> validation pathway (<code>noxus.validation.preprocess</code> / <code>leadlag</code>) and deseason variants (harmonic-K1 method of record + the NOX-003.1 intensity residual), and shall <strong>locate</strong> the 2023 peak and the 2024 collapse.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When segmenting into regimes, the system shall use a <strong>fixed, pre-registered rule</strong> (rolling-peak-centred windows + fixed boundaries, Q4), <strong>not</strong> a boundary tuned to maximise the correlation, and shall report each regime's correlation with <strong>autocorrelation-robust significance</strong> (effective-N + Newey-West + moving-block bootstrap CI + block-permutation p) reusing <code>noxus.validation.robust</code> unchanged.</span></div>
+
+        <h3 id="fr-eventstudy">Regime-conditioned event study</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>When running the event study, the system shall detect NO₂ <strong>production events</strong> on the NOX-003.1 residual (reusing <code>noxus.catalyst.events.detect_events</code>, causal baselines + coverage + ventilation/stagnation screen, unchanged), build the ground-truth production events from <strong>BF-rate jumps combined with the assembled curtailment calendar</strong> (reusing <code>bf_rate_events</code> + <code>production_events</code>), and <strong>match</strong> them within a fixed window per regime — reporting precision, recall, false-discovery rate and signed lead time (reusing <code>match_events</code>), <strong>not</strong> a Pearson r.</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>When testing whether the 2023 coupling is <strong>event-bound</strong>, the system shall perform a <strong>leave-one-event-out / jackknife</strong> on the 2023 peak regime: recompute the regime correlation with each large curtailment event (and its surrounding window) removed, and quantify how much of the peak <code>r</code> is attributable to a <strong>few large events</strong> versus a broadly distributed continuous coupling.</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>When attributing the <strong>2024 collapse</strong>, the system shall report <strong>both</strong> competing diagnostics side by side: (a) a <em>curtailment-regime change</em> (the 2024 calendar's event set / cadence differs from 2022–2023) and (b) an <em>accelerating intensity-decoupling</em> (the NOX-003.1 secular-trend residual behaves differently in 2024), and shall <strong>not force a single verdict</strong> when both are consistent with the data (EDGE-006).</span></div>
+
+        <h3 id="fr-null">Honest-null &amp; multiple-testing discipline</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>When judging the 2023 peak, the system shall compute a <strong>rolling-window scan-maximum null</strong>: under a serial-dependence-preserving null (block-permutation / phase-randomisation of one series reusing <code>robust.py</code> block tooling), the distribution of the <strong>maximum</strong> rolling-18-month correlation attainable across the many overlapping windows, and shall report the observed peak's percentile against that null — i.e. whether r ≈ 0.76 is <strong>surprising</strong> given how many windows were effectively scanned.</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>The system shall <strong>fix the test grid</strong> (deseason variants × match/rolling windows × event-magnitude thresholds × regime segments) <strong>before viewing outcomes</strong>, record the number of tests <code>n_tests</code>, and apply a <strong>Benjamini–Hochberg FDR</strong> correction across the grid (reusing <code>bh_fdr</code>), so no single favourable cell is reported as significant without multiplicity control.</span></div>
+        <div class="req-row"><span class="req-id">REQ-032</span><span>The system shall enforce <strong>anti-p-hacking</strong>: no window, threshold, deseason variant or regime boundary is selected by maximising agreement with CREA; and the report shall be able to state the <strong>NULL conclusion</strong> — "the 2023 peak is consistent with a multiple-comparisons artefact of the rolling window" — as a <strong>valid, first-class outcome</strong>, not a failure (Morris &amp; Zhang 2019).</span></div>
+
+        <h3 id="fr-nolookahead">No-look-ahead</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>The system shall enforce <strong>strict no-look-ahead</strong>: NO₂ event-detection baselines/thresholds at time <em>t</em> use only data up to <em>t</em> (reused causal detector); curtailment dates are exogenous/public; and any <strong>lead-vs-publication</strong> claim (NO₂ event precedes the official BF-rate print) uses causal windows <strong>fixed before viewing outcomes</strong>, verified by a guard test (reusing the NOX-004 causal guard).</span></div>
+
+        <h3 id="fr-report">Reporting &amp; CLI</h3>
+        <div class="req-row"><span class="req-id">REQ-050</span><span>When the pipeline completes, the system shall emit a machine-readable <strong>regime table</strong> + <strong>event-study table</strong> + <strong>scan-max-null / FDR summary</strong> and a plain-language <strong>findings note</strong> that states the verdict (event-bound coupling | continuous coupling | multiple-comparisons artefact | inconclusive) with CIs and the multiplicity count, and shall fold a section into <code>docs/exploration-results.html</code> closing the thread.</span></div>
+        <div class="req-row"><span class="req-id">REQ-051</span><span>When the user runs the study, the system shall expose it reproducibly as <code>noxus</code> subcommand(s) (calendar assembly incl. a <code>--probe</code> T1 mode, and the regime study) driven by a recorded config (rolling window, deseason variants, match windows, thresholds, regime rule, bootstrap draws, FDR α, seed, paths); existing NOX-001..011 subcommands and defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Every result reproduces from the committed NO₂ residual + CREA benchmark + the curated calendar CSV + recorded config; no live fetch at analysis time; bootstrap/permutation use fixed seeds.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free data only.</strong> Calendar sources are public/free and cited per event; no paywalled dataset without explicit developer sign-off (Q1).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>No look-ahead / causal.</strong> Detection and any lead claim use only information available at the decision time (incl. TROPOMI processing latency); curtailment dates are exogenous.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Honest reporting &amp; multiplicity.</strong> Precision/recall/lead + regime r with autocorrelation-robust CIs; <code>n_tests</code> and BH-FDR reported; the null (incl. the scan-max artefact conclusion) is first-class; no cherry-picked window/variant.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Anti-p-hacking.</strong> No window/threshold/variant/regime-boundary is selected against CREA; the regime-identification and null tests take the benchmark as an <em>outcome to be judged</em>, never as a tuning target.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-006</span><span><strong>No-publish.</strong> NO₂-derived regime/event series and any bulk <em>raw</em> calendar scrapes are gitignored; the small curated, source-cited calendar CSV + the small stats tables + figures may be committed (A2/Q2).</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-007</span><span><strong>Additive &amp; stack conformance.</strong> Existing catalyst / validation / signal / CLI contracts are unchanged; new code is opt-in; Python ≥3.12; passes <code>uv run pytest</code> + <code>uv run ruff check .</code>; <strong>no new dependency</strong> (numpy/pandas/scipy/statsmodels + the existing catalyst/validation modules suffice).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span><strong>Coarse-only calendar.</strong> If T1 finds only the coarse floor is securely datable (no rich event-level dates), the study runs on heating-season edges + holidays + any securely-dated campaigns, the event-bound test (REQ-021) is reported at <strong>coarse granularity with reduced power</strong>, and the report labels it so — the task still proceeds (safe default, Q1).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>A heating-season <strong>blanket</strong> curtailment (long interval) is matched on its <strong>start/end edges</strong>, not every period inside, to avoid inflating recall (reuses the NOX-004 <code>_calendar_edge_events</code> behaviour).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>A regime segment has <strong>too few events</strong> for a stable precision/recall or jackknife → the segment is labelled <strong>low-power</strong> and its metrics are reported with wide CIs, not silently omitted (cf. ERR-003).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>A curtailment period is <strong>cloud-gapped</strong> (low NO₂ coverage) → not detectable as an NO₂ event; a true curtailment hidden by cloud becomes a <strong>reported missed detection</strong> (honest recall hit), not a silently absorbed false negative.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span><strong>Overlapping rolling windows.</strong> The rolling-18-month scan produces highly autocorrelated, overlapping window correlations → the scan-maximum null (REQ-030) accounts for the effective number of independent windows; the naïve "one window hit 0.76" claim is never reported without this null.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span><strong>Ambiguous 2024 collapse.</strong> Both diagnostics (regime change + intensity-decoupling) are consistent with the collapse → the report presents both and states the attribution is <strong>not identifiable</strong> from this data, rather than forcing a single cause (REQ-022).</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the NOX-003.1 residual or the NOX-001 benchmark is missing, the system fails with an actionable message naming the producing command.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the curtailment calendar CSV is malformed (missing <code>start/end/direction</code>), the loader raises the existing actionable <code>ValueError</code>; if the calendar path is absent, the study degrades to <strong>BF-rate jumps only</strong> with a recorded note (reuses NOX-004 behaviour), rather than fabricating dates.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If fewer than a configured minimum number of securely-dated events exist for the <strong>event-level</strong> jackknife, the system <strong>refuses the event-level test</strong>, falls back to the coarse-calendar study, and reports insufficient events (cf. EDGE-001/003), rather than emitting unstable rates.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If a caller attempts to make the regime-identification / null estimator select a boundary or threshold by an explicit CREA-agreement objective, the system shall refuse (the estimators expose no such parameter); this is the runtime face of NFR-005.</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The T1 spike produces a coverage-and-provenance report and a <strong>go/no-go verdict</strong> (event-level vs coarse-floor), recorded before the build proceeds (REQ-001, EDGE-001).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The assembled calendar CSV carries <code>start,end,direction,cause</code> + provenance columns, loads cleanly through the <strong>unchanged</strong> <code>load_curtailment_calendar</code>, and every event is sourced or flagged (REQ-002/003/004).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>On a <strong>planted-regime</strong> synthetic (a coupling switched on in one window, off elsewhere), the rolling-correlation identification recovers the peak window and the segmentation rule is order/seed-stable and not tuned to the benchmark (REQ-010/011, NFR-005).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>On a <strong>planted event-bound</strong> fixture (a regime correlation created by a few large step events), the leave-one-event-out jackknife correctly attributes the peak to those events; on a <strong>planted continuous</strong> fixture it does not (REQ-021).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-005</span><span>The regime-conditioned match reuses <code>detect_events</code>/<code>production_events</code>/<code>match_events</code> and reports precision/recall/FDR/lead per regime with CIs — not a Pearson r (REQ-020).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-006</span><span><strong>Scan-maximum null:</strong> on an autocorrelated AR(1) null fixture the scan-max-of-rolling-r test holds the false-positive rate near α (a genuinely-null series does not routinely produce a "significant" peak), while a planted-regime fixture's peak sits beyond the null band (REQ-030, EDGE-005).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span><strong>Multiplicity:</strong> the test grid is fixed before outcomes, <code>n_tests</code> is recorded, and BH-FDR is applied across the grid; a favourable single cell that does not survive FDR is reported as non-significant (REQ-031, NFR-004).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-008</span><span><strong>No-look-ahead guard:</strong> a test proves detection at time <em>t</em> is unchanged by appending future data and that any lead-vs-publication window is causal (REQ-040, reuses the NOX-004 guard).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-009</span><span><strong>Honest-null path:</strong> when the scan-max null shows the peak is unsurprising and/or FDR wipes out the event matches, the report concludes "2023 peak consistent with a multiple-comparisons artefact" and this is treated as a <strong>valid PASS</strong>, not a failure (REQ-032, NFR-004).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-010</span><span>The findings note + figures are produced, folded into <code>docs/exploration-results.html</code>; re-running with the same seed/config reproduces the tables identically; existing behaviour is unchanged; <code>uv run pytest</code> and <code>uv run ruff check .</code> pass (REQ-050, NFR-001/007).</span></div>
+      </section>
+
+      <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Outputs are CLI text, a curated calendar CSV, small stats tables (regime + event-study + null/FDR), and static figures folded into the exploration HTML report.</p></section>
+      <section id="visual-evidence"><h2>Visual evidence</h2><p>None as input. Output figures: rolling-correlation with regime bands + curtailment-event overlay; event-study precision/recall/lead per regime; leave-one-event-out jackknife; scan-maximum-null histogram with the observed peak marked.</p></section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>NOX-003.1 residual</strong> — <code>data/derived/no2/steel_intensity_decomposition.parquet</code> (gitignored) — the detection + regime input.</li>
+          <li><strong>NOX-001 benchmark</strong> — CREA BF operating-rate parquet — the correlation target + production-event ground truth.</li>
+          <li><strong>Curtailment calendar (new)</strong> — public MEE / Hebei DEE / Tangshan notices, CREA / Custeel / Mysteel public reports, news (sourcing/coverage/granularity under Q1); curated CSV consumed via the unchanged NOX-004 loader.</li>
+          <li><strong>NOX-004 catalyst</strong> — <code>noxus.catalyst.{events,groundtruth,study}</code>; reused read-only.</li>
+          <li><strong>NOX-008 robust significance</strong> — <code>noxus.validation.robust</code> (effective-N, block bootstrap, block-permutation, BH-FDR); reused <strong>unchanged</strong>.</li>
+          <li><strong>NumPy / SciPy / statsmodels</strong> — already present; <strong>no new dependency</strong>.</li>
+          <li><strong>Market data</strong> — <strong>explicitly NOT a dependency</strong> (market linkage deferred to NOX-013/014, A1).</li>
+        </ul>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>docs/exploration-results.html</code> (close the 2023-regime thread — regime figure,
+        event-study verdict, scan-max-null framing), the project map (new <code>catalyst/</code> regime + calendar
+        modules + CLI verbs), <code>docs/data-access.md</code> (curtailment-calendar sources + the public/free
+        sourcing note), <code>decisions/</code> (the curtailment calendar is now APPLIED; the 2023-peak verdict),
+        <code>history.html</code>, possibly <code>references.bib</code> (event-study + multiple-testing methodology).
+        Reviewer confirms the final list.</p>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead><tr><th>Requirement</th><th>Test(s)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001/002/003/004</span></td><td>AT1, AT2</td><td>T1 spike; calendar assembly + provenance; unchanged loader.</td></tr>
+            <tr><td><span class="req-id">REQ-010/011</span></td><td>AT3</td><td>Rolling-corr regime identification; robust significance; fixed rule.</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td>AT5</td><td>Regime-conditioned match; precision/recall/lead (not r).</td></tr>
+            <tr><td><span class="req-id">REQ-021/022</span></td><td>AT4, AT-EDGE-2</td><td>Event-bound jackknife; 2024-collapse dual diagnostic.</td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td>AT6</td><td>Scan-maximum null vs AR(1) / planted-regime.</td></tr>
+            <tr><td><span class="req-id">REQ-031/032</span></td><td>AT7, AT9</td><td>Fixed grid + n_tests + BH-FDR; honest-null artefact path.</td></tr>
+            <tr><td><span class="req-id">REQ-040</span></td><td>AT8</td><td>No-look-ahead guard (reused).</td></tr>
+            <tr><td><span class="req-id">REQ-050/051</span></td><td>AT10, AT-REG-1</td><td>Report/findings/CLI wired; existing unchanged.</td></tr>
+            <tr><td><span class="req-id">ERR-001..004</span></td><td>AT-ERR-1, AT-ERR-2</td><td>Missing inputs; malformed/absent calendar; too-few-events; anti-p-hacking refusal.</td></tr>
+            <tr><td><span class="req-id">EDGE-001..006</span></td><td>AT-EDGE-1, AT-EDGE-2</td><td>Coarse fallback; edge-matched intervals; low-power; cloud-gap; overlap; ambiguity.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

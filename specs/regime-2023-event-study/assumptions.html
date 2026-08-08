@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>2023 regime event study + public curtailment calendar</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>regime-2023-event-study</code></td></tr>
+          <tr><th>Source document</th> <td>Critique roadmap 2026-07-06 (critique #2 — residual structure / the 2023 regime peak) + the long-deferred curtailment calendar (NOX-003/004 Q4/Q6a)</td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-012</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document records assumptions made while converting critique #2 into an SDD spec.</p>
+        <p>Assumptions are not hidden decisions. They must be explicit, reviewable, and either accepted, corrected,
+        or removed before implementation. All assumptions here are <strong>reversible</strong> methodological or
+        organisational choices on an analysis that runs on the existing completed cube + benchmark plus a newly
+        assembled public calendar; <strong>none is blocking</strong>. The one genuine data-feasibility risk (the
+        calendar's coverage/granularity) is carried as a non-blocking open question with a safe default (see
+        <code>open-questions.html</code>, Q1).</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Risk level</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">4</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">5</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header">
+            <span class="req-id">A1</span>
+            <span class="card-title">Market linkage is out of scope (deferred to NOX-013/014)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>NOX-012 explains the <strong>NO₂↔CREA</strong> regime structure only. The market event-study (abnormal returns, tradeable signal) — although the NOX-004 <code>market_event_study</code> machinery exists and could be reused — is <strong>not run</strong> here; it belongs to the investment-signal tasks NOX-013 (nowcast) and NOX-014 (market mapping / backtest).</dd>
+              <dt>Reason</dt>                <dd>Keeps the task focused on the critique-#2 question (is the 2023 coupling event-bound / a rolling-window artefact) and avoids duplicating the market work the roadmap sequences later. The market path needs the upgraded event set from this task first.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the developer wants a market read now, T6–T8 would add a <code>market_event_study</code> call (cheap, machinery exists). No rework to the regime core.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>Summary "Scope boundary"; REQ-020</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Files not to change</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header">
+            <span class="req-id">A2</span>
+            <span class="card-title">The curated calendar CSV is committable; only bulk raw scrapes are gitignored</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The critique note "calendar-derived raw outputs gitignored" is read as: the small, hand-curated, <strong>source-cited</strong> <code>tangshan_hebei_curtailment.csv</code> (+ <code>SOURCES.md</code>) is the <strong>primary deliverable and is committed</strong> (it must be reproducible and inspectable, like a small stats file); only any <strong>bulk raw source dumps</strong> (scraped HTML/PDF) under <code>data/curtailment/_raw/</code> are gitignored.</dd>
+              <dt>Reason</dt>                <dd>The calendar is public, dated and cited — no licence/no-publish concern — and deliverable #1 of the task; committing it is what makes the event study reproducible. NO₂-derived series remain gitignored per project convention.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the developer prefers the CSV gitignored too, add one <code>.gitignore</code> line; the study still reproduces from a developer-local copy. Paired with Q2.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-002, NFR-006</dd>
+              <dt>Related design sections</dt><dd>Files to change; Data model changes</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header">
+            <span class="req-id">A3</span>
+            <span class="card-title">Coarse-floor calendar is the safe default if event-level sourcing is thin</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>If T1 finds no rich event-level dates, the calendar is built from the <strong>coarse floor</strong> — annual heating-season restriction windows + Golden Week + Spring Festival + any securely-dated campaigns — and the study proceeds at coarse granularity with reduced power, rather than blocking.</dd>
+              <dt>Reason</dt>                <dd>The heating-season restriction windows and public holidays are well documented and securely datable; they are enough to run the event-bound test coarsely and to explain much of the 2023/2024 structure. Proceeding-with-a-floor mirrors the honest-null discipline.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>Coarse granularity weakens the "few large events" attribution (REQ-021); the report labels the power reduction (EDGE-001). Paired with Q1.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-002, EDGE-001, ERR-003</dd>
+              <dt>Related design sections</dt><dd>Risks and trade-offs</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a4">
+          <div class="card-header">
+            <span class="req-id">A4</span>
+            <span class="card-title">Reuse <code>load_curtailment_calendar</code> unchanged; provenance columns are extra</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The curated CSV conforms to the existing NOX-004 loader schema (<code>start,end,direction,cause</code>); the provenance columns (<code>source,url,granularity,confidence</code>) are additional and ignored by the loader, so <code>noxus.catalyst.groundtruth</code> is <strong>not modified</strong>.</dd>
+              <dt>Reason</dt>                <dd>The loader already selects only its four columns (verified in <code>groundtruth.py</code>); building the calendar to fit it means the event study reuses NOX-004 with zero code change.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If provenance must be carried downstream, a thin wrapper reads the extra columns; the loader still stays unchanged.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-004</dd>
+              <dt>Related design sections</dt><dd>Interfaces and contracts</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a5">
+          <div class="card-header">
+            <span class="req-id">A5</span>
+            <span class="card-title">Regime segmentation uses a fixed pre-registered rule, not a CREA-tuned boundary</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>Regimes are segmented by a <strong>fixed rule declared before viewing outcomes</strong> — the rolling-18-month peak-centred window for the "2023 regime" and a fixed calendar-year split for the "2024 collapse" — with a boundary-robustness sweep reported. The boundary is <strong>never</strong> chosen to maximise the within-regime correlation.</dd>
+              <dt>Reason</dt>                <dd>Choosing the boundary against CREA would manufacture the peak (anti-p-hacking, NFR-005). A fixed rule + a robustness sweep keeps the segmentation honest.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the fixed boundary is slightly off the true regime edge, the within-regime r is attenuated (conservative), never inflated. Paired with Q4.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-011, NFR-005, ERR-004</dd>
+              <dt>Related design sections</dt><dd>Risks and trade-offs</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a6">
+          <div class="card-header">
+            <span class="req-id">A6</span>
+            <span class="card-title">Scan-maximum null via block-permutation reusing the NOX-008 tooling</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The rolling-window scan-maximum null (REQ-030) is built by a serial-dependence-preserving null — moving-block permutation / phase-randomisation of one series — reusing <code>noxus.validation.robust</code>'s block tooling, then taking the MAX rolling-18-month r across the overlapping windows per draw. The observed peak's percentile against that distribution is the reported significance.</dd>
+              <dt>Reason</dt>                <dd>Consistency with the project's established significance tooling (NOX-008); it correctly answers "is 0.76 surprising given how many overlapping windows were scanned" without a new statistical convention.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>Block length too short understates the null spread (over-rejects the null → peak looks too significant); too long wastes power. Mitigated by reusing the NOX-008 block-length rule and reporting the block length used.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-030, EDGE-005</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Risks and trade-offs</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a7">
+          <div class="card-header">
+            <span class="req-id">A7</span>
+            <span class="card-title">Module placement: <code>noxus/catalyst/{calendar,regime}.py</code> + a <code>RegimeStudyConfig</code></span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The new code lives in <code>noxus/catalyst/calendar.py</code> and <code>noxus/catalyst/regime.py</code> (beside the event-study machinery it reuses), driven by a new <code>RegimeStudyConfig</code> and <code>assemble-calendar</code>/<code>regime-study</code> CLI verbs, following the NOX-004/008 additive pattern.</dd>
+              <dt>Reason</dt>                <dd>It reuses the catalyst detection/ground-truth/match primitives; co-locating keeps the layout coherent. Purely organisational.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>A file move; no behavioural effect. The reviewer may prefer <code>noxus/data/curtailment.py</code> for the calendar — trivial to relocate.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-051, NFR-007</dd>
+              <dt>Related design sections</dt><dd>Files to change</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a8">
+          <div class="card-header">
+            <span class="req-id">A8</span>
+            <span class="card-title">2024-collapse attribution reuses the NOX-003.1 secular-trend diagnostic read-only</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The intensity-decoupling arm of the 2024-collapse diagnostic (REQ-022) reads the <strong>existing</strong> NOX-003.1 secular-trend / intensity residual (no re-fit of the trend model), and the curtailment-regime-change arm reads the assembled calendar's 2024 event cadence vs 2022–2023.</dd>
+              <dt>Reason</dt>                <dd>The decoupling trend is already a reported NOX-003.1 diagnostic; reusing it avoids a second, divergent trend estimate and keeps the attribution comparable to prior work.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a fresh trend fit is wanted, it is an additive read; the dual-diagnostic structure is unchanged.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-022, EDGE-006</dd>
+              <dt>Related design sections</dt><dd>Technical summary</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a9">
+          <div class="card-header">
+            <span class="req-id">A9</span>
+            <span class="card-title">No new dependency</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The whole task uses numpy / pandas / scipy / statsmodels + the existing catalyst and validation modules; <strong>no third-party package is added</strong> (no change-point library, no market client — market is out of scope).</dd>
+              <dt>Reason</dt>                <dd>Rolling correlation, block permutation, jackknife and BH-FDR are all available in the current stack / already-tested modules.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a helper is genuinely needed, it is added behind developer approval per project policy; none is anticipated.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>NFR-007</dd>
+              <dt>Related design sections</dt><dd>External dependencies and freshness</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="accepted-assumptions">
+        <h2>Accepted assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts them.</p>
+      </section>
+
+      <hr>
+
+      <section id="rejected-or-replaced-assumptions">
+        <h2>Rejected or replaced assumptions</h2>
+        <p>Move assumptions here when the developer rejects or replaces them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>. (None here is blocking.)</li>
+            <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
+            <li>If an assumption affects security, permissions, data deletion, billing, public API behavior, or irreversible migrations, prefer moving it to <code>open-questions.html</code>.</li>
+            <li>If the implementation requires a new assumption, stop and update this file before proceeding.</li>
+            <li>If assumptions contradict <code>requirements.html</code>, <code>design.html</code>, or developer instructions, stop and ask for clarification.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

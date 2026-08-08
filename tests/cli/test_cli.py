@@ -47,6 +47,26 @@ def test_existing_subcommands_unchanged_help():
         assert exc.value.code == 0
 
 
+# --------------------------------------------------------------------------- NOX-011 VIIRS subcommands
+
+
+def test_viirs_subcommands_exist():
+    for cmd in ("fetch-viirs", "build-thermal-series", "triangulate-thermal", "verify-viirs"):
+        with pytest.raises(SystemExit) as exc:
+            main([cmd, "--help"])
+        assert exc.value.code == 0
+
+
+def test_build_thermal_series_empty_store_returns_1(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no data/raw/viirs store -> actionable exit 1, not a crash
+    assert main(["build-thermal-series"]) == 1
+
+
+def test_triangulate_thermal_missing_series_returns_1(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["triangulate-thermal"]) == 1
+
+
 def test_attribute_missing_cube_returns_1(tmp_path, monkeypatch):
     # No cube on disk under a fresh cwd -> actionable ERR-001 failure, return code 1 (not a crash).
     monkeypatch.chdir(tmp_path)

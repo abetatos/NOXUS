@@ -10,6 +10,9 @@ references **variable names only** — never put secret values in the repo, in l
 | ERA5 reanalysis (wind + BLH) | meteorology for regress-out | Copernicus CDS API (free account + licence) | `CDSAPI_KEY` (+ optional `CDSAPI_URL`) |
 | CREA steel CSV | physical-output benchmark | public Google-Sheet CSV | none |
 | GEM Global Iron & Steel Tracker | facility locations (AOI) | free download (form) | none |
+| VIIRS Nightfire (VNF) | independent physical thermal benchmark (primary) | EOG / Colorado School of Mines (EOG SSO — see §5) | EOG account (VNF is **not** keyless) |
+| NASA FIRMS active fire | VIIRS thermal cross-check | FIRMS area/CSV API (free MAP_KEY) | `FIRMS_MAP_KEY` |
+| Tangshan/Hebei curtailment calendar | ground-truth production-event calendar | public State Council holiday notices + MEE / Hebei DEE heating-season notices | none |
 
 ---
 
@@ -139,6 +142,61 @@ NOXUS derives the study facilities from the **plant-level** workbook (`Plant dat
 `Status` from the `Plant capacities and status` sheet, and parse `Coordinates` → lat/lon. The result is
 committed at `data/derived/tangshan_steel_facilities.csv` and defines the area of interest (AOI).
 
+## 5. VIIRS thermal anomalies — VNF (EOG) primary + NASA FIRMS cross-check (NOX-011)
+
+The VIIRS thermal channel is an **independent physical benchmark**: blast furnaces, sinter plants and
+coke ovens are high-temperature combustion sources that VIIRS detects from orbit, over the same
+catalogued Tangshan steel facilities (`data/derived/tangshan_steel_facilities.csv`). It exists to
+**triangulate** the NO₂ signal against a hard-to-falsify heat measurement. Both sources are
+public/free (no paid feed), acquired behind a common fetcher seam, AOI-clipped **client-side** (each
+per-night product is global, so NOXUS filters to the AOI bbox after download), written per night with
+a provenance sidecar under `data/raw/viirs/` (gitignored, like the NO₂ raw store), and resumed via a
+manifest.
+
+- **Primary — VIIRS Nightfire (VNF)**, from the Earth Observation Group (EOG, Colorado School of
+  Mines). VNF is industrial-combustion-tuned (reports temperature, source area and radiant heat),
+  which is why it is the primary series over FIRMS.
+- **Cross-check — NASA FIRMS active fire** (VIIRS SNPP / NOAA-20). FIRMS is used only as a
+  consistency cross-check; detections are filtered to the **static-land-source** type (`type == 2`)
+  so vegetation fires, volcanoes and offshore detections are excluded.
+
+### Credentials (by reference only)
+
+- **FIRMS** — request a free `MAP_KEY` at <https://firms.modaps.eosdis.nasa.gov/api/map_key/> and set
+  `FIRMS_MAP_KEY` in `.env`. NOXUS references this variable **by name only** and never logs or commits
+  the value; the key path segment is scrubbed from any error/URL before it surfaces.
+- **VNF — auth caveat (T1 finding, unresolved).** VNF is **not keyless.** A T1 feasibility probe found
+  that the defaulted bulk EOG path
+  (`eogdata.mines.edu/.../VNF_npp_*.csv.gz`) returns an **EOG Keycloak SSO login page**, not a data
+  file; the fetcher detects the HTML/login body and raises a clear `ViirsAuthError` rather than
+  writing a login page as data. Before the go/no-go gate can pass, a developer must resolve EOG VNF
+  authentication (an EOG account/token and the authenticated download URL/flow). This is an
+  **access** finding, not a scientific result.
+
+### How a developer completes the T1 gate
+
+The feasibility spike and the real acquisition run against **live** services and are not CI-asserted;
+a developer runs them once VNF auth is resolved and `FIRMS_MAP_KEY` is set:
+
+```bash
+uv run noxus fetch-viirs --probe --source vnf     # T1 spike: per-night volume + fields + go/no-go
+uv run noxus fetch-viirs --probe --source firms   # same probe against the FIRMS cross-check
+```
+
+Once the probe records a go, the acquisition + downstream steps are:
+
+```bash
+uv run noxus fetch-viirs --source vnf                # resumable bulk acquisition → data/raw/viirs/
+uv run noxus build-thermal-series                    # facility-radius join → benchmark-blind series
+uv run noxus verify-viirs                            # detections + facilities overlay (co-location PNG)
+uv run noxus triangulate-thermal                     # NO2↔VIIRS + CREA↔VIIRS robust significance
+```
+
+**Status:** the acquisition/join/triangulation **machinery has landed and is tested offline**, but the
+scientific triangulation **result is pending** the developer's live VNF/FIRMS run (the T1 auth gate
+above, then the real acquisition + triangulation). The go/no-go and any feature-vs-target verdict will
+be recorded after that run — this doc does not assert one.
+
 ---
 
 ## Market prices — yfinance (NOX-004 catalyst)
@@ -155,6 +213,46 @@ come from **free public sources via `yfinance`** (Yahoo Finance), written to a d
   settlement snapshot. **Never add a paywalled data dependency** without explicit developer approval.
 
 Run: `uv run noxus ingest-market [--start --end]`. No credentials needed (public endpoint).
+
+---
+
+## Tangshan/Hebei curtailment calendar — public holiday + heating-season notices (NOX-012)
+
+The regime/event study (`noxus regime-study`) matches NO₂ production events against a ground-truth
+**production-event calendar** of periods when Tangshan/Hebei steel output is administratively
+constrained. The calendar is assembled from **public, free, citable** sources only — no credentials,
+no paid feed — and committed at `data/curtailment/tangshan_hebei_curtailment.csv` (21 rows) with
+per-event provenance in `data/curtailment/SOURCES.md`. Assemble/validate it with:
+
+```bash
+uv run noxus assemble-calendar --probe     # T1 feasibility spike: coverage + provenance + go/no-go
+uv run noxus assemble-calendar             # build/validate the committed calendar
+```
+
+### Coarse-floor vs event-level — and the pending live survey
+
+The calendar is currently a **coarse structural floor**, not an event-level campaign log. Two
+granularities are distinguished:
+
+- **Coarse floor (committed).** Securely-datable *structural* windows that recur every year and are
+  each backed by a public source: Spring Festival and National-Day Golden Week holidays (PRC State
+  Council public-holiday arrangements) and the winter heating-season industrial-restriction windows
+  (~Nov 15 → Mar 15, MEE / Hebei DEE heating-season notices). Every one of the 21 committed rows
+  carries a source; unsourced candidates are dropped by the loader/validator.
+- **Event-level campaign calendar (PENDING a live run).** A richer log of *specific* dated
+  curtailment campaigns (e.g. air-quality-driven or event-driven production limits) requires a
+  **live MEE / Hebei DEE / Tangshan / CREA / Mysteel / news survey** that was not performed in this
+  offline environment. The T1 go/no-go verdict is therefore **`GO-coarse-floor`** with
+  `live_survey_pending=True` (the NOX-007/NOX-011 pending-live-run pattern).
+
+No event-level curtailment dates were fabricated: specific campaign dates that could not be sourced
+offline are recorded as a **documented gap** in `SOURCES.md`, not invented events. Re-running the
+probe with a live survey is what could upgrade the verdict to `GO-event-level`.
+
+**Status:** the calendar-assembly and regime/event-study **machinery has landed and is tested
+offline**; the real-data `regime-study` run (on the 2023 rolling-correlation regime / 2024 breakdown)
+needs the gitignored NOX-003.1 intensity-residual parquet and is a **developer live run** — its
+verdict is not asserted here.
 
 ---
 

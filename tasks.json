@@ -403,19 +403,42 @@
       "slug": "viirs-thermal-benchmark",
       "description": "Critique-driven (critique #1: the 'fraudulent target' -- the most letal critique, partly defused because the CREA benchmark is a commercial trader survey (WIND/Custeel), not official statistics, but its provenance is not independently verifiable and Chinese activity data is chronically massaged). CONVERSION into something actionable: triangulate NO2 against a HARD-TO-FALSIFY PHYSICAL activity proxy that no statistical office can dress up -- VIIRS thermal anomalies (nightfire / active-fire radiative power) over the catalogued Tangshan steel facilities (39 rows in data/derived/tangshan_steel_facilities.csv; the earlier \"84\" was a mis-count) (data/derived/tangshan_steel_facilities.csv). Blast furnaces, sinter plants and coke ovens are high-temperature combustion sources VIIRS detects from orbit. Acquire a free VIIRS thermal series (NOAA VIIRS Nightfire VNF and/or NASA FIRMS VNP14 active fire; source resolved in the spec) clipped to the facility footprints over the TROPOMI era, aggregate to the analysis frequency, and run the DECISIVE triangulation: (i) NO2 <-> VIIRS and (ii) CREA <-> VIIRS, with the NOX-008 autocorrelation-robust significance. LOGIC: if NO2 does not even track the physical heat of the furnaces -> the FEATURE is the weak link; if NO2 <-> VIIRS holds but CREA <-> VIIRS does not -> the TARGET (CREA) was the weak link, retroactively re-interpreting every prior near-null. This is the one lever against 'maquillaje': a space-based thermometer cannot be faked. NEW ACQUISITION path (style of NOX-002a): free/public data only, credentials by env-var reference only, resumable manifest, VIIRS-derived outputs gitignored. Honest null acceptable and INFORMATIVE either way. Heaviest of the roadmap on new data; independent of NOX-009/010.",
       "sdd": true,
-      "status": "spec_ready",
+      "status": "blocked",
       "depends_on": [
         "NOX-002b",
         "NOX-001"
       ],
       "spec_path": "specs/viirs-thermal-benchmark/",
       "approval": {
-        "human_approved": false
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-07-12",
+        "notes": "Developer said \"adelante\" 2026-07-12 to approve NOX-011 for implementation after committing the NOX-009 snapshot."
       },
+      "blocked_reason": "DATA-GATED on a developer live run (NOX-007/GEMS pattern). Offline machinery (T2-T11, T13) is complete, reviewed approved-with-nits, 203 tests + ruff clean. T1 feasibility gate is blocked-on-live-run: the defaulted keyless VNF path (eogdata.mines.edu/.../VNF_npp_*.csv.gz) returns an EOG Keycloak HTML login -- VNF is NOT keyless (falsifies open-question Q1's default). Developer must resolve EOG VNF auth (account/token + authenticated download URL) and, for the FIRMS cross-check, set FIRMS_MAP_KEY, then run `noxus fetch-viirs --probe --source vnf` (go/no-go) and the real T12 triangulation. Task moves to review->done after the live T1 gate passes + T12 runs + T14 docs finalise the go/no-go result.",
+      "review": {
+        "decision": "approved-with-nits",
+        "reviewed_at": "2026-07-12",
+        "report": "specs/viirs-thermal-benchmark/review.html",
+        "scope": "Offline machinery only (T2-T11, T13). Task not markable done -- data-gated (T1 auth gate + T12 real run pending a developer live VNF fetch).",
+        "note": "203 tests pass, ruff check+format clean. Verified: benchmark-blindness (join_to_facilities/build_thermal_series take no CREA/NO2 arg; test_series_build_is_benchmark_blind); NOX-008 significance reused unchanged (robust.py/leadlag.py byte-for-byte identical; test_triangulate_matches_direct_robust_corr); feature-vs-target 4-branch diagnosis incl. honest-null; credentials by env-var name only + URL scrub (.env untouched, raw store gitignored); T1 blocked-on-live-run recorded honestly (Q1 left Pending, no fabricated result). Non-blocking nits to sweep at the T12 pass: N1 probe auth_required mislabels VNF as keyless (viirs.py:488); N2 CLI empty-store test exits via missing-CSV branch; N3 _scrub_url coupled to literal /csv/ segment; N4 DIAG_COHERENT only unit-covered.",
+        "nits": ["N1 viirs.py:488 auth_required=cfg.source=='firms' contradicts T1 SSO finding", "N2 test_build_thermal_series_empty_store_returns_1 hits missing-facilities-CSV branch", "N3 _scrub_url is path-coupled (/csv/), prefer scrub-by-value", "N4 DIAG_COHERENT not covered end-to-end"]
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        ".claude/context/project-map.md",
+        "docs/data-access.md",
+        "README.md",
+        "decisions/architecture-decisions.md",
+        "history.html",
+        ".env.example"
+      ],
+      "documentation_note": "Machinery/reference docs updated 2026-07-12 (project-map, data-access §5, README, decision-log, history, .env.example EOG-SSO comment fix). Scientific verdict (NO2<->VIIRS, CREA<->VIIRS feature-vs-target) intentionally NOT documented -- pending the developer live T1 gate + T12 run. Docs re-check to re-run when the live result lands.",
       "origin": "Critique #1 (fraudulent/unverifiable target) converted to an independent physical benchmark, roadmap 2026-07-06.",
       "created": "2026-07-06",
       "spec_ready_at": "2026-07-12",
-      "status_note": "SPEC_READY 2026-07-12: 8 files, 0 blocking open questions (6 non-blocking with defaults + a T1 feasibility spike, GEMS-style). Sequenced AHEAD of NOX-010 per NOX-009 (D3). Product default: VNF (VIIRS Nightfire, EOG/CSM) primary + NASA FIRMS active-fire cross-check. NOTE: facility CSV has 39 rows, not 84."
+      "status_note": "IMPLEMENTED (offline) + REVIEWED 2026-07-12, then BLOCKED data-gated. Full triangulation machinery landed (noxus/data/viirs.py, noxus/signal/thermal.py, analysis/viirs_triangulation.py, noxus/data/verify_viirs.py, CLI fetch-viirs/build-thermal-series/triangulate-thermal/verify-viirs). Scientific verdict (NO2<->VIIRS, CREA<->VIIRS feature-vs-target) awaits the developer live VNF/FIRMS run. Not yet committed (git policy: commit on request). Product default: VNF (EOG/CSM) primary + NASA FIRMS cross-check; facility CSV 39 rows."
     },
     {
       "id": "NOX-012",
@@ -423,17 +446,41 @@
       "slug": "regime-2023-event-study",
       "description": "Critique-driven (critique #2: 'you looked at the aggregate coefficient, not the residuals -- the structure of the divergences is the product'). Most residual structure was already examined (rolling-18mo correlation, period splits, Simpson-in-levels diagnostic; docs/exploration-results.html) -- so this task targets the SPECIFIC un-closed thread: the rolling-18-month correlation PEAKED at r~0.76 around 2023-06 (clearing the 0.5-0.75 literature bar) and COLLAPSED through 2024, and the public curtailment calendar that the decision log flags as NOT-YET-APPLIED. Assemble a public/free curtailment + air-quality-control calendar for Tangshan/Hebei steel (heating-season production restrictions, blue-sky/anti-smog campaigns, sudden shutdowns/restarts, holiday effects) and run an EVENT STUDY around the 2023 regime using the NOX-004 catalyst machinery on the completed series (the 2023-06 data gap was just filled, 2026-07-06, so June 2023 is now 29/30 days): is the 2023 coupling driven by a few large curtailment events (i.e. the signal is real but EVENT-bound, not continuous), and was the 2024 collapse a change in curtailment regime or accelerating intensity-decoupling (NOX-003.1)? DISCIPLINE: strict no-look-ahead (curtailment dates are exogenous/public; causal baselines), multiple-testing transparency (fix the event windows before viewing outcomes), honest null acceptable (the 2023 peak may be a multiple-comparisons artefact of the rolling window). Reuses NOX-004 event-study + the curtailment calendar (NOX-003/004 follow-up Q4/Q6a). Depends on completed TROPOMI series + NOX-003.1 residual + NOX-004. NO2-derived + calendar-derived outputs gitignored; small stats + figures committable.",
       "sdd": true,
-      "status": "pending",
+      "status": "blocked",
       "depends_on": [
         "NOX-003.1",
         "NOX-004"
       ],
       "spec_path": "specs/regime-2023-event-study/",
       "approval": {
-        "human_approved": false
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-07-20",
+        "notes": "Approved via 'aprobado' 2026-07-20. Proceed to implementation starting with T1 curtailment-calendar feasibility spike (three-way go/no-go)."
       },
+      "review": {
+        "decision": "approved-with-nits-then-clean",
+        "reviewed_at": "2026-08-08",
+        "report": "specs/regime-2023-event-study/review.html",
+        "scope": "Offline machinery (T1-T11, T13-T14) + docs. Task NOT markable done -- data-gated on T12 real-data run.",
+        "note": "First pass approved-with-nits: F1 (event-study table/4th figure never emitted by driver) + F2 (BH-FDR grid deseason/threshold dims inert -> n_tests padded with duplicate p-values, fabricating multiplicity) significant; F3 (52-week secondary window unexercised) + F4 (EDGE-004 cloud-gap untested) minor. Implementer fixed all four honestly: F1 driver now calls regime_event_study() and carries per-(threshold x regime) MatchResult + 4th figure; F2 dropped the inert threshold grid dimension (thresholds parametrise the event-study table where they genuinely vary) and dedups collapsing deseason variants so n_tests == len(table) with no padded p-values. Re-check 2026-08-08: offline machinery review-CLEAN. Verified: 248 tests pass (+5), ruff clean, reused modules (catalyst/{events,groundtruth,study,report}.py, validation/{robust,leadlag,preprocess}.py) byte-for-byte unchanged (empty git diff); benchmark-blind (no CREA-tuning param), strict no-look-ahead (causal detector reused, identification descriptive), scan-max null tests the 2023 peak against its multiple-comparisons origin, honest-null a first-class PASS. Docs re-check 2026-08-08: docs-approved, NO scientific verdict stated/implied.",
+        "reviewer_proposed_decisions": ["DL-1 curtailment calendar now applied at coarse-floor granularity (closes NOX-003/004 Q4/Q6a; live event-level survey pending) -- NEEDS developer approval", "DL-2 scan-maximum-null with artefact-as-first-class-outcome as standing methodology for rolling-window peak claims -- NEEDS developer approval"]
+      },
+      "blocked_reason": "Data-gated (T12). Offline machinery complete, reviewed clean, and documented (verdict withheld). The real-data regime-study run on the actual 2023 r~0.76 rolling-correlation peak / 2024 collapse requires the gitignored/absent NOX-003.1 intensity-residual parquet (steel_intensity_decomposition.parquet) -- a developer live run. Command once residual exists: 'noxus regime-study' (then analysis/regime_2023_event_study.py for figures). The scientific verdict (peak real vs scan-max artefact; event-bound vs continuous; 2024-collapse cause) does NOT yet exist and is fabricated NOWHERE.",
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        ".claude/context/project-map.md",
+        "docs/data-access.md",
+        "README.md",
+        "decisions/architecture-decisions.md",
+        "history.html"
+      ],
+      "documentation_note": "Machinery/reference docs updated 2026-08-08 (project-map, data-access, README, architecture-decisions factual NOX-012 entry with verdict deferred, history 'blocked -- data-gated' entry). Reviewer-approved docs re-check confirms no scientific verdict stated/implied. Deferred to the post-T12 pass: docs/exploration-results.html thread-close (needs the verdict) + references.bib. Standing-methodology decision-log entries DL-1/DL-2 NOT written -- await developer approval.",
       "origin": "Critique #2 (residual structure / the 2023 regime peak) + long-deferred curtailment calendar, roadmap 2026-07-06.",
-      "created": "2026-07-06"
+      "created": "2026-07-06",
+      "spec_ready_at": "2026-07-20",
+      "status_note": "IMPLEMENTED (offline) + REVIEWED CLEAN + DOCUMENTED 2026-08-08, then BLOCKED data-gated. T1 gate returned GO-coarse-floor with live_survey_pending=True (coarse structural floor -- 21 sourced heating-season/holiday events -- assemblable offline; richer event-level campaign calendar needs a live MEE/Hebei DEE/Tangshan/CREA/Mysteel survey, pending; no campaign events fabricated). Full machinery landed: noxus/catalyst/calendar.py + regime.py (rolling-regime study, regime-conditioned event study, leave-one-event-out jackknife, dual 2024-collapse diagnostic, rolling-window scan-maximum null, BH-FDR over distinct grid), CLI assemble-calendar/regime-study, RegimeStudyConfig, data/curtailment/ CSV + SOURCES.md, analysis/regime_2023_event_study.py (4 figures). Reuses NOX-004 catalyst + NOX-008 significance byte-for-byte + NOX-003.1 residual. Market linkage out of scope. 248 tests pass, ruff clean. Scientific verdict awaits the developer T12 live run. Not yet committed (git policy: commit on request)."
     },
     {
       "id": "NOX-013",

@@ -1,3 +1,6 @@
+# macOS Finder metadata
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -51,6 +54,10 @@ data/derived/verification/
 # NO2-derived analysis products (cube + interim AOI series, footprint signal, activity index)
 # — derived from downloaded data; not published (NOX-003 NFR-004).
 data/derived/no2/
+# VIIRS thermal-anomaly detections (per-night AOI-clipped VNF/FIRMS downloads) — reproducible from a
+# dated fetch, not committed (NOX-011 NFR-003). Only small derived stats + figures under
+# data/derived/ are committable.
+data/raw/viirs/
 # ERA5 reanalysis snapshots (dated NetCDF subsets of the public ARCO-ERA5 store) — reproducible,
 # not committed (NOX-003 T12). Also matched by data/raw/ and *.nc above; kept explicit for clarity.
 data/raw/era5/
@@ -59,6 +66,11 @@ data/raw/era5/
 data/raw/market/
 # Downloaded archives (e.g. the GEM Global Iron & Steel Tracker zip) — never commit.
 *.zip
+# Bulk raw curtailment-calendar scrapes (scraped HTML/PDF source dumps, NOX-012 NFR-006) — not
+# published. The small, curated, source-cited calendar CSV + SOURCES.md under data/curtailment/ ARE
+# committed (the deliverable, A2); only _raw/ scrapes are ignored. NO2-derived regime/event series
+# live under data/derived/no2/ (above, already ignored).
+data/curtailment/_raw/
 
 # Literature PDFs — kept locally for reading, NOT redistributed (publisher copyright).
 # The bibliography (literature/references.bib) and literature/README.md ARE committed.

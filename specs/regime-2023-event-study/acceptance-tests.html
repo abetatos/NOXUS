@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>2023 regime event study + public curtailment calendar</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>regime-2023-event-study</code></td></tr>
+          <tr><th>Source document</th>  <td>Critique roadmap 2026-07-06 (critique #2)</td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-012</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document defines acceptance-level test scenarios for NOX-012.</p>
+        <p>These describe the observable behaviour that must be true for the feature to be accepted. They map back
+        to the <code>REQ</code>/<code>NFR</code>/<code>EDGE</code>/<code>ERR</code>/<code>AC</code> IDs in
+        <code>requirements.html</code>.</p>
+        <ul>
+          <li>The implementer should use this file to create or update automated tests.</li>
+          <li>The reviewer should use this file to verify that the implementation satisfies the approved spec.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <p>The acceptance tests must verify:</p>
+        <ul>
+          <li>the T1 feasibility gate (coverage/provenance report + go/no-go) and the calendar's compatibility with the unchanged NOX-004 loader;</li>
+          <li>rolling-regime identification on a planted-regime synthetic (peak recovered; rule not CREA-tuned);</li>
+          <li>the event-bound jackknife (attributes a peak to a few large events; does not on a continuous fixture);</li>
+          <li>the regime-conditioned match reusing NOX-004 (precision/recall/lead, not r);</li>
+          <li>the scan-maximum null (holds FP near α on AR(1); planted peak beyond band) and BH-FDR multiplicity;</li>
+          <li>the no-look-ahead guard (reused);</li>
+          <li>the honest-null path (artefact verdict is a valid PASS);</li>
+          <li>error cases (missing inputs; malformed/absent calendar; too-few-events; anti-p-hacking refusal);</li>
+          <li>non-regression of existing catalyst/validation/signal/CLI behaviour.</li>
+        </ul>
+
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest with synthetic, seeded fixtures (deterministic, no network/credentials), mirroring the NOX-004 / NOX-008 / NOX-009 style: a planted-regime generator (coupling switched on in one window), an event-bound vs continuous variant, independent AR(1) null series, a small fixture calendar CSV. Source probing (T1) is mocked; no live web fetch at test time. The real-data run on the committed cube + assembled calendar is a separate, opt-in task (T12), not a unit test.</code></pre>
+
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest
+uv run ruff check .</code></pre>
+
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/catalyst/test_calendar.py    # T1 probe (mocked), assemble/validate, loader compatibility
+tests/catalyst/test_regime.py      # rolling regime, jackknife, match, scan-max null, FDR, no-look-ahead, honest-null
+tests/cli/test_regime_cli.py       # `assemble-calendar`/`regime-study` wiring, config echo, error messages
+tests/fixtures/                    # planted-regime + event-bound/continuous + AR(1) null + fixture calendar</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001</span></td><td>AT1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-002, REQ-003, REQ-004</span></td><td>AT2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-010, REQ-011</span></td><td>AT3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-021</span></td><td>AT4</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-020</span></td><td>AT5</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-030</span></td><td>AT6</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-031, REQ-032</span></td><td>AT7</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-040, NFR-003</span></td><td>AT8</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-032, NFR-004</span></td><td>AT9</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-050, REQ-051, NFR-001, NFR-007</span></td><td>AT10, AT-REG-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-022, EDGE-006</span></td><td>AT-EDGE-2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">EDGE-001, EDGE-003</span></td><td>AT-EDGE-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">ERR-001, ERR-002, ERR-003, ERR-004</span></td><td>AT-ERR-1, AT-ERR-2</td><td class="ok">Yes</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header">
+            <span class="req-id">AT1</span>
+            <span class="card-title">T1 feasibility spike: coverage/provenance report + go/no-go verdict</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-001, EDGE-001, AC-001</dd>
+              <dt>Scenario</dt>              <dd><code>probe_sources</code> surveys (mocked) candidate sources and classifies coverage.</dd>
+              <dt>Preconditions</dt>         <dd>Mocked source responses spanning the TROPOMI era with mixed granularity/confidence; no network.</dd>
+              <dt>Action</dt>                <dd>Run <code>noxus assemble-calendar --probe</code>.</dd>
+              <dt>Expected result</dt>       <dd>A coverage-and-provenance report is produced (per candidate: source, date, granularity, direction, securely-dated flag) plus a go/no-go verdict (GO-event-level | GO-coarse-floor | NO-GO); a SOURCES.md-style artefact is written; the verdict is recorded before the build proceeds.</dd>
+              <dt>Negative expectations</dt> <dd>No event is invented; NO-GO is surfaced as an escalation, not a silent stop.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_calendar.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header">
+            <span class="req-id">AT2</span>
+            <span class="card-title">Calendar assembled with provenance; loads through the unchanged NOX-004 loader</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-002, REQ-003, REQ-004, AC-002</dd>
+              <dt>Scenario</dt>              <dd>A fixture calendar with <code>start,end,direction,cause</code> + provenance columns, including one unsourced row.</dd>
+              <dt>Preconditions</dt>         <dd>Fixture CSV; the variance/regime module and the existing <code>load_curtailment_calendar</code> importable.</dd>
+              <dt>Action</dt>                <dd>Run <code>validate_calendar</code>, then load via <code>noxus.catalyst.groundtruth.load_curtailment_calendar</code>.</dd>
+              <dt>Expected result</dt>       <dd>Sourced events pass; the unsourced row is excluded/flagged (never fabricated); the CSV loads cleanly through the <strong>unchanged</strong> loader (four-column contract), provenance columns ignored.</dd>
+              <dt>Negative expectations</dt> <dd>No modification to <code>groundtruth.py</code>; no unsourced event silently kept.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_calendar.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at3">
+          <div class="card-header">
+            <span class="req-id">AT3</span>
+            <span class="card-title">Planted-regime: rolling-correlation identification recovers the peak; rule not CREA-tuned</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-010, REQ-011, NFR-005, AC-003</dd>
+              <dt>Scenario</dt>              <dd>A synthetic residual+benchmark with a coupling switched on in one 18-month window and near-zero elsewhere.</dd>
+              <dt>Preconditions</dt>         <dd>Planted-regime generator; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run <code>rolling_regime</code> and the fixed segmentation rule.</dd>
+              <dt>Expected result</dt>       <dd>The peak window is recovered; each regime is scored with <code>robust_corr</code> (autocorrelation-robust CIs); the segmentation function exposes <strong>no</strong> CREA-agreement/optimisation argument and is seed/order-stable.</dd>
+              <dt>Negative expectations</dt> <dd>The boundary is not chosen to maximise r; no benchmark-tuning parameter exists.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header">
+            <span class="req-id">AT4</span>
+            <span class="card-title">Event-bound jackknife attributes (or not) the peak to a few large events</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-021, AC-004</dd>
+              <dt>Scenario</dt>              <dd>Two fixtures: (a) a regime correlation created by a few large step events; (b) a broadly-distributed continuous coupling.</dd>
+              <dt>Preconditions</dt>         <dd>Event-bound and continuous generators; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run <code>event_bound_jackknife</code> (leave-one-large-event-out) on each.</dd>
+              <dt>Expected result</dt>       <dd>(a) removing the few large events collapses the peak r (attributed as event-bound); (b) no single event dominates (attributed as continuous). The per-event contribution to the peak is reported.</dd>
+              <dt>Negative expectations</dt> <dd>The verdict is not asserted independent of the jackknife result.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header">
+            <span class="req-id">AT5</span>
+            <span class="card-title">Regime-conditioned match reuses NOX-004; precision/recall/lead per regime (not r)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-020, AC-005</dd>
+              <dt>Scenario</dt>              <dd>Planted NO₂ events + a planted calendar/BF-jump set within a regime.</dd>
+              <dt>Preconditions</dt>         <dd>Fixtures; the NOX-004 <code>detect_events</code>/<code>production_events</code>/<code>match_events</code> importable.</dd>
+              <dt>Action</dt>                <dd>Run <code>regime_event_study</code>.</dd>
+              <dt>Expected result</dt>       <dd>Precision / recall / FDR / signed lead with CIs are computed per regime by <strong>reusing</strong> the NOX-004 primitives; the headline is an event-study metric, not a Pearson r; heating-season intervals are edge-matched (EDGE-002).</dd>
+              <dt>Negative expectations</dt> <dd>No re-implementation of detection/matching; recall not inflated by counting every period inside a blanket interval.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header">
+            <span class="req-id">AT6</span>
+            <span class="card-title">Scan-maximum null: FP near α on AR(1); planted peak beyond the band</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-030, EDGE-005, AC-006</dd>
+              <dt>Scenario</dt>              <dd>(a) Two independent strongly-autocorrelated AR(1) series; (b) the planted-regime fixture from AT3.</dd>
+              <dt>Preconditions</dt>         <dd>Fixed seeds; block length from the reused NOX-008 rule; reduced draw count for test speed.</dd>
+              <dt>Action</dt>                <dd>Run <code>scan_max_null</code> (block-permutation MAX-rolling-r distribution).</dd>
+              <dt>Expected result</dt>       <dd>(a) the observed scan-max r falls inside the null band at the configured α across seeds (a genuinely-null series does not routinely yield a "significant" peak); (b) the planted peak's percentile is beyond the null band. The block length and effective window count are recorded.</dd>
+              <dt>Negative expectations</dt> <dd>The naïve "one window hit 0.76" claim is never reported without this null; the null does not use an i.i.d. shuffle that destroys autocorrelation.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header">
+            <span class="req-id">AT7</span>
+            <span class="card-title">Multiplicity: fixed grid, n_tests recorded, BH-FDR applied</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-031, REQ-032, AC-007</dd>
+              <dt>Scenario</dt>              <dd>The test grid (variants × windows × thresholds × regimes) is enumerated before outcomes; a family of p-values is corrected.</dd>
+              <dt>Preconditions</dt>         <dd>A grid whose p-values include one nominally-significant cell that should not survive FDR.</dd>
+              <dt>Action</dt>                <dd>Run the driver's grid + <code>bh_fdr</code>.</dd>
+              <dt>Expected result</dt>       <dd><code>n_tests</code> equals the enumerated grid size; BH-FDR matches a reference; the lone favourable cell not surviving FDR is reported as non-significant.</dd>
+              <dt>Negative expectations</dt> <dd>The grid is not expanded after viewing outcomes; no cell reported significant on its naïve p alone.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header">
+            <span class="req-id">AT8</span>
+            <span class="card-title">No-look-ahead guard (reused)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-040, NFR-003, AC-008</dd>
+              <dt>Scenario</dt>              <dd>Detection at time <em>t</em> and any lead-vs-publication window must be causal.</dd>
+              <dt>Preconditions</dt>         <dd>A residual fixture; the NOX-004 causal detector reused.</dd>
+              <dt>Action</dt>                <dd>Compute detection at <em>t</em>, then append future data and recompute; inspect the lead-vs-publication window construction.</dd>
+              <dt>Expected result</dt>       <dd>Detection at <em>t</em> is unchanged by appended future data; the lead window uses only information available at the decision time (incl. processing latency); regime identification is labelled descriptive (not predictive) in the output.</dd>
+              <dt>Negative expectations</dt> <dd>No future data enters a baseline; regime identification is not presented as a forward-predictive claim.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at9">
+          <div class="card-header">
+            <span class="req-id">AT9</span>
+            <span class="card-title">Honest-null path: "multiple-comparisons artefact" verdict is a valid PASS</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-032, NFR-004, AC-009</dd>
+              <dt>Scenario</dt>              <dd>A null fixture where the scan-max null shows the peak is unsurprising and/or FDR wipes out the event matches.</dd>
+              <dt>Preconditions</dt>         <dd>AR(1) null residual+benchmark; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run the full driver and read the verdict.</dd>
+              <dt>Expected result</dt>       <dd>The report concludes "2023 peak consistent with a multiple-comparisons artefact of the rolling window"; the pipeline treats this as a completed, valid outcome (PASS), not an error or a failure.</dd>
+              <dt>Negative expectations</dt> <dd>A null is not worded as a failure; the pipeline does not keep searching for a favourable window.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at10">
+          <div class="card-header">
+            <span class="req-id">AT10</span>
+            <span class="card-title">Report/findings/figures produced; deterministic; CLI wired</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-050, REQ-051, NFR-001, AC-010</dd>
+              <dt>Scenario</dt>              <dd>The driver emits the regime + event-study + null/FDR tables and a findings note; re-running reproduces them.</dd>
+              <dt>Preconditions</dt>         <dd>Same cube/benchmark/calendar/config; fixed seed.</dd>
+              <dt>Action</dt>                <dd>Run <code>noxus regime-study</code> twice; generate figures via <code>analysis/regime_2023_event_study.py</code>.</dd>
+              <dt>Expected result</dt>       <dd>Byte-identical tables across runs; the findings note states the verdict + <code>n_tests</code> + scan-max percentile; the figures + the exploration-HTML section are produced.</dd>
+              <dt>Negative expectations</dt> <dd>No nondeterministic ordering; no basis/window dropped to flatter the conclusion.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code>, <code>tests/cli/test_regime_cli.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+
+        <div class="card" id="at-edge-1">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-1</span>
+            <span class="card-title">Coarse-only calendar fallback; low-power regime labelled</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-001, EDGE-003, ERR-003</dd>
+              <dt>Scenario</dt>              <dd>T1 yields only the coarse floor (heating-season windows + holidays); one regime has very few events.</dd>
+              <dt>Preconditions</dt>         <dd>A coarse fixture calendar; a sparse-event regime.</dd>
+              <dt>Action</dt>                <dd>Run the study on the coarse calendar.</dd>
+              <dt>Expected result</dt>       <dd>The study proceeds at coarse granularity; the event-bound test is labelled reduced-power; the sparse regime is labelled low-power with wide CIs, not omitted; the event-level jackknife is refused below the minimum (ERR-003) and falls back to coarse.</dd>
+              <dt>Negative expectations</dt> <dd>The task does not block on a thin calendar; unstable rates are not emitted as if stable.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-2">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-2</span>
+            <span class="card-title">2024-collapse dual diagnostic; no forced verdict when ambiguous</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-022, EDGE-006</dd>
+              <dt>Scenario</dt>              <dd>A fixture where both a calendar-cadence change and an intensity-decoupling shift are present in 2024.</dd>
+              <dt>Preconditions</dt>         <dd>A calendar with a changed 2024 cadence + a NOX-003.1 secular-trend fixture.</dd>
+              <dt>Action</dt>                <dd>Run <code>collapse_attribution</code>.</dd>
+              <dt>Expected result</dt>       <dd>Both diagnostics are reported side by side; when both fit, the output states the attribution is not identifiable from this data rather than forcing one cause.</dd>
+              <dt>Negative expectations</dt> <dd>No single cause is asserted when both are consistent.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-1</span>
+            <span class="card-title">Missing residual/benchmark; malformed/absent calendar</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-001, ERR-002</dd>
+              <dt>Scenario</dt>              <dd>(a) the NOX-003.1 residual or CREA benchmark absent; (b) a calendar CSV missing <code>start/end/direction</code>; (c) the calendar path absent.</dd>
+              <dt>Preconditions</dt>         <dd>Temp working dir missing the respective artefact / a malformed fixture CSV.</dd>
+              <dt>Action</dt>                <dd>Invoke <code>noxus regime-study</code> in each condition.</dd>
+              <dt>Expected result</dt>       <dd>(a) fails naming the producing command; (b) the existing loader raises the actionable <code>ValueError</code>; (c) the study degrades to BF-rate-jumps-only with a recorded note (reuses NOX-004), not fabricated dates.</dd>
+              <dt>Negative expectations</dt> <dd>No silent degradation presented as a full result; no invented calendar events.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/cli/test_regime_cli.py</code>, <code>tests/catalyst/test_calendar.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-2">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-2</span>
+            <span class="card-title">Anti-p-hacking refusal: no CREA-agreement objective on the estimators</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-004, NFR-005, ERR-003</dd>
+              <dt>Scenario</dt>              <dd>A caller attempts to make regime segmentation / the null estimator select a boundary or threshold by maximising CREA agreement; and the event-level jackknife is requested below the minimum event count.</dd>
+              <dt>Preconditions</dt>         <dd>The regime module importable; a sparse-event fixture.</dd>
+              <dt>Action</dt>                <dd>Inspect the estimator signatures for any CREA-agreement/optimisation parameter; request the event-level jackknife with too few events.</dd>
+              <dt>Expected result</dt>       <dd>The estimators expose <strong>no</strong> such parameter (the runtime face of NFR-005); the event-level jackknife is refused below the configured minimum and the study falls back to coarse with a recorded note (ERR-003).</dd>
+              <dt>Negative expectations</dt> <dd>No hidden keyword tunes a boundary/threshold against CREA; no unstable jackknife emitted below the minimum.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/catalyst/test_regime.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header">
+            <span class="req-id">AT-REG-1</span>
+            <span class="card-title">Existing catalyst / validation / signal / CLI behaviour unchanged</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Existing behavior protected</dt> <dd>NOX-004 catalyst (<code>events</code>/<code>groundtruth</code>/<code>study</code>/<code>report</code> + its CLI), NOX-008 robust significance, NOX-003.1 intensity, and all existing <code>noxus</code> subcommands and their defaults.</dd>
+              <dt>Related requirements</dt>         <dd>NFR-007</dd>
+              <dt>Scenario</dt>                     <dd>The pre-existing test suite runs unchanged after the NOX-012 code is added.</dd>
+              <dt>Preconditions</dt>                <dd>Full repo suite.</dd>
+              <dt>Action</dt>                       <dd>Run <code>uv run pytest</code> and <code>uv run ruff check .</code>.</dd>
+              <dt>Expected result</dt>              <dd>All pre-existing tests pass unmodified; no existing public function signature or CLI default changed; the only new surface is <code>assemble-calendar</code>/<code>regime-study</code> + the two new modules; no new dependency in <code>pyproject.toml</code>.</dd>
+              <dt>Negative expectations</dt>        <dd>No edits to existing catalyst/validation/signal algorithms; no change to existing subcommand defaults; <code>load_curtailment_calendar</code> unchanged.</dd>
+              <dt>Suggested test location</dt>      <dd>whole suite; <code>tests/cli/</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <p>Use during human review.</p>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> T1 feasibility gate (coverage/provenance + go/no-go) is covered.</li>
+          <li><input type="checkbox" disabled> Calendar loads through the unchanged NOX-004 loader; every event sourced or flagged.</li>
+          <li><input type="checkbox" disabled> Rolling-regime identification + event-bound jackknife covered on planted fixtures.</li>
+          <li><input type="checkbox" disabled> Scan-maximum null + BH-FDR multiplicity covered.</li>
+          <li><input type="checkbox" disabled> No-look-ahead guard covered (reused).</li>
+          <li><input type="checkbox" disabled> Honest-null "artefact" path is a valid PASS.</li>
+          <li><input type="checkbox" disabled> Error/edge cases (coarse fallback, too-few-events, anti-p-hacking refusal, ambiguous collapse) covered.</li>
+          <li><input type="checkbox" disabled> Non-goals (existing behaviour) are protected.</li>
+          <li><input type="checkbox" disabled> Any unresolved behavior is listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests must map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behavior that is absent from the critique brief or approved assumptions.</li>
+            <li>If a test requires an unresolved decision, add or update <code>open-questions.html</code>.</li>
+            <li>The implementer must create automated tests based on this document where feasible.</li>
+            <li>The reviewer must verify that implemented tests cover this document.</li>
+            <li>The real-data run on the committed cube + assembled calendar is an opt-in task (T12), not a unit test (no network at test time; T1 source probing is mocked).</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

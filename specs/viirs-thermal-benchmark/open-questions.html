@@ -50,11 +50,12 @@
             <dt>Why it matters</dt><dd>Drives the acquisition client, the batching/budget strategy, and whether an env-var credential is needed at all.</dd>
             <dt>Blocking</dt><dd>No</dd>
             <dt>Default assumption if not answered</dt><dd>VNF per-night CSV, free bulk, <strong>no auth</strong> (or lightweight registration); filter to the AOI client-side. <strong>Resolve at T1</strong>: fetch a small window, measure volume/fields/coverage, record go/no-go (REQ-000, ERR-004).</dd>
+            <dt>T1 partial finding (2026-07-12, implementer offline probe)</dt><dd><strong>The keyless default is contradicted.</strong> A live GET of the defaulted path <code>https://eogdata.mines.edu/wwwdata/viirs_products/vnf/&lt;YYYY&gt;/VNF_npp_d&lt;YYYYMMDD&gt;_noaa_v30.csv.gz</code> returns HTTP&nbsp;200 with an HTML <strong>Keycloak login page</strong> (<code>content-type: text/html</code>, ~8.5&nbsp;KB), i.e. the EOG host is behind SSO — VNF is <strong>not keyless</strong> at this path. <code>VnfFetcher</code> now detects the login/HTML body and raises a clear <code>ViirsAuthError</code> rather than a CSV parser error. <strong>Still unknown (developer T1):</strong> the exact authenticated download URL/filename, whether an EOG account + token (or the <code>eogdata</code> auth token endpoint) is required, the true per-night file format/volume, and full-era coverage. <strong>Gate outcome: blocked-on-live-run</strong> — needs an authenticated VNF fetch. The offline code path (clip/persist/manifest/probe/join/triangulation) is complete and unit-tested; the go/no-go cannot be finalised until an authenticated slice is fetched. Command to complete: <code>uv run noxus fetch-viirs --probe --source vnf</code> once EOG auth is wired (and, for the FIRMS cross-check, <code>FIRMS_MAP_KEY</code> set in <code>.env</code> then <code>uv run noxus fetch-viirs --probe --source firms</code>).</dd>
             <dt>Affected files / sections</dt><dd><code>noxus/data/viirs.py</code>, design External-dependencies</dd>
             <dt>Related requirements</dt><dd>REQ-000, REQ-001, REQ-005</dd>
-            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
+            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span> — VNF auth requirement measured; exact endpoint/auth flow to be pinned by the developer at T1.</dd>
             <dt>Resolved by</dt><dd>T1 spike (developer)</dd>
-            <dt>Resolved at</dt><dd>Pending</dd>
+            <dt>Resolved at</dt><dd>Partially probed 2026-07-12 (implementer); full resolution pending an authenticated run.</dd>
           </dl></div>
         </div>
 

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>2023 regime event study + public curtailment calendar</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>regime-2023-event-study</code></td></tr>
+          <tr><th>Source document</th> <td>Critique roadmap 2026-07-06 (critique #2) + NOX-003/004 Q4/Q6a curtailment-calendar follow-up</td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-012</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-07-06</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>This document records unresolved questions found while converting critique #2 into an SDD spec.</p>
+        <p>Blocking questions must be answered before implementation. <strong>There are no blocking questions.</strong>
+        The one genuine data-feasibility risk — whether a public/free, dated, source-cited Tangshan/Hebei
+        curtailment calendar can actually be assembled, and at what granularity (Q1) — is carried as a
+        <strong>non-blocking</strong> question with a <strong>safe default</strong> (the coarse-floor calendar) and a
+        <strong>T1 assembly spike that gates the build's richness</strong>. So NOX-012 can proceed to
+        <code>spec_ready</code>. Q1 becomes blocking only in the T1 <em>NO-GO</em> branch (heating seasons not even
+        datable), which is treated as an escalation-to-developer, not a silent stop.</p>
+      </section>
+
+      <hr>
+
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Type</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">4</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking questions present:</strong></p>
+        <pre><code>No</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header">
+            <span class="req-id">Q1</span>
+            <span class="card-title">Curtailment-calendar sourcing, coverage and date-granularity (central feasibility risk)</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>Can a public/free, dated, source-cited Tangshan/Hebei steel curtailment calendar actually be assembled over the TROPOMI era (2019-01 → present)? From which sources (MEE / Hebei DEE / Tangshan municipal notices, CREA / Custeel / Mysteel public reports, reputable news, official holiday calendars), and at what <strong>date granularity</strong> (day / week / month / season)? Specifically: are there ≥1 securely-dated event in the 2023-peak window and ≥1 in 2024 to support the event-bound test?</dd>
+              <dt>Why it matters</dt>                  <dd>This is the same class of risk as the NOX-007 (GEMS) and NOX-011 (VIIRS) T1 spikes: the whole event-level attribution (REQ-021) depends on it. A rich event-level calendar enables the "few large events drive the 2023 peak" test at event granularity; a coarse-only calendar reduces it to heating-season edges + holidays with less power.</dd>
+              <dt>Blocking</dt>                        <dd>No (becomes blocking only in the T1 NO-GO branch — heating seasons not even datable — which escalates to the developer)</dd>
+              <dt>Default assumption if not answered</dt><dd>Run the <strong>T1 assembly spike</strong> (REQ-001) to record what is securely datable and a go/no-go verdict; then build from the <strong>coarse floor</strong> (heating-season restriction windows + Golden Week + Spring Festival + any securely-dated campaigns), mark provenance + granularity + confidence per event, and expand opportunistically. Report reduced power at coarse granularity (EDGE-001). This lets the task reach <code>spec_ready</code> and proceed. (A3)</dd>
+              <dt>Affected files / sections</dt>       <dd><code>noxus/catalyst/calendar.py</code>; <code>data/curtailment/</code>; REQ-001/002/003; EDGE-001; ERR-003; design "External dependencies and freshness"</dd>
+              <dt>Related requirements</dt>            <dd>REQ-001, REQ-002, REQ-003, EDGE-001, ERR-003</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending (T1 spike measures it)</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header">
+            <span class="req-id">Q2</span>
+            <span class="card-title">Commit vs gitignore the curated calendar CSV</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>The critique note says "calendar-derived raw outputs gitignored". Should the small, hand-curated, source-cited <code>tangshan_hebei_curtailment.csv</code> (the deliverable) be <strong>committed</strong> (so the study reproduces from the repo), with only bulk raw scrapes gitignored — or should the CSV also be gitignored?</dd>
+              <dt>Why it matters</dt>                  <dd>Reproducibility of the event study. The calendar is public/dated/cited (no licence concern), so committing it is the reproducible choice; but the developer may prefer to keep all derived artefacts out of git.</dd>
+              <dt>Blocking</dt>                        <dd>No</dd>
+              <dt>Default assumption if not answered</dt><dd>Commit the curated CSV + <code>SOURCES.md</code>; gitignore only <code>data/curtailment/_raw/</code> and NO₂-derived regime/event series (A2, NFR-006).</dd>
+              <dt>Affected files / sections</dt>       <dd><code>.gitignore</code>; <code>data/curtailment/</code>; NFR-006; design "Data model changes"</dd>
+              <dt>Related requirements</dt>            <dd>REQ-002, NFR-006</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header">
+            <span class="req-id">Q3</span>
+            <span class="card-title">Which deseason variant headlines the rolling correlation?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>The rolling-18-month regime correlation (REQ-010) can be computed on several deseason variants. Which is the headline: harmonic-K1 (the method of record, which gave the best-regime r≈0.76) or the NOX-003.1 intensity residual — or both reported equally?</dd>
+              <dt>Why it matters</dt>                  <dd>Affects which peak value is quoted; picking the most favourable variant would be p-hacking, so the choice must be pre-registered and all variants reported.</dd>
+              <dt>Blocking</dt>                        <dd>No</dd>
+              <dt>Default assumption if not answered</dt><dd>Headline <strong>harmonic-K1</strong> (method of record) and report the intensity residual alongside; both variants are in the fixed grid and counted in <code>n_tests</code> / BH-FDR (REQ-031). (A5)</dd>
+              <dt>Affected files / sections</dt>       <dd><code>noxus/catalyst/regime.py</code>; REQ-010/031; design "Regime identification"</dd>
+              <dt>Related requirements</dt>            <dd>REQ-010, REQ-031</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header">
+            <span class="req-id">Q4</span>
+            <span class="card-title">Regime-boundary definition (fixed calendar split vs data-driven change-point)</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                        <dd>How should the "2023 regime" and "2024 collapse" boundaries be fixed: a rolling-peak-centred window + fixed calendar-year split, or a data-driven change-point on the rolling-correlation series? A data-driven boundary risks being tuned to CREA.</dd>
+              <dt>Why it matters</dt>                  <dd>Determines the anti-p-hacking posture of the segmentation. A boundary optimised against CREA would manufacture the within-regime peak.</dd>
+              <dt>Blocking</dt>                        <dd>No</dd>
+              <dt>Default assumption if not answered</dt><dd>Use a <strong>fixed pre-registered rule</strong> (rolling-peak-centred 18-month window for the 2023 regime + a fixed calendar-year split for 2024), declared before viewing outcomes, and report a <strong>boundary-robustness sweep</strong>; never optimise the boundary against CREA (A5, NFR-005, ERR-004).</dd>
+              <dt>Affected files / sections</dt>       <dd><code>noxus/catalyst/regime.py</code>; REQ-011; NFR-005; ERR-004</dd>
+              <dt>Related requirements</dt>            <dd>REQ-011, NFR-005</dd>
+              <dt>Decision</dt>                        <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                     <dd>Pending</dd>
+              <dt>Resolved at</dt>                     <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="resolved-questions">
+        <h2>Resolved questions</h2>
+        <p>Move questions here after the developer answers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="deferred-questions">
+        <h2>Deferred questions</h2>
+        <p>Move non-blocking questions here if the developer explicitly decides to defer them. Deferred questions must not block implementation.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>If any question has <strong>Blocking: Yes</strong> and <strong>Decision: Pending</strong>, do not implement. (None here is blocking; Q1 becomes blocking only in the T1 NO-GO branch, which escalates to the developer.)</li>
+            <li>If only non-blocking questions remain, the task may be marked <code>spec_ready</code> if all assumptions are explicit.</li>
+            <li>Do not answer product, security, data, billing, or architecture questions silently.</li>
+            <li>When the developer answers a question, update this file and reflect the decision in <code>requirements.html</code>, <code>design.html</code>, <code>tasks.html</code>, or <code>acceptance-tests.html</code>.</li>
+            <li>Before moving a task to <code>human_approved</code>, verify that no blocking question remains pending.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

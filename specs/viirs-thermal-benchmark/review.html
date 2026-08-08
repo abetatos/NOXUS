@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — VIIRS thermal-anomaly independent benchmark</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — VIIRS thermal-anomaly independent benchmark</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-011</code></td></tr>
+        <tr><th>Feature slug</th><td><code>viirs-thermal-benchmark</code></td></tr>
+        <tr><th>Reviewer</th><td>reviewer (SDD)</td></tr>
+        <tr><th>Reviewed at</th><td><code>2026-07-12</code></td></tr>
+        <tr><th>Code verdict</th><td><span class="badge badge-ok">approved with nits</span> (offline machinery T2–T11, T13)</td></tr>
+        <tr><th>Task verdict</th><td><span class="badge badge-rejected">blocked — data-gated</span> (T1 go/no-go + T12 need a developer live run; T14 docs pending)</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-011 delivers the full <strong>offline machinery</strong> for the VIIRS thermal-anomaly triangulation:
+        acquisition (<code>noxus/data/viirs.py</code>), facility join + benchmark-blind thermal series
+        (<code>noxus/signal/thermal.py</code>), the decisive triangulation reusing the NOX-008 robust significance
+        (<code>analysis/viirs_triangulation.py</code>), a co-location render (<code>noxus/data/verify_viirs.py</code>),
+        config, CLI wiring and a full offline test suite. Everything is correct, traceable to the approved spec,
+        lint-clean and green (<strong>203 passed</strong>, ruff clean).</p>
+        <p>Two spec tasks are genuinely <strong>developer-live-run-gated</strong> and remain open: <strong>T1</strong>
+        (the VNF feasibility spike / go-no-go — its default "keyless" path was probed and found to sit behind an EOG
+        Keycloak login, so the gate is honestly recorded as <em>blocked-on-live-run</em>, Q1 Pending) and
+        <strong>T12</strong> (the real acquisition slice + triangulation run). <strong>T14</strong> (docs) is required
+        and pending. This matches the accepted NOX-007 (GEMS) / NOX-009 pattern: the code is approvable now, but the
+        task must <strong>not</strong> be marked <code>done</code> until the developer completes the live run and docs
+        land. The completion boundary is stated explicitly in <a href="#completion-boundary">§ Completion boundary</a>.</p>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <table>
+          <thead><tr><th>Command</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run pytest -q</code></td><td><strong>203 passed</strong> in ~5s</td></tr>
+            <tr><td><code>uv run ruff check .</code></td><td><strong>All checks passed</strong></td></tr>
+            <tr><td><code>git diff --stat noxus/validation/robust.py</code> / <code>leadlag.py</code></td><td><strong>no changes</strong> — significance modules untouched (REQ-020, files-not-to-change honoured)</td></tr>
+            <tr><td><code>git status --short</code></td><td>new: <code>viirs.py</code>, <code>thermal.py</code>, <code>viirs_triangulation.py</code>, <code>verify_viirs.py</code>, 3 test files; modified: <code>config/run.py</code>, <code>cli/main.py</code>, <code>.env.example</code>, <code>.gitignore</code>, spec files, <code>tasks.json</code></td></tr>
+          </tbody>
+        </table>
+        <p>The T1 spike (<code>fetch-viirs --probe</code>) and T12 real run are developer-run against live services and are
+        not CI-asserted (A10); they are not re-run here.</p>
+      </section>
+
+      <section id="changed-files">
+        <h2>Changed files reviewed</h2>
+        <table>
+          <thead><tr><th>File</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/data/viirs.py</code> (new)</td><td>Fetcher <code>Protocol</code> seam + <code>VnfFetcher</code>/<code>FirmsFetcher</code>, AOI clip, standardise, per-night parquet + provenance sidecar, resumable manifest, retry/backoff, budget gate, <code>probe_viirs</code> (T1), <code>ViirsAuthError</code> on the EOG HTML login. Matches design.</td></tr>
+            <tr><td><code>noxus/signal/thermal.py</code> (new)</td><td><code>load_facilities</code>, numpy-haversine <code>join_to_facilities</code>, <code>build_thermal_series</code>. Benchmark-blind: no CREA/NO₂ symbol anywhere; imports only column constants from <code>viirs.py</code> + numpy/pandas.</td></tr>
+            <tr><td><code>analysis/viirs_triangulation.py</code> (new)</td><td>Reuses <code>robust_corr</code>/<code>bh_fdr</code>/<code>lead_lag</code> unchanged; common-window align; 4-branch feature-vs-target <code>interpret</code>; FIRMS cross-check consistency; committable CSV.</td></tr>
+            <tr><td><code>noxus/data/verify_viirs.py</code> (new)</td><td>Detections-over-AOI PNG with facility overlay (mirrors <code>verify_no2</code>). Agg backend, writes under derived dir.</td></tr>
+            <tr><td><code>noxus/config/run.py</code> (+)</td><td><code>ViirsAcquisitionConfig</code> + <code>ThermalTriangulationConfig</code>; pre-registration knobs (radius 3&nbsp;km, freq W, radiant-heat) fixed in config, additive only.</td></tr>
+            <tr><td><code>noxus/cli/main.py</code> (+)</td><td>Four subcommands wired (<code>fetch-viirs</code>/<code>--probe</code>, <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code>); existing commands untouched.</td></tr>
+            <tr><td><code>.env.example</code> (+)</td><td><code>FIRMS_MAP_KEY</code> documented by name only; value never committed.</td></tr>
+            <tr><td><code>.gitignore</code> (+)</td><td><code>data/raw/viirs/</code> ignored (NFR-003).</td></tr>
+            <tr><td>tests (new)</td><td><code>tests/data/test_viirs.py</code>, <code>tests/signal/test_thermal.py</code>, <code>tests/analysis/test_viirs_triangulation.py</code>, CLI smoke in <code>tests/cli/test_cli.py</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="requirement-traceability">
+        <h2>Requirement traceability</h2>
+        <table>
+          <thead><tr><th>Req</th><th>Implemented</th><th>Test</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-000 (gate/probe)</td><td><code>probe_viirs</code> + <code>raise_if_over_budget</code></td><td>AT0 → <code>test_probe_reports_go_*</code>, <code>test_probe_no_go_over_budget</code></td><td class="warning">Machinery ✓; live go/no-go deferred to T1</td></tr>
+            <tr><td>REQ-001/002/003 (acquire+clip+fields+provenance)</td><td><code>acquire_viirs</code>, <code>clip_to_aoi</code>, <code>standardise</code>, <code>_write_night</code></td><td>AT1 → <code>test_acquire_clips_aoi_retains_fields_and_provenance</code></td><td>✓</td></tr>
+            <tr><td>REQ-004 (resumable)</td><td>manifest skip/record</td><td>AT2 → <code>test_resumable_*</code>, <code>test_failed_night_recorded_then_resumes</code></td><td>✓</td></tr>
+            <tr><td>REQ-005/ERR-001 (creds by ref)</td><td><code>FirmsFetcher._map_key</code> env-name only; <code>_scrub_url</code></td><td><code>test_firms_missing_key_references_env_var_name</code>, <code>test_scrub_url_hides_map_key</code></td><td>✓</td></tr>
+            <tr><td>REQ-006/024/EDGE-004 (FIRMS cross-check)</td><td><code>FirmsFetcher.filter_and_standardise</code> (type==2); triangulation FIRMS pair</td><td>AT4 → <code>test_firms_keeps_only_static_land_source</code>, <code>test_firms_cross_check_reports_consistency</code></td><td>✓</td></tr>
+            <tr><td>REQ-010/EDGE-002 (radius join)</td><td><code>join_to_facilities</code> (nearest within radius; drop outside)</td><td>AT3a → <code>test_join_assigns_nearest_*</code>, <code>test_join_ties_to_nearest_facility</code></td><td>✓</td></tr>
+            <tr><td>REQ-011/A3 (aggregation)</td><td><code>build_thermal_series</code> (sum RH primary + count + mean temp)</td><td>AT3b → <code>test_weekly_aggregation_*</code>, <code>test_alternate_aggregate_count</code></td><td>✓</td></tr>
+            <tr><td>REQ-012/NFR-006 (benchmark-blind)</td><td>signatures take no CREA/NO₂; module imports no benchmark</td><td>AT3c → <code>test_series_build_is_benchmark_blind</code></td><td>✓</td></tr>
+            <tr><td>REQ-020/021/022 (robust reuse + BH-FDR)</td><td><code>triangulate</code> calls <code>robust_corr</code>/<code>bh_fdr</code>/<code>lead_lag</code></td><td>AT5 → <code>test_triangulate_matches_direct_robust_corr</code> (asserts <code>r</code>, <code>p_perm</code> equality)</td><td>✓</td></tr>
+            <tr><td>REQ-023/NFR-005 (interpretation + honest null)</td><td><code>interpret</code> 4 branches</td><td>AT6 → <code>test_interpret_branches</code> + 3 end-to-end diagnosis tests</td><td>✓ (see nit N4)</td></tr>
+            <tr><td>REQ-030/031 (verify + committable)</td><td><code>verify_viirs.render_*</code>; derived CSV/parquet</td><td>AT7 → <code>test_verify_render_writes_png_with_facilities</code></td><td>✓</td></tr>
+            <tr><td>EDGE-001/005 (empty/sparse)</td><td>zero-fill reindex + <code>sparse</code> flag</td><td>AT-EDGE-1 → <code>test_sparse_week_flagged_and_zero_periods_filled</code></td><td>✓</td></tr>
+            <tr><td>EDGE-003 (common window)</td><td><code>_align_common</code> dropna</td><td>AT-EDGE-2 → <code>test_common_window_alignment_shrinks_n</code></td><td>✓</td></tr>
+            <tr><td>ERR-002/003/004/005</td><td>standardise field check; retry/record; budget raise; <code>FacilitiesError</code></td><td>AT-ERR-1 → <code>test_standardise_missing_required_field_raises</code>, <code>test_raise_if_over_budget</code>, <code>test_load_facilities_*</code></td><td>✓</td></tr>
+            <tr><td>REQ-040/NFR-008 (CLI, additive)</td><td>4 subcommands; existing untouched</td><td>AT-REG-1 → <code>test_viirs_subcommands_exist</code> + existing help test</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="scrutiny">
+        <h2>Focused scrutiny (the point of the task)</h2>
+        <ol>
+          <li><strong>Anti-p-hacking / benchmark-blindness — PASS.</strong> <code>join_to_facilities(detections, facilities, radius_km)</code>
+          and <code>build_thermal_series(joined, freq, aggregate, ...)</code> take no CREA/NO₂ argument.
+          <code>signal/thermal.py</code> imports only column constants from <code>viirs.py</code> plus numpy/pandas —
+          it never imports <code>noxus.data.benchmark</code> or any NO₂ series. Radius (3&nbsp;km), freq (W) and primary
+          aggregate (radiant heat) are fixed in <code>ThermalTriangulationConfig</code> and recorded in <code>assumptions.html</code>
+          (A2/A3/A9) before any result. <code>test_series_build_is_benchmark_blind</code> asserts both signatures and the
+          absence of benchmark coupling in source.</li>
+          <li><strong>Significance reuse — PASS.</strong> <code>viirs_triangulation.py</code> imports <code>robust_corr</code>,
+          <code>bh_fdr</code>, <code>RobustCorr</code>, <code>lead_lag</code> from <code>noxus.validation</code> and calls them
+          unchanged; no significance math is re-implemented. <code>git diff</code> confirms <code>robust.py</code> and
+          <code>leadlag.py</code> are byte-for-byte unchanged. <code>test_triangulate_matches_direct_robust_corr</code>
+          asserts the link equals a direct <code>robust_corr</code> call (<code>r</code> and <code>p_perm</code>).</li>
+          <li><strong>Feature-vs-target diagnosis — PASS.</strong> All four branches wired in <code>interpret</code>:
+          (no,yes)→NO₂ blind/target sound; (yes,no)→target weak; (yes,yes)→coherent; (no,no)→honest null. Three branches
+          exercised end-to-end via <code>triangulate</code> on synthetic series; the coherent branch is covered at the
+          unit level (see nit N4). BH-FDR is applied across the family and significance is additionally gated on
+          <code>n_common &gt;= min_overlap</code>.</li>
+          <li><strong>Credential / security — PASS.</strong> <code>FIRMS_MAP_KEY</code> read by name via dotenv; missing-key
+          error names the variable and never echoes a value; <code>_scrub_url</code> strips the key path segment before any
+          error surfaces; VNF error messages carry only the (secretless) VNF URL. <code>.env</code> untouched;
+          <code>data/raw/viirs/</code> gitignored; only small derived stats/figures are committable. Tests cover the
+          missing-key and scrub paths. (See non-blocking nit N3 on scrub robustness.)</li>
+          <li><strong>T1 honesty — PASS.</strong> The probe finding is real and honestly recorded: Q1 documents that the
+          defaulted VNF path returns an HTTP-200 Keycloak HTML login (VNF is <em>not</em> keyless), the fetcher raises a
+          clear <code>ViirsAuthError</code> on an HTML/login body, the go/no-go is marked <strong>blocked-on-live-run</strong>,
+          and the Q1 decision is left <span class="badge badge-pending">Pending</span> — not silently answered. No fabricated
+          T1 result is claimed anywhere in the code or spec.</li>
+          <li><strong>Acceptance-test coverage — PASS.</strong> Every AT0–AT7 + AT-EDGE-1/2 + AT-ERR-1 + AT-REG-1 maps to at
+          least one implemented test (table above). No acceptance criterion is left without a test.</li>
+        </ol>
+      </section>
+
+      <section id="findings">
+        <h2>Findings (non-blocking nits)</h2>
+        <ul>
+          <li><strong>N1 — probe <code>auth_required</code> heuristic mislabels VNF.</strong>
+          <code>noxus/data/viirs.py:488</code> sets <code>auth_required = cfg.source == "firms"</code>, so a VNF probe
+          prints <code>auth_required=False</code> despite the T1 finding that VNF sits behind EOG SSO. The honest finding
+          lives in Q1 and the fetcher raises <code>ViirsAuthError</code>, but the probe's own field is misleading. Cheap fix:
+          derive it from the fetched response (HTML/login ⇒ True) or drop the hardcoded default. Developer-run field only —
+          non-blocking.</li>
+          <li><strong>N2 — CLI empty-store test exits via the wrong branch.</strong>
+          <code>tests/cli/test_cli.py::test_build_thermal_series_empty_store_returns_1</code> chdirs to an empty tmp dir, so
+          the command returns 1 from the missing-facilities-CSV (<code>FacilitiesError</code>) branch, not the empty-store
+          branch it is named for. Both branches return 1 and are individually reachable; the test name overstates what it
+          exercises. Non-blocking test-clarity nit.</li>
+          <li><strong>N3 — <code>_scrub_url</code> is coupled to the literal <code>/csv/</code> segment.</strong>
+          Scrubbing works for the current FIRMS endpoint (<code>.../api/area/csv/&lt;key&gt;/...</code>), but if
+          <code>firms_endpoint_base</code> were reconfigured without <code>/csv/</code> the key could leak into an error.
+          Scrubbing by the actual key value would be more robust. Non-blocking (current config is safe).</li>
+          <li><strong>N4 — coherent-branch not exercised end-to-end.</strong> <code>DIAG_COHERENT</code> is covered only via
+          the <code>interpret(True, True)</code> unit test, not through a full <code>triangulate</code> run (the other three
+          branches are). Low value to add; noted for completeness. Non-blocking.</li>
+        </ul>
+        <p>All four are non-blocking. Per the completion policy they must be resolved or explicitly deferred with justification
+        before the task is marked <code>done</code>; since the task is data-gated and not yet done, they are recorded here for
+        the implementer to sweep during the T12/T14 pass. <strong>Recommended deferral</strong>: N2/N4 (test clarity) and N3
+        (defensive hardening) may be deferred; <strong>N1</strong> should be fixed in the T12 pass so the developer's live
+        probe output is not misleading.</p>
+      </section>
+
+      <section id="high-risk-record">
+        <h2>High-risk review record</h2>
+        <p><strong>Categories touched:</strong> mild API-key handling only (FIRMS <code>MAP_KEY</code>). <strong>Not</strong> a
+        high-risk deep-review category — no auth/authz surface, payments, migrations, infra, public API, or data-loss risk
+        (confirmed in design § Security and permissions). <strong>Escalation rungs run:</strong> standard review + a targeted
+        credential-handling pass (env-var-by-name, URL scrubbing, no value in logs/errors, <code>.env</code> untouched,
+        gitignore of raw store). No adversarial or paid deep-review rung was required.
+        <strong>Reason standard level suffices:</strong> additive parallel channel, no protected files written, network egress
+        limited to EOG/FIRMS hosts, all network/auth mocked in tests.</p>
+        <p><strong>Security findings:</strong> none. <strong>Data-loss:</strong> none (additive; rollback = revert branch +
+        delete gitignored raw store). <strong>API compatibility:</strong> existing module signatures and CLI defaults
+        unchanged; 203 tests including regressions pass.</p>
+      </section>
+
+      <section id="external-deps">
+        <h2>External dependencies and freshness</h2>
+        <p>The feature integrates two external Earth-observation services (VNF/EOG, NASA FIRMS) and one optional API key, so
+        the freshness gate applies. The design records the given factual basis and defers exact endpoint/format/auth to the
+        T1 spike (Q1/Q2). The <strong>live evidence is partial and honestly recorded</strong>: the offline probe found the
+        defaulted VNF path is behind EOG Keycloak SSO (contradicting the keyless default), so VNF auth/endpoint remains
+        <em>unverified pending a developer authenticated run</em>. FIRMS endpoint/auth (MAP_KEY) is coded to the current
+        area/CSV API but likewise unverified against a live key. <strong>No new dependency</strong> was added (numpy haversine,
+        existing httpx/pandas/pyarrow/dotenv), satisfying Q5/NFR-004. Because this is <em>not</em> a high-risk category, the
+        outstanding live-verification items are <strong>non-blocking for the code review</strong> but are exactly what T1/T12
+        must close before the acquisition loop is trusted; the developer should record docs source + date at that point.</p>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <p><strong><code>documentation_required: true</code></strong> — this is task T14 and it gates marking NOX-011
+        <code>done</code>. The change adds modules, a raw store, CLI subcommands and an env var that documentation describes.
+        Recommend invoking the <strong>documenter</strong> after (or alongside) the developer T1/T12 run so the go/no-go result
+        can be written in the same pass.</p>
+        <p><strong>Documentation targets:</strong></p>
+        <table>
+          <thead><tr><th>Target</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>.claude/context/project-map.md</code></td><td>New <code>noxus/data/viirs.py</code>, <code>noxus/signal/thermal.py</code>, <code>analysis/viirs_triangulation.py</code>, <code>noxus/data/verify_viirs.py</code>, new <code>data/raw/viirs/</code> store, four new CLI subcommands, new configs.</td></tr>
+            <tr><td><code>docs/data-access.md</code></td><td>VNF + FIRMS channels, key by env-var name, client-side-clip rationale, and the honest T1 go/no-go (VNF-behind-SSO) finding.</td></tr>
+            <tr><td><code>README.md</code></td><td>Status / Data sources line for the VIIRS thermal channel (data-gated).</td></tr>
+            <tr><td><code>.env.example</code></td><td><span class="badge badge-ok">already done</span> by implementer (FIRMS_MAP_KEY name only) — documenter confirms wording.</td></tr>
+            <tr><td><code>.gitignore</code></td><td><span class="badge badge-ok">already done</span> (<code>data/raw/viirs/</code>) — confirm.</td></tr>
+            <tr><td><code>decisions/architecture-decisions.md</code></td><td>Decision-log entries proposed below (developer approval required before writing).</td></tr>
+            <tr><td><code>history.html</code></td><td>Append the NOX-011 summary entry after the live run + docs land (not appended now, since docs are pending).</td></tr>
+          </tbody>
+        </table>
+        <p><code>documentation_status</code> stays <strong>pending</strong>. After the documenter reports, run the lightweight
+        docs re-check (each target updated or justified, text matches the reviewed implementation, no secret/unverified
+        endpoint claimed as verified), then set <code>documentation_status: updated</code>.</p>
+      </section>
+
+      <section id="decision-log-proposal">
+        <h2>Decision-log proposal (proposed only — developer decides)</h2>
+        <ul>
+          <li><strong>DL-1: VNF Nightfire as the primary independent physical benchmark</strong> (industrial-combustion-tuned;
+          reports temperature/area/radiant heat) with NASA FIRMS active-fire static-land-source as the cross-check; free/public
+          acquisition behind a fetcher seam. Rejected alternative: FIRMS as primary.</li>
+          <li><strong>DL-2: the feature-vs-target diagnosis the triangulation settles</strong> — which link (FEATURE = NO₂ at
+          this scale, or TARGET = CREA) is the weak one — is durable and potentially re-interprets every prior near-null.
+          Record once the T12 real run produces the actual diagnosis (currently unrun).</li>
+          <li><strong>DL-3 (candidate): VNF is not keyless</strong> — the defaulted EOG path returns a Keycloak login; the true
+          authenticated endpoint/flow is a T1 finding worth recording once pinned.</li>
+        </ul>
+      </section>
+
+      <section id="completion-boundary">
+        <h2>Completion boundary — is "done" appropriate now?</h2>
+        <p><strong>No — not yet.</strong> The offline machinery (T2–T11, T13) is complete, correct and tested, and is
+        <span class="badge badge-ok">approved</span>. But NOX-011 has an explicit <strong>gate (T1)</strong> whose go/no-go is
+        <em>blocked-on-live-run</em>, a <strong>data-gated real run (T12)</strong> that has not executed, and <strong>required
+        docs (T14)</strong> that are pending. This is the same accepted boundary as <strong>NOX-007 (GEMS)</strong> — spec +
+        machinery complete, execution deferred to a live/authenticated run — and NOX-009 (code approved, completion gated on the
+        real run + docs). Recommended state: keep NOX-011 <strong>blocked / data-gated</strong> (or <code>in_progress</code> with
+        the boundary recorded), <strong>not <code>done</code></strong>, until the developer: (a) resolves EOG VNF auth and runs
+        the T1 spike to a real go/no-go (Q1), (b) runs T12 and records the honest diagnosis, (c) fixes nit N1, and (d) lands T14
+        docs, after which the reviewer does the docs re-check and completes the task.</p>
+        <p><em>Reviewer did not edit <code>tasks.json</code>, did not mark task items <code>done</code>, and did not append to
+        <code>history.html</code> — the task is not yet completable.</em></p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision</h2>
+        <p><strong>Code (offline machinery T2–T11, T13):</strong> <span class="badge badge-ok">approved with nits</span> — 4
+        non-blocking findings (N1–N4), N1 to be fixed in the T12 pass.</p>
+        <p><strong>Task NOX-011 overall:</strong> <span class="badge badge-rejected">blocked — data-gated</span>. Next state:
+        remain gated on the developer T1 live run (Q1 go/no-go) + T12 + T14 docs; then reviewer docs re-check → <code>done</code>.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
+</content>
+</invoke>

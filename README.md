@@ -266,6 +266,14 @@ All inputs are intended to be public and free:
   rather than a contracted API, results are pinned to committed dated snapshots and the benchmark
   column is selected by exact name to survive any change in the source's column set.
 
+- **Independent thermal benchmark** — **VIIRS thermal anomalies** over the same steel facilities, used
+  to triangulate the NO₂ signal against a hard-to-falsify space-based heat measurement: **VIIRS
+  Nightfire (VNF)** from the Earth Observation Group (EOG / Colorado School of Mines) as the primary
+  series, with **NASA FIRMS** active fire as a cross-check (`FIRMS_MAP_KEY` in `.env`, by name only).
+  Acquired via `noxus fetch-viirs` (resumable; VIIRS raw store gitignored). See
+  [docs/data-access.md](docs/data-access.md), including the T1 access caveat that **VNF is not keyless**
+  (it sits behind EOG SSO).
+
 # Status
 
 The pipeline now spans the full chain: acquisition → gridding → attribution → signal/index → validation.
@@ -277,6 +285,19 @@ facilities/AOI** (Global Iron & Steel Tracker); **gridding/compositing** to a we
 (`noxus index`), and the lead/lag **validation** against the benchmark (`noxus validate`, which reports
 the null when that is what the data show). A reproducible preliminary run (`analysis/preliminary_signal.py`)
 produces the first end-to-end result — see [docs/preliminary-results.html](docs/preliminary-results.html).
+An **independent VIIRS thermal-benchmark** capability has also landed (`noxus fetch-viirs` /
+`build-thermal-series` / `triangulate-thermal` / `verify-viirs`, NOX-011): the offline acquisition,
+facility-join and NO₂↔VIIRS / CREA↔VIIRS triangulation machinery is implemented and tested, but the
+live triangulation **result is pending** a developer VNF/FIRMS run (VNF requires resolving EOG SSO auth
+first — see `docs/data-access.md`).
+A **2023-regime event-study** capability has likewise landed (`noxus assemble-calendar` /
+`noxus regime-study`, NOX-012): a public, source-cited Tangshan/Hebei curtailment calendar at
+**coarse-floor** granularity (holidays + heating-season windows; committed under `data/curtailment/`,
+with a richer event-level survey pending a live run) plus rolling-regime identification, a
+regime-conditioned event study, a leave-one-event-out jackknife and a rolling **scan-maximum null** with
+BH-FDR. The machinery is implemented and tested offline; the real-data run on the 2023 rolling-correlation
+regime **is pending** a developer live run (it needs the intensity-residual series — see
+`docs/data-access.md`).
 See `docs/data-access.md` for data access and `docs/motivation.md` for the preprint-oriented motivation.
 
 # License

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-012</code></td></tr>
+        <tr><th>Feature slug</th><td><code>regime-2023-event-study</code></td></tr>
+        <tr><th>Reviewer</th><td>reviewer agent</td></tr>
+        <tr><th>Date</th><td><code>2026-08-04</code> · re-checked <code>2026-08-08</code></td></tr>
+        <tr><th>Verdict</th><td><span class="badge badge-ready">RE-CHECK: offline machinery review-clean — F1–F4 resolved. Only G1 (T12 real run) + G2 (T13 docs) remain before <code>done</code>.</span></td></tr>
+        <tr><th>State-machine decision</th><td><code>approved</code> (offline machinery); task stays <code>in_progress</code> pending the two data/doc gates. Original verdict below retained for the record.</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="recheck">
+        <h2>Re-check (2026-08-08) — deltas only</h2>
+        <p>The implementer resolved all four findings. I re-verified against the actual code and tests (not on
+        trust). <strong>All four are genuinely resolved; the offline machinery is now review-clean.</strong></p>
+        <table>
+          <thead><tr><th>Finding</th><th>What changed (verified)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>F1</strong> (was significant)</td>
+              <td>The driver now calls <code>regime_event_study()</code> per threshold (regime.py:807) and carries a
+              per-<code>(threshold × regime)</code> <code>event_study_table</code> on <code>RegimeArtifacts</code>
+              (regime.py:603/842), written to disk via new <code>event_study_name</code> config (run.py:546). The
+              figure driver defines <code>_fig_precision_recall</code> (analysis line 68) and <code>run()</code> now
+              emits all 4 figures (line 143). Tests: <code>test_driver_emits_event_study_table_and_figure</code>
+              (asserts the table, its columns, the on-disk path, threshold coverage, and renders the PNG),
+              determinism test now also compares <code>event_study_table</code>.</td>
+              <td class="ok">Resolved</td>
+            </tr>
+            <tr>
+              <td><strong>F2</strong> (was significant)</td>
+              <td>Fixed as honest-minimal. <code>build_grid_cells</code> dropped the <code>threshold</code> dimension
+              (it does not change the correlation statistic) — thresholds now live only in the event-study table. The
+              driver grid dedups by content: <code>_variant_residuals</code> (regime.py:618) drops variants that
+              collapse to the same residual, and the grid loop keys on a <code>seen</code> set of
+              <code>(variant, regime, span)</code>, so <code>n_tests = len(table)</code> with <strong>no duplicate
+              p-values</strong> padded into BH-FDR. Verified: offline, the two nominal variants collapse to one
+              (<code>variants_distinct == ['harmonic']</code>) and the grid is peak@78 + peak@52 + collapse = 3
+              genuinely-distinct cells. Tests: <code>test_fdr_grid_has_no_duplicate_pvalues</code>,
+              <code>test_collapsed_variants_do_not_inflate_n_tests</code>. The fabricated multiplicity I flagged is
+              gone; BH-FDR now runs over a legitimate family.</td>
+              <td class="ok">Resolved</td>
+            </tr>
+            <tr>
+              <td><strong>F3</strong> (minor)</td>
+              <td>52-week secondary window now exercised alongside the 18-month primary: <code>windows</code> includes
+              <code>window_weeks_secondary</code> (regime.py:738); a distinct 52-week peak cell appears in the grid and
+              <code>rolling_secondary</code> is populated. Test: <code>test_secondary_window_is_exercised</code>
+              (asserts 52 and 78 both present, <code>secondary_window == 52</code>).</td>
+              <td class="ok">Resolved</td>
+            </tr>
+            <tr>
+              <td><strong>F4</strong> (minor)</td>
+              <td>EDGE-004 now has a dedicated test: <code>test_cloud_gapped_curtailment_is_honest_missed_recall</code>
+              — a real production drop is detected under clear sky but screened out when coverage at that week drops
+              below the floor, and the still-present ground-truth curtailment makes it an honest lost recall
+              (<code>mr.recall &lt; clear_mr.recall</code>, <code>n_prod &gt;= 1</code>), not a silently absorbed FN.</td>
+              <td class="ok">Resolved</td>
+            </tr>
+          </tbody>
+        </table>
+        <p><strong>Anti-p-hacking / honest-null machinery unaffected:</strong> confirmed. The verdict logic
+        (<code>scan_unsurprising or not peak_survives_fdr → artefact</code>) and <code>scan_max_null</code> are
+        unchanged; the AR(1) honest-null still returns <code>VERDICT_ARTEFACT</code> and the planted regime is still
+        not dismissed as an artefact (both tests green). Deseasonalisation is on the NO₂ series alone, never against
+        CREA. The two prior nits (docstring/figure mismatch; two "collapse" notions) are also addressed by F1 and by
+        the summary text now naming the distinct grid.</p>
+        <p><strong>Independent verification:</strong> <code>uv run pytest</code> → <strong>248 passed</strong>
+        (was 243; +5 new delta tests), <code>uv run ruff check .</code> → clean, and <code>git diff</code> on the
+        reused modules (<code>catalyst/{events,groundtruth,study,report}.py</code>,
+        <code>validation/{robust,leadlag,preprocess}.py</code>) is <strong>empty</strong> — still byte-for-byte
+        unchanged. The new harmonic path reuses <code>noxus.signal.index.deseasonalize</code> unchanged.</p>
+        <p><strong>Re-check verdict:</strong> the offline machinery is <strong>review-clean</strong>. The only things
+        between it and <code>done</code> are the two gates that were always staged-deferred:</p>
+        <ul>
+          <li><strong>G1 — T12 real-data run.</strong> Still deferred; data-gated (the NOX-003.1 residual parquet is
+          gitignored / not in-repo). Requires a developer live run to produce the real 2023-peak / 2024-collapse
+          verdict (REQ-050, AC-009).</li>
+          <li><strong>G2 — T13 documentation.</strong> Still pending the documenter (see the documentation decision
+          below; the exploration-thread narrative depends on the T12 verdict).</li>
+        </ul>
+        <p>Task must not be marked <code>done</code> while G1/G2 remain; <code>tasks.json</code> was not edited and
+        nothing was committed, per instruction.</p>
+      </section>
+
+      <section id="docs-recheck">
+        <h2>Documentation re-check (2026-08-08) — <code>docs-approved</code></h2>
+        <p>Docs-only re-check of the documenter's output (CLAUDE.md workflow step 7). Verified against the code/CLI/data
+        that actually landed. <strong>Verdict: docs-approved.</strong> <code>documentation_status: updated</code>.</p>
+        <table>
+          <thead><tr><th>Check</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>No scientific verdict stated or implied anywhere</td><td class="ok">PASS — every mention of the 2023 r≈0.76 peak / 2024 breakdown is framed as the <em>pre-existing observed rolling-correlation</em> (the open thread from NOX-003.1 T10), with real-vs-artefact / event-bound-vs-continuous / collapse-cause explicitly deferred to T12. architecture-decisions has a dedicated "Pending (do NOT record until the live run)" bullet ("This entry asserts no such verdict"); README/data-access/history all say the real-data run is pending; the history title poses it as an open question.</td></tr>
+            <tr><td>Factual accuracy vs the code/CLI/data</td><td class="ok">PASS — modules <code>catalyst/{calendar,regime}.py</code>, verbs <code>assemble-calendar</code>/<code>regime-study</code>, <code>RegimeStudyConfig</code> + holiday/heating-season constants, outputs <code>regime_study.csv</code> + <code>regime_event_study.csv</code> (config <code>event_study_name</code> confirmed), the 21-row sourced coarse-floor CSV + <code>SOURCES.md</code>, the T1 <code>GO-coarse-floor</code>/<code>live_survey_pending=True</code> outcome, and the ~Nov 15→Mar 15 / State-Council / MEE-Hebei DEE source strings all match.</td></tr>
+            <tr><td>DL-1/DL-2 not smuggled in</td><td class="ok">PASS — architecture-decisions carries an explicit "Note (proposed, not adopted here)" bullet stating DL-1/DL-2 are <strong>not</strong> recorded and need developer approval; the history entry repeats this. Only a factual machinery entry was appended.</td></tr>
+            <tr><td>Leaving <code>docs/exploration-results.html</code> for post-T12</td><td class="ok">PASS — correct call; closing that thread requires the T12 verdict, and writing it now would force a scientific claim. <code>references.bib</code> untouched (no new citation) is also fine.</td></tr>
+            <tr><td>No secrets in docs</td><td class="ok">PASS — credentials referenced by variable name only (<code>FIRMS_MAP_KEY</code> etc.); no values.</td></tr>
+          </tbody>
+        </table>
+        <p>Note (out of scope, non-blocking): the same diffs also carry NOX-011 (VIIRS) documentation from that
+        feature's separate docs pass; it likewise asserts no scientific verdict and does not contaminate the NOX-012
+        content. Flagged only for awareness — not part of this NOX-012 re-check.</p>
+        <p><strong>Remaining gate:</strong> with docs approved (G2 satisfied), the <strong>only</strong> gate between
+        NOX-012 and <code>done</code> is <strong>G1 — the T12 real-data <code>regime-study</code> run</strong>
+        (data-gated on the gitignored NOX-003.1 intensity-residual parquet; a developer live run), after which the
+        exploration-results thread is closed and the reviewer does the final post-T12 pass. <code>tasks.json</code>
+        not edited; nothing committed.</p>
+      </section>
+
+      <section id="summary">
+        <h2>Summary (original review, 2026-08-04)</h2>
+        <p>The <strong>offline machinery</strong> for NOX-012 is substantively sound and review-approvable: two
+        genuinely-new modules (<code>catalyst/calendar.py</code>, <code>catalyst/regime.py</code>) built strictly
+        on top of the reused NOX-004 / NOX-008 primitives, a curated source-cited coarse-floor calendar, a
+        RegimeStudyConfig, two CLI verbs, and 40 new deterministic tests. Reuse integrity, no-look-ahead,
+        anti-p-hacking discipline, no-fabricated-data and the honest-null-as-PASS requirement are all verified.
+        Full suite <strong>243 passed</strong>, <code>ruff</code> clean.</p>
+        <p>The task <strong>cannot be marked <code>done</code></strong>: T12 (real-data verdict) and T13 (figures +
+        docs) are deferred by design, and review found <strong>two substantive driver-wiring gaps</strong> (the
+        event-study precision/recall table and the multiplicity-grid dimensions are not actually produced/exercised
+        by the driver) that must be resolved before the eventual real run and before completion.</p>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <pre><code>uv run pytest tests/catalyst/test_regime.py tests/catalyst/test_calendar.py tests/cli/test_regime_cli.py -q
+  -> 40 passed
+uv run pytest -q
+  -> 243 passed in 6.64s
+uv run ruff check .
+  -> All checks passed!
+git diff --stat -- noxus/catalyst/events.py groundtruth.py study.py report.py \
+                    noxus/validation/robust.py leadlag.py preprocess.py \
+                    noxus/signal/ noxus/attribution/ noxus/data/
+  -> EMPTY (reused files byte-for-byte unchanged)
+cat data/curtailment/tangshan_hebei_curtailment.csv   # 21 rows, every row sourced
+cat data/curtailment/SOURCES.md                        # GO-coarse-floor, live_survey_pending</code></pre>
+        <p>No <code>run-and-verify</code> skill file is present for this project path; the CLI verbs were exercised
+        through their tests (<code>assemble-calendar</code> <code>--probe</code>/build, <code>regime-study</code>
+        missing-input error). The real-data <code>regime-study</code> run is T12 and is intentionally not run here
+        (the NOX-003.1 residual parquet is gitignored / not in-repo).</p>
+      </section>
+
+      <section id="changed-files">
+        <h2>Changed files reviewed (NOX-012 slice)</h2>
+        <p>Note: the working tree also contains unrelated NOX-009 (variance) and NOX-011 (VIIRS) changes on this
+        branch; those are out of scope for this review and were only checked for non-interference (suite green).</p>
+        <table>
+          <thead><tr><th>File</th><th>Status</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td><code>noxus/catalyst/calendar.py</code></td><td>new</td><td>OK. probe/assemble/validate + coarse floor; provenance-carrying; no fabrication.</td></tr>
+            <tr><td><code>noxus/catalyst/regime.py</code></td><td>new</td><td>OK with findings F1/F2 (driver wiring).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td>OK. <code>RegimeStudyConfig</code> + holiday constants; frozen; existing config unchanged.</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>OK. <code>assemble-calendar</code>/<code>regime-study</code> added; existing verbs unchanged (tested).</td></tr>
+            <tr><td><code>data/curtailment/tangshan_hebei_curtailment.csv</code></td><td>new</td><td>OK. 21 coarse-floor rows, all sourced.</td></tr>
+            <tr><td><code>data/curtailment/SOURCES.md</code></td><td>new</td><td>OK. T1 verdict + per-event provenance + PENDING-LIVE note.</td></tr>
+            <tr><td><code>analysis/regime_2023_event_study.py</code></td><td>new (T13)</td><td>Partial. Renders 3 of the 4 promised figures; precision/recall figure absent (see F1). Deferred T13.</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add</td><td>OK. <code>data/curtailment/_raw/</code> ignored; curated CSV committed.</td></tr>
+            <tr><td><code>tests/catalyst/test_calendar.py, test_regime.py, tests/cli/test_regime_cli.py</code></td><td>new</td><td>OK. 40 tests, deterministic, offline.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Reused, unchanged (verified byte-for-byte via empty git diff):</strong>
+        <code>noxus/catalyst/{events,groundtruth,study,report}.py</code>,
+        <code>noxus/validation/{robust,leadlag,preprocess}.py</code>, <code>noxus/signal/**</code>,
+        <code>noxus/attribution/**</code>, <code>noxus/data/**</code>. Reuse claim CONFIRMED — not reimplemented.</p>
+        <p><strong>Protected areas:</strong> <code>.env</code> / credentials untouched (not in the change set). No
+        secret value read or logged. Confirmed.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Requirement / acceptance-test traceability</h2>
+        <table>
+          <thead><tr><th>Req</th><th>Acceptance test</th><th>Implementing test(s)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-001, EDGE-001</td><td>AT1</td><td>test_probe_offline_coarse_floor…, test_probe_event_level…, test_probe_no_go…, test_probe_invents_no_event, test_sources_md_records_verdict…</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-002/003/004</td><td>AT2</td><td>test_assemble_calendar_loads_through_unchanged_loader, test_validate_rejects_unsourced_row, test_assemble_drops_unsourced_candidate, test_validate_rejects_bad_direction_and_granularity</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-010/011, NFR-005</td><td>AT3</td><td>test_rolling_regime_recovers_peak, …_seed_and_order_stable, …_exposes_no_crea_tuning_param, …_labelled_descriptive</td><td class="ok">Met (52-wk secondary not exercised — F3)</td></tr>
+            <tr><td>REQ-021</td><td>AT4</td><td>test_jackknife_attributes_event_bound, …_attributes_continuous, …_refuses_below_min_events, …_exposes_no_crea_tuning_param</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-020</td><td>AT5</td><td>test_regime_event_study_reports_precision_recall_lead, …_calendar_edge_matched</td><td class="warn">Function met + tested; NOT emitted by driver (F1)</td></tr>
+            <tr><td>REQ-030, EDGE-005</td><td>AT6</td><td>test_scan_max_null_fp_rate_near_alpha, …_clean_null_inside_band, …_flags_planted_peak</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-031/032</td><td>AT7</td><td>test_build_grid_cells_enumerates_full_product, test_bh_fdr_wipes_lone_favourable_cell</td><td class="warn">Grid enumerated + FDR correct on synthetic p; driver grid dims inert (F2)</td></tr>
+            <tr><td>REQ-040, NFR-003</td><td>AT8</td><td>test_detection_causal_unchanged_by_future_data, test_regime_study_labels_identification_descriptive</td><td class="ok">Met</td></tr>
+            <tr><td>REQ-032, NFR-004</td><td>AT9</td><td>test_honest_null_verdict_is_valid_pass, test_planted_regime_not_artefact</td><td class="ok">Met (artefact = first-class PASS)</td></tr>
+            <tr><td>REQ-050/051, NFR-001/007</td><td>AT10, AT-REG-1</td><td>test_regime_study_deterministic, test_assemble_calendar_probe_runs, …_writes_csv, help/existing-subcommand tests</td><td class="warn">Regime table + summary + determinism + CLI met; event-study table + docs-fold NOT produced (F1, T13)</td></tr>
+            <tr><td>REQ-022, EDGE-006</td><td>AT-EDGE-2</td><td>test_collapse_attribution_not_identifiable_when_both_shift, …_single_cause</td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-001/003</td><td>AT-EDGE-1</td><td>test_regime_event_study_labels_low_power, test_jackknife_refuses_below_min_events</td><td class="ok">Met</td></tr>
+            <tr><td>EDGE-004</td><td>—</td><td>(inherited from reused coverage screen; no dedicated test)</td><td class="warn">Inherited, untested (F4, minor)</td></tr>
+            <tr><td>ERR-001/002</td><td>AT-ERR-1</td><td>test_regime_study_missing_residual_is_actionable, test_loader_raises_on_malformed_calendar, test_loader_absent_calendar_degrades_to_empty</td><td class="ok">Met</td></tr>
+            <tr><td>ERR-003/004, NFR-005</td><td>AT-ERR-2</td><td>test_jackknife_refuses_below_min_events, the two *_exposes_no_crea_tuning_param tests</td><td class="ok">Met</td></tr>
+            <tr><td>NFR-007</td><td>AT-REG-1</td><td>full suite 243 passed; reused files unchanged; no new dependency</td><td class="ok">Met</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="focus-checks">
+        <h2>Focused-review checks (as requested)</h2>
+        <h3>1. Anti-p-hacking / benchmark-blindness</h3>
+        <ul>
+          <li><strong>No CREA-tuning parameter:</strong> CONFIRMED. <code>rolling_regime</code> and
+          <code>event_bound_jackknife</code> signatures are asserted free of
+          <code>{target,optimize,maximize,benchmark_objective,crea,tune}</code>; the regime boundary is the fixed
+          <code>window</code>-observations-ending-at-peak rule, not an r-maximiser. RegimeStudyConfig fixes every knob
+          up front.</li>
+          <li><strong>No-look-ahead:</strong> CONFIRMED. Detection is the reused causal <code>detect_events</code>, run
+          once on the full series and partitioned by regime afterwards (a boundary never changes a baseline);
+          <code>test_detection_causal_unchanged_by_future_data</code> proves appending future data does not alter
+          detections ≤ t. Regime identification is labelled descriptive/in-sample in the output.</li>
+          <li><strong>Scan-maximum null genuinely tests the peak against its multiplicity:</strong> CONFIRMED.
+          Contiguous moving-block permutation (reusing <code>robust.block_length</code>) preserves serial dependence;
+          the distribution is of the <em>max</em> rolling-r across all overlapping windows; FP stays near α on
+          independent AR(1) and the planted peak lands beyond the band.</li>
+          <li><strong>Honest-null is first-class PASS:</strong> CONFIRMED. On the AR(1) null the driver returns
+          <code>VERDICT_ARTEFACT</code> with <code>n_tests &gt; 0</code> as a completed outcome (not an error);
+          the summary text words it as a valid finding (Morris &amp; Zhang 2019).</li>
+        </ul>
+        <h3>2. Reuse integrity</h3>
+        <p>CONFIRMED. <code>git diff</code> on <code>events/groundtruth/study/report</code> and
+        <code>robust/leadlag/preprocess</code> (and signal/attribution/data) is empty — reused read-only, not
+        reimplemented. <code>regime.py</code> imports the primitives; the calendar CSV is designed to the existing
+        four-column loader contract, verified loading through the <strong>unchanged</strong>
+        <code>load_curtailment_calendar</code>.</p>
+        <h3>3. No fabricated calendar data</h3>
+        <p>CONFIRMED. All 21 committed rows are coarse-floor structural events (Spring Festival, Golden Week,
+        heating-season restrictions) each carrying a public source (State Council / MEE-Hebei DEE). No event-level
+        curtailment campaign is invented; the T1 verdict is <code>GO-coarse-floor</code> with
+        <code>live_survey_pending=True</code>, and SOURCES.md records the pending live survey + the
+        "documented gap, not a fabricated event" discipline. <code>_drop_unsourced</code> + <code>validate_calendar</code>
+        exclude unsourced/low-confidence rows (tested).</p>
+        <h3>4. Discipline (credentials / gitignore)</h3>
+        <p>CONFIRMED. No <code>.env</code> or credential file touched. <code>.gitignore</code> adds
+        <code>data/curtailment/_raw/</code>; the small curated CSV + SOURCES.md are committed; NO₂-derived
+        regime/event parquet lands under the already-ignored <code>data/derived/no2/</code>. No new dependency.</p>
+        <h3>5. High-risk category</h3>
+        <p><strong>None.</strong> Analysis over existing data + a public calendar; no auth/payments/DB migration/
+        infra/public-API/data-loss surface. Standard review applied (rung: standard), with the emphasis placed on the
+        no-look-ahead + multiplicity + anti-p-hacking disciplines above, which were verified. Reason for standard-only
+        review: matches the design's own deep-review classification.</p>
+        <h3>External dependencies and freshness</h3>
+        <p>No code dependency added. One <strong>data</strong> dependency (public/free curtailment calendar); at this
+        offline stage only the securely-datable structural floor is committed and each row is cited. The live
+        event-level source survey is explicitly deferred (T1 <code>live_survey_pending</code>); freshness of live
+        MEE/DEE/Mysteel sources is a T12 concern, recorded as pending — non-blocking for the offline machinery.</p>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <h3>Blocking for <code>done</code> (deferred gates — expected, not defects)</h3>
+        <ul>
+          <li><strong>G1 — T12 real-data run deferred.</strong> The real <code>regime-study</code> on the completed
+          cube + benchmark + assembled calendar has not run (residual parquet gitignored / absent). The real 2023-peak
+          verdict (event-bound | continuous | artefact) and the 2024-collapse attribution (REQ-050, AC-009) are not
+          yet produced. Task cannot be <code>done</code> until this runs and its verdict is recorded.</li>
+          <li><strong>G2 — T13 documentation deferred.</strong> See documentation decision below. Required docs are
+          pending; task must not be <code>done</code> while pending.</li>
+        </ul>
+
+        <h3>Non-blocking findings — MUST be resolved before <code>done</code> (and before the T12 real run)</h3>
+        <ul>
+          <li><strong>F1 (significant) — the event-study precision/recall/lead table is orphaned from all outputs.</strong>
+          <code>regime_event_study()</code> is implemented and unit-tested (AT5) but is <strong>never called</strong> by
+          the <code>regime_study()</code> driver; <code>RegimeArtifacts</code> carries no per-regime
+          <code>MatchResult</code>, so no "event-study table" is emitted and the driver verdict is built from the
+          correlation grid + jackknife + scan-max only — not from the REQ-020 headline metric. The figure driver's
+          <code>run()</code> renders 3 of the 4 figures its own docstring promises (<code>regime_precision_recall.png</code>
+          is absent). REQ-050 requires a "regime table + <em>event-study table</em> + scan-max/FDR summary". <em>Fix:</em>
+          wire <code>regime_event_study()</code> into the driver, add it to <code>RegimeArtifacts</code> + a committed
+          table, and render the precision/recall figure.</li>
+          <li><strong>F2 (significant) — BH-FDR grid dimensions "deseason variants" and "thresholds" are inert.</strong>
+          In the driver grid loop the per-cell statistic is <code>robust_corr(sub_x, sub_y)</code> over the regime
+          subset only; <code>variant</code> and <code>threshold</code> are recorded as labels but do not change the
+          computed p-value. Every variant×threshold cell within a regime therefore shares an identical
+          <code>p_perm</code>, so <code>n_tests</code> (e.g. 12) is padded with duplicate tests and BH-FDR is applied
+          "across the grid" (REQ-031/032, AC-007) over duplicated p-values rather than genuinely distinct tests. AT7
+          exercises <code>bh_fdr</code> on synthetic p-values directly, so this gap is not caught by a test. <em>Fix:</em>
+          either compute a genuinely distinct statistic per variant (switch the deseason residual) and per threshold
+          (the event-study metric, per F1), or reduce the grid to the genuinely-distinct family and document the true
+          <code>n_tests</code>. This matters for the honesty of the eventual real-data multiplicity claim.</li>
+          <li><strong>F3 (minor) — 52-week secondary window not exercised.</strong> REQ-010 asks for the
+          rolling-18-month "(and a 52-week)" correlation reported alongside; <code>window_weeks_secondary=52</code> is
+          configured but the driver runs a single window (<code>windows=(window,)</code>). Add the secondary window to
+          the reported outputs or record an explicit deferral.</li>
+          <li><strong>F4 (minor) — EDGE-004 cloud-gap honesty untested.</strong> Asserted as inherited from the reused
+          coverage screen; acceptable, but there is no dedicated test that a cloud-gapped curtailment surfaces as an
+          honest missed recall. Consider a small fixture, or record the inheritance explicitly.</li>
+        </ul>
+
+        <h3>Nits</h3>
+        <ul>
+          <li>Analysis driver docstring lists 4 figures; <code>run()</code> emits 3 — reconcile when T13 lands (tied to F1).</li>
+          <li><code>regime_study</code> reports two notions of "collapse" (rolling-min <code>collapse_date</code> vs the
+          fixed 2024 calendar-year grid regime); both are legitimate but worth a one-line note in the summary to avoid
+          reader confusion.</li>
+        </ul>
+      </section>
+
+      <section id="high-risk-record">
+        <h2>High-risk review record</h2>
+        <ul>
+          <li><strong>Categories touched:</strong> None (no auth/payments/DB-migration/infra/public-API/data-loss).</li>
+          <li><strong>Escalation rungs run:</strong> standard review only. Reason: not a high-risk category (matches the
+          design's classification); the methodological-integrity lens (no-look-ahead, multiplicity, anti-p-hacking) was
+          nonetheless applied and verified.</li>
+          <li><strong>Security / performance / data-loss findings:</strong> none. Reproduction attempts: the two AT-ERR
+          cases and the determinism claim were reproduced via the passing suite; the two driver-wiring findings (F1/F2)
+          were reproduced by direct code inspection (grep/read), labelled as static findings, not runtime failures.</li>
+        </ul>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision</h2>
+        <p><strong>Required: YES.</strong> <code>documentation_required: true</code>,
+        <code>documentation_status: "pending"</code> (T13). The behaviour, CLI surface and data structure changed, and
+        REQ-050 mandates closing the exploration thread. Recommend invoking the <strong>documenter</strong> after the
+        T12 real run (the exploration-thread narrative depends on the real verdict). The task must not be marked
+        <code>done</code> while documentation is pending.</p>
+        <p><strong>Documentation targets:</strong></p>
+        <ul>
+          <li><code>docs/exploration-results.html</code> — close the 2023-regime thread (regime figure, event-study
+          verdict, scan-max-null framing). <em>Depends on T12.</em></li>
+          <li><code>.claude/context/project-map.md</code> — new <code>catalyst/{calendar,regime}.py</code> modules +
+          <code>assemble-calendar</code>/<code>regime-study</code> CLI verbs + <code>data/curtailment/</code>.</li>
+          <li><code>docs/data-access.md</code> — curtailment-calendar public/free sourcing note.</li>
+          <li><code>decisions/</code> — the curtailment calendar is now APPLIED (coarse-floor; NOX-003/004 Q4/Q6a
+          follow-up) and the 2023-peak verdict once known (proposal only; see below).</li>
+          <li><code>history.html</code> — summary entry (insert after the <code>INSERT-ENTRY-HERE</code> marker) once done.</li>
+          <li><code>references.bib</code> — possibly the event-study / multiple-testing (Morris &amp; Zhang 2019) citation.</li>
+        </ul>
+      </section>
+
+      <section id="decision-log-proposals">
+        <h2>Decision-log proposal (proposed only — needs developer approval)</h2>
+        <ul>
+          <li><strong>DL-1:</strong> The Tangshan/Hebei public curtailment calendar is now <em>APPLIED</em> at
+          coarse-floor granularity (heating seasons + Golden Week + Spring Festival), closing the long-deferred
+          NOX-003/004 Q4/Q6a follow-up; the live event-level campaign survey remains pending (mirrors the
+          NOX-007/NOX-011 pending-live-run pattern), with no fabricated event-level dates.</li>
+          <li><strong>DL-2:</strong> Rolling-window peak claims are judged with a scan-maximum null and the
+          "multiple-comparisons artefact" verdict is a first-class, valid outcome — adopt as the standing
+          methodology for any rolling-correlation peak in this project.</li>
+        </ul>
+        <p>Trivial decisions were not flagged. No entry written without approval.</p>
+      </section>
+
+      <section id="decision">
+        <h2>Decision &amp; next state</h2>
+        <p><strong>Verdict:</strong> the offline machinery is <em>approved-with-nits</em>; the overall NOX-012 task is
+        <strong>not <code>done</code></strong>. State-machine decision: <code>needs_changes</code> →
+        <code>in_progress</code>.</p>
+        <p><strong>To reach <code>done</code>:</strong></p>
+        <ol>
+          <li>Resolve F1 (wire the event-study table + figure into the driver) and F2 (make the FDR grid dimensions
+          genuinely distinct, or shrink + document the true <code>n_tests</code>); address F3/F4/nits or record explicit
+          deferrals.</li>
+          <li>Run T12 (real <code>regime-study</code>) and record the honest verdict + all grid cells.</li>
+          <li>Run the documenter for T13; reviewer re-checks the docs against the reviewed implementation.</li>
+          <li>Then update <code>tasks.html</code> item states + <code>tasks.json</code> status and append to
+          <code>history.html</code>.</li>
+        </ol>
+        <p>Per instruction, <code>tasks.json</code> status was not edited and nothing was committed.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

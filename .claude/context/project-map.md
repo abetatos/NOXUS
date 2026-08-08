@@ -19,21 +19,22 @@ Rules for this file:
 
 ```text
 noxus/                 # Python package
-  config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/Validation/ScaleSweep/VarianceDecompConfig (VarianceDecompConfig = NOX-009)
-  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py (compositing + clip/coarsen scale ops, NOX-008) + era5.py (CDS ingest) — implemented
+  config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/Validation/ScaleSweep/VarianceDecompConfig (VarianceDecompConfig = NOX-009) + Viirs­Acquisition/ThermalTriangulationConfig (NOX-011) + RegimeStudyConfig + holiday/heating-season constants (NOX-012)
+  data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py (compositing + clip/coarsen scale ops, NOX-008) + era5.py (CDS ingest) + viirs.py (VNF/FIRMS thermal acquisition + budget gate + probe, NOX-011) + verify_viirs.py — implemented
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
-  signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (NOX-003.1) + prophet_deseason.py (daily Prophet trend/yearly/weekly + harmonic fallback, NOX-006) + variance.py (benchmark-blind change-variance partition regional/meteo/steel-local/noise + implied change ceiling, NOX-009) — implemented
+  signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (NOX-003.1) + prophet_deseason.py (daily Prophet trend/yearly/weekly + harmonic fallback, NOX-006) + variance.py (benchmark-blind change-variance partition regional/meteo/steel-local/noise + implied change ceiling, NOX-009) + thermal.py (facility-radius join + benchmark-blind weekly/daily VIIRS thermal-activity series, NOX-011) — implemented
   validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag; robust.py (autocorrelation-robust effective-N/bootstrap/permutation + BH-FDR, NOX-008; + block_bootstrap_statistic for arbitrary-statistic CIs, NOX-009) + scale.py (extent×resolution sweep) — implemented
-  catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004) — implemented
+  catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004); calendar.py (public curtailment-calendar assembly + T1 feasibility probe, coarse-floor) + regime.py (rolling-regime study reusing robust_corr + regime-conditioned event study reusing NOX-004 primitives + leave-one-event-out jackknife + 2024-collapse dual diagnostic + rolling scan-maximum null under block-permutation + BH-FDR grid, NOX-012) — implemented
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
-analysis/              # reproducible run scripts → docs/figures/ (e.g. preliminary_signal.py, deep_exploration.py, scale_sensitivity.py, variance_decomposition.py [NOX-009 budget + ceiling figures])
+analysis/              # reproducible run scripts → docs/figures/ (e.g. preliminary_signal.py, deep_exploration.py, scale_sensitivity.py, variance_decomposition.py [NOX-009 budget + ceiling figures], viirs_triangulation.py [NOX-011 NO2↔VIIRS + CREA↔VIIRS feature-vs-target diagnosis, reuses NOX-008 robust significance])
 docs/                  # design notes, preprint motivation, data-access.md, preliminary-results.html (+ figures/)
 tests/                 # pytest unit tests
 specs/                 # SDD specs, one folder per feature-slug
 decisions/             # SDD decision logs + onboarding answers
 scripts/               # SDD validation / run helpers (bash)
-data/raw/              # (gitignored) EO downloads: tropomi/ (NO2 overpasses+manifest), era5/ (.nc snapshots), benchmark/, gem/
-data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_operating_rate) — committed
+data/curtailment/      # committed public Tangshan/Hebei curtailment calendar: tangshan_hebei_curtailment.csv (21 coarse-floor structural events, each sourced) + SOURCES.md (T1 verdict + provenance, NOX-012); raw scrapes _raw/ gitignored
+data/raw/              # (gitignored) EO downloads: tropomi/ (NO2 overpasses+manifest), era5/ (.nc snapshots), benchmark/, gem/, viirs/ (VNF/FIRMS per-night detections+manifest, NOX-011)
+data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_operating_rate) — committed; NOX-011 committable outputs: viirs_thermal_series.parquet, viirs_triangulation.csv, verification/viirs/ (co-location figures)
 ```
 
 ## CLI commands
@@ -54,6 +55,12 @@ data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_oper
 | `uv run noxus catalyst [--window --latency]` | Match events vs production (CREA jumps + curtailment calendar) + market event-study (CAR) → catalyst report incl. null (NOX-004) |
 | `uv run noxus scale-sweep [--buffers --resolutions --draws --seed --alpha]` | Sweep AOI extent × grid resolution + autocorrelation-robust/FDR significance (NOX-008) → `data/derived/scale_sensitivity.csv` |
 | `uv run noxus variance [--bases --resolutions --draws --seed]` | Benchmark-blind change-variance decomposition (regional/meteo/steel-local/noise) over basis × resolution + implied change-detector ceiling vs the imported level ceiling (NOX-009) → `data/derived/variance_decomposition.csv` |
+| `uv run noxus fetch-viirs [--source vnf\|firms --start --end] [--probe]` | Acquire VIIRS thermal detections over the AOI (VNF primary / FIRMS cross-check), resumable manifest, budget gate; `--probe` = T1 feasibility spike + go/no-go (NOX-011, developer-run/live) → `data/raw/viirs/` (gitignored) |
+| `uv run noxus build-thermal-series [--source --freq --radius-km]` | Facility-radius join + benchmark-blind weekly/daily thermal-activity series (NOX-011) → `data/derived/viirs_thermal_series.parquet` |
+| `uv run noxus triangulate-thermal [--source]` | NO2↔VIIRS + CREA↔VIIRS autocorrelation-robust significance → feature-vs-target diagnosis (reuses NOX-008), (NOX-011, needs the live series) → `data/derived/viirs_triangulation.csv` |
+| `uv run noxus verify-viirs [--source --facilities --out]` | Render VIIRS detections over the AOI with the steel facilities overlaid (NOX-011) → `data/derived/verification/viirs/` |
+| `uv run noxus assemble-calendar [--probe]` | Assemble/validate the public Tangshan/Hebei curtailment calendar (coarse-floor structural events); `--probe` = T1 feasibility spike + coverage/provenance report + go/no-go (NOX-012) → `data/curtailment/` |
+| `uv run noxus regime-study [--window-months --draws --seed]` | 2023 rolling-regime identification + regime-conditioned event study + leave-one-event-out jackknife + rolling scan-maximum null + BH-FDR grid (NOX-012, needs the NOX-003.1 residual parquet; the real-data verdict is a developer live run) → `data/derived/regime_study.csv` + `regime_event_study.csv` |
 
 ## Key entrypoints
 

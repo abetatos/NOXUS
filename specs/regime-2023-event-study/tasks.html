@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — 2023 regime event study + curtailment calendar</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — 2023 regime event study + public curtailment calendar</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-012</code></td></tr>
+        <tr><th>Feature slug</th><td><code>regime-2023-event-study</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Mark progress with a status class on the <code>&lt;li&gt;</code>
+        (<code>done</code> / <code>in-progress</code> / <code>blocked</code>). Do not start until
+        <code>human_approved</code>. <strong>T1 is a feasibility spike that GATES the build</strong> — its go/no-go
+        determines whether the calendar is event-level or the coarse floor (EDGE-001). Fix the test grid
+        <strong>before</strong> viewing any CREA outcomes (anti-p-hacking, REQ-031/032). The study is
+        <strong>benchmark-as-outcome</strong> throughout: no window/threshold/boundary tuned to CREA (NFR-005).</p>
+        <ol class="task-timeline">
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T1</span>
+            <strong>Calendar-assembly feasibility spike — GATES THE BUILD (REQ-001, AT1).</strong></div>
+            <div class="task-item-body">New <code>noxus/catalyst/calendar.py</code>: <code>probe_sources()</code> surveys the public/free candidates (MEE / Hebei DEE / Tangshan notices, CREA / Custeel / Mysteel reports, news, official holiday calendars) and emits a <strong>coverage-and-provenance report</strong> — per candidate event: source, date, granularity (day|week|month|season), direction, securely-dated confidence — plus a <strong>go/no-go verdict</strong>: <em>GO-event-level</em> (≥ the configured minimum securely-dated events spanning 2019–2025 with ≥1 in the 2023-peak window and ≥1 in 2024) vs <em>GO-coarse-floor</em> (only heating-season windows + holidays + a few campaigns datable) vs <em>NO-GO</em> (cannot even date heating seasons — treat as blocking, escalate to developer). Write <code>data/curtailment/SOURCES.md</code> + the verdict. <strong>Stop and record</strong> the verdict before T2.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T2</span>
+            <strong>Assemble + validate the calendar CSV (REQ-002/003/004, AT2).</strong></div>
+            <div class="task-item-body">In <code>calendar.py</code>: <code>assemble_calendar()</code> → <code>data/curtailment/tangshan_hebei_curtailment.csv</code> (<code>start,end,direction,cause</code> + <code>source,url,granularity,confidence</code>), at minimum the coarse floor; <code>validate_calendar()</code> enforces schema + provenance and flags/excludes unsourced events. <strong>Assert it loads through the unchanged</strong> <code>load_curtailment_calendar</code>. Bulk raw scrapes (if any) under gitignored <code>data/curtailment/_raw/</code>.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T3</span>
+            <strong>RegimeStudyConfig (REQ-051).</strong></div>
+            <div class="task-item-body">In <code>noxus/config/run.py</code>: rolling window (months), deseason variants (harmonic-K1 + intensity residual), match-window + event-magnitude-threshold grid, regime-segmentation rule + boundaries, bootstrap draws, FDR α, seed, calendar path, out/figures paths. Frozen dataclass; existing config unchanged.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T4</span>
+            <strong>Tests: planted-regime / event-bound / null fixtures (AT3, AT4, AT6, AT9).</strong></div>
+            <div class="task-item-body">Synthetic residual+benchmark with a coupling switched on in one 18-month window; an event-bound variant (peak r from a few large step events) and a continuous variant; independent AR(1) null series; fixed seeds. These drive the regime, jackknife, scan-max-null and honest-null tests before the code exists.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T5</span>
+            <strong>Rolling-regime identification + robust significance (REQ-010/011, AT3).</strong></div>
+            <div class="task-item-body">New <code>noxus/catalyst/regime.py</code>: <code>rolling_regime()</code> reuses <code>validation.preprocess</code>/<code>leadlag</code> to recompute the rolling-18-month / 52-week NO₂↔CREA correlation, locate the 2023 peak + 2024 collapse, segment by the <strong>fixed pre-registered rule</strong> (Q4), and score each segment with <code>robust_corr</code> (unchanged). <strong>No CREA-tuning parameter.</strong></div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T6</span>
+            <strong>Regime-conditioned event study (REQ-020, AT5).</strong></div>
+            <div class="task-item-body"><code>regime_event_study()</code> reuses <code>detect_events</code> (causal + coverage + ventilation/stagnation, unchanged), <code>bf_rate_events</code> + <code>production_events</code> (BF jumps × assembled calendar), and <code>match_events</code> — per regime: precision / recall / FDR / signed lead + CIs. Edge-matched intervals (EDGE-002); low-power labelling (EDGE-003); cloud-gap honesty (EDGE-004).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T7</span>
+            <strong>Event-bound jackknife + 2024-collapse dual diagnostic (REQ-021/022, AT4, AT-EDGE-2).</strong></div>
+            <div class="task-item-body"><code>event_bound_jackknife()</code>: leave-one-large-event-out on the 2023 regime, quantify each event's contribution to the peak r → event-bound vs continuous verdict. <code>collapse_attribution()</code>: report both the calendar-cadence change and the NOX-003.1 secular-trend behaviour for 2024 side by side; do not force a verdict when both fit (EDGE-006).</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T8</span>
+            <strong>Scan-maximum null + BH-FDR grid (REQ-030/031/032, AT6, AT7, AT9).</strong></div>
+            <div class="task-item-body"><code>scan_max_null()</code> reuses <code>robust.py</code> block-permutation/phase-randomisation to build the distribution of the MAX rolling-18-month r across overlapping windows; report the observed peak's percentile (EDGE-005). Assemble the <strong>fixed grid</strong> (variants × windows × thresholds × regimes), record <code>n_tests</code>, apply <code>bh_fdr</code>. The honest-null "multiple-comparisons artefact" verdict is a first-class output.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T9</span>
+            <strong>No-look-ahead guard (REQ-040, AT8).</strong></div>
+            <div class="task-item-body">Reuse/extend the NOX-004 causal guard: detection at <em>t</em> unchanged by appended future data; any lead-vs-publication window is causal and fixed before outcomes; regime identification labelled descriptive (not predictive) in the output.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T10</span>
+            <strong>Driver + report incl. null (REQ-050, AT10).</strong></div>
+            <div class="task-item-body"><code>regime_study(cfg)</code>: run the fixed grid → <code>data/derived/regime_study.csv</code> + <code>regime_study_summary.txt</code> stating the verdict (event-bound | continuous | multiple-comparisons artefact | inconclusive) with CIs, <code>n_tests</code> and the scan-max percentile. Gitignore NO₂-derived regime/event series.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T11</span>
+            <strong>Errors + CLI (ERR-001..004, REQ-051, AT-ERR-1/2, AT-REG-1).</strong></div>
+            <div class="task-item-body">Missing residual/benchmark → actionable; malformed calendar → existing <code>ValueError</code>; absent calendar → BF-jumps-only note; too-few-events → refuse event-level, fall back to coarse (ERR-003); estimators expose no CREA-agreement objective (ERR-004). Wire <code>assemble-calendar</code> (+ <code>--probe</code>) and <code>regime-study</code> in <code>noxus/cli/main.py</code>; existing subcommands unchanged.</div></li>
+          <li class="task-item blocked"><div class="task-item-header"><span class="req-id t">T12</span>
+            <strong>Real run + honest verdict (REQ-050, AC-009).</strong></div>
+            <div class="task-item-body">Run <code>regime-study</code> on the real completed cube + benchmark + the assembled calendar. State whether the 2023 peak is <strong>event-bound</strong> (few large curtailments drive it), a <strong>continuous</strong> coupling, or a <strong>multiple-comparisons artefact</strong> of the rolling window (scan-max null), and whether the 2024 collapse is a regime change vs intensity-decoupling (or inconclusive). Report all grid cells; no cherry-picking.</div></li>
+          <li class="task-item in-progress"><div class="task-item-header"><span class="req-id t">T13</span>
+            <strong>Figures + docs + decisions (REQ-050).</strong></div>
+            <div class="task-item-body">New <code>analysis/regime_2023_event_study.py</code>: rolling-corr + regime bands + event overlay; per-regime precision/recall/lead; jackknife; scan-max-null histogram → <code>docs/figures/exploration/</code> + <code>regime_2023_findings.txt</code>. Close the thread in <code>docs/exploration-results.html</code>; propose decision-log entries (curtailment calendar now APPLIED — NOX-003/004 Q4/Q6a; the 2023-peak verdict); update project map, data-access, history. Reviewer confirms targets.</div></li>
+          <li class="task-item done"><div class="task-item-header"><span class="req-id t">T14</span>
+            <strong>Validation (NFR-007, AC-010).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code> green; confirm existing catalyst/validation/signal modules and the existing CLI behave unchanged; same seed → identical tables; no new dependency added.</div></li>
+        </ol>
+      </section>
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> T1 spike ran; go/no-go verdict + SOURCES.md recorded before the build.</li>
+          <li><input type="checkbox" disabled> Calendar CSV carries provenance; loads through the unchanged <code>load_curtailment_calendar</code>; every event sourced or flagged.</li>
+          <li><input type="checkbox" disabled> Rolling-regime identification recovers the planted peak; segmentation rule fixed, seed-stable, not CREA-tuned.</li>
+          <li><input type="checkbox" disabled> Regime match reuses NOX-004 events/groundtruth/study; precision/recall/lead per regime with CIs (not Pearson r).</li>
+          <li><input type="checkbox" disabled> Event-bound jackknife attributes/does-not-attribute the peak correctly; 2024-collapse dual diagnostic, no forced verdict.</li>
+          <li><input type="checkbox" disabled> Scan-max null holds FP near α on AR(1); planted peak beyond band; n_tests recorded; BH-FDR applied.</li>
+          <li><input type="checkbox" disabled> No-look-ahead guard green; regime identification labelled descriptive.</li>
+          <li><input type="checkbox" disabled> Honest-null "artefact" conclusion is a valid PASS; null reported first-class.</li>
+          <li><input type="checkbox" disabled> Public/free calendar only; NO₂-derived + raw scrapes gitignored; curated CSV committed.</li>
+          <li><input type="checkbox" disabled> Tests + lint pass; existing behaviour unchanged; reviewer approved.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -335,6 +335,198 @@ def _cmd_variance(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_fetch_viirs(args: argparse.Namespace) -> int:
+    """Acquire VIIRS thermal detections over the AOI (VNF primary / FIRMS cross-check); T1 --probe."""
+    from dataclasses import replace
+
+    from noxus.config.run import ViirsAcquisitionConfig
+    from noxus.data.viirs import (
+        ViirsAcquisitionError,
+        acquire_viirs,
+        probe_viirs,
+    )
+    from noxus.signal.thermal import load_facilities
+
+    cfg = ViirsAcquisitionConfig()
+    cfg = replace(
+        cfg,
+        source=args.source or cfg.source,
+        start=date.fromisoformat(args.start) if args.start else cfg.start,
+        end=date.fromisoformat(args.end) if args.end else cfg.end,
+    )
+    aoi = tangshan_aoi(cfg.aoi_buffer_deg)
+    try:
+        if args.probe:
+            facilities = (
+                load_facilities(DEFAULT_FACILITIES) if DEFAULT_FACILITIES.exists() else None
+            )
+            probe = probe_viirs(aoi, cfg, facilities=facilities)
+            print(
+                f"[noxus] T1 probe source={probe.source} endpoint={probe.endpoint} "
+                f"auth_required={probe.auth_required}"
+            )
+            print(
+                f"[noxus]   nights_with_detections={probe.nights_with_detections}/{probe.nights_probed} "
+                f"detections={probe.n_detections} colocated={probe.facilities_colocated}"
+            )
+            print(
+                f"[noxus]   per_night={probe.per_night_mb:.3f} MB implied_full_era="
+                f"{probe.implied_full_era_mb:.1f} MB within_budget={probe.within_budget}"
+            )
+            print(f"[noxus]   fields={list(probe.fields_available)}")
+            print(f"[noxus]   {'GO' if probe.go else 'NO-GO'}: {probe.notes}")
+            return 0 if probe.go else 2
+        report = acquire_viirs(aoi, cfg)
+    except ViirsAcquisitionError as exc:
+        print(f"[noxus] fetch-viirs failed: {exc}")
+        return 1
+    print(
+        f"[noxus] acquired VIIRS ({report.source}): fetched={report.fetched} "
+        f"skipped={report.skipped} failed={report.failed} empty_nights={report.empty_nights} "
+        f"detections={report.n_detections} -> {report.raw_dir}"
+    )
+    return 0
+
+
+def _cmd_build_thermal_series(args: argparse.Namespace) -> int:
+    """Facility-radius join + weekly/daily thermal-activity series (benchmark-blind, NOX-011)."""
+    from dataclasses import replace
+
+    from noxus.config.run import ThermalTriangulationConfig
+    from noxus.data.viirs import load_detections
+    from noxus.signal.thermal import (
+        FacilitiesError,
+        build_thermal_series,
+        join_to_facilities,
+        load_facilities,
+    )
+
+    cfg = ThermalTriangulationConfig()
+    cfg = replace(
+        cfg,
+        radius_km=args.radius_km if args.radius_km is not None else cfg.radius_km,
+        freq=args.freq or cfg.freq,
+    )
+    source = args.source or "vnf"
+    try:
+        facilities = load_facilities(cfg.facilities_csv)
+    except FacilitiesError as exc:
+        print(f"[noxus] build-thermal-series failed: {exc}")
+        return 1
+    detections = load_detections(cfg.raw_dir, source)
+    if detections.empty:
+        print(f"[noxus] no detections in {cfg.raw_dir}/{source} (run 'noxus fetch-viirs' first).")
+        return 1
+    joined = join_to_facilities(detections, facilities, cfg.radius_km)
+    series = build_thermal_series(
+        joined,
+        freq=cfg.freq,
+        aggregate=cfg.primary_aggregate,
+        sparse_min_nights=cfg.sparse_min_nights,
+    )
+    out = Path(cfg.out_dir) / cfg.series_name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    series.to_parquet(out)
+    print(f"[noxus] thermal series ({source}, {len(series)} {cfg.freq}-periods) -> {out}")
+    return 0
+
+
+def _cmd_triangulate_thermal(args: argparse.Namespace) -> int:
+    """NO2<->VIIRS + CREA<->VIIRS under robust significance -> feature-vs-target diagnosis (NOX-011)."""
+    from analysis.viirs_triangulation import run_triangulation
+    from noxus.config.run import ThermalTriangulationConfig
+
+    cfg = ThermalTriangulationConfig()
+    try:
+        out = run_triangulation(cfg)
+    except FileNotFoundError as exc:
+        print(f"[noxus] triangulate-thermal failed: {exc}")
+        return 1
+    import pandas as pd
+
+    df = pd.read_csv(out)
+    print(f"[noxus] triangulation table -> {out}")
+    if len(df):
+        print(f"[noxus] diagnosis: {df['diagnosis'].iloc[0]}")
+    return 0
+
+
+def _cmd_assemble_calendar(args: argparse.Namespace) -> int:
+    """Assemble/validate the curtailment calendar; --probe = T1 feasibility spike (NOX-012)."""
+    from noxus.catalyst.calendar import (
+        assemble_calendar,
+        probe_sources,
+        write_calendar,
+        write_sources_md,
+    )
+    from noxus.config.run import RegimeStudyConfig
+
+    cfg = RegimeStudyConfig()
+    if args.probe:
+        report = probe_sources(cfg)
+        write_sources_md(report, cfg.sources_path)
+        print(f"[noxus] T1 probe verdict={report.verdict}")
+        print(
+            f"[noxus]   candidates={report.n_candidates} securely_dated={report.n_securely_dated} "
+            f"event_level={report.n_event_level} spans_era={report.spans_era}"
+        )
+        print(
+            f"[noxus]   peak_event={report.has_peak_event} collapse_event={report.has_collapse_event} "
+            f"live_survey_pending={report.live_survey_pending}"
+        )
+        print(f"[noxus]   {report.reason}")
+        print(f"[noxus]   provenance -> {cfg.sources_path}")
+        return 0 if report.go else 2
+    df = assemble_calendar(cfg)
+    out = write_calendar(df, cfg.calendar_path)
+    report = probe_sources(cfg)
+    write_sources_md(report, cfg.sources_path)
+    print(f"[noxus] curated calendar ({len(df)} events) -> {out}; sources -> {cfg.sources_path}")
+    return 0
+
+
+def _cmd_regime_study(args: argparse.Namespace) -> int:
+    """Rolling regime + event study + jackknife + scan-max null + BH-FDR -> verdict (NOX-012)."""
+    from dataclasses import replace
+
+    from noxus.catalyst.regime import regime_study
+    from noxus.config.run import RegimeStudyConfig
+
+    cfg = RegimeStudyConfig()
+    if args.window_months is not None:
+        cfg = replace(cfg, window_months=args.window_months)
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws, n_perm=args.draws, scanmax_draws=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    try:
+        art = regime_study(cfg)
+    except FileNotFoundError as exc:
+        print(f"[noxus] regime-study failed: {exc}")
+        return 1
+    print(f"[noxus] verdict={art.verdict} n_tests={art.n_tests}")
+    print(
+        f"[noxus]   scan-max observed={art.scanmax.observed_scanmax:.3f} p={art.scanmax.p_value} "
+        f"beyond_band={art.scanmax.beyond_band}; collapse={art.collapse.verdict}"
+    )
+    print(f"[noxus]   table -> {art.results_path}; summary -> {art.summary_path}")
+    return 0
+
+
+def _cmd_verify_viirs(args: argparse.Namespace) -> int:
+    """Render VIIRS detections over the AOI with facilities overlaid (co-location check, NOX-011)."""
+    from noxus.config.run import ThermalTriangulationConfig
+    from noxus.data.verify_viirs import render_from_store
+
+    cfg = ThermalTriangulationConfig()
+    source = args.source or "vnf"
+    facilities = Path(args.facilities) if args.facilities else DEFAULT_FACILITIES
+    out_png = Path(args.out) if args.out else cfg.figures_dir / f"viirs_{source}_colocation.png"
+    png = render_from_store(cfg.raw_dir, facilities, out_png, source=source, aoi=TANGSHAN)
+    print(f"[noxus] co-location render -> {png}")
+    return 0
+
+
 def _snapshot_date(snapshot: Path) -> date | None:
     """Parse the YYYY-MM-DD date out of a ``crea_wind_<date>.csv`` snapshot name, if present."""
     stem = Path(snapshot).stem
@@ -440,6 +632,73 @@ def main(argv: list[str] | None = None) -> int:
     p_var.add_argument("--seed", type=int, help="RNG seed (default 20260706)")
     p_var.add_argument("--deseason", help="deseason basis method: harmonic|intensity-model")
     p_var.set_defaults(func=_cmd_variance)
+
+    p_fviirs = sub.add_parser(
+        "fetch-viirs",
+        help="acquire VIIRS thermal detections (VNF primary/FIRMS cross-check); --probe = T1 spike",
+    )
+    p_fviirs.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_fviirs.add_argument("--start", help="ISO start date (default: config 2019-01-01)")
+    p_fviirs.add_argument("--end", help="ISO end date (default: today)")
+    p_fviirs.add_argument(
+        "--probe",
+        action="store_true",
+        help="T1 feasibility spike: measure volume/fields + go/no-go",
+    )
+    p_fviirs.set_defaults(func=_cmd_fetch_viirs)
+
+    p_thermal = sub.add_parser(
+        "build-thermal-series",
+        help="facility-radius join + weekly/daily thermal-activity series (benchmark-blind)",
+    )
+    p_thermal.add_argument(
+        "--source", choices=("vnf", "firms"), help="thermal source (default vnf)"
+    )
+    p_thermal.add_argument("--freq", help="aggregation frequency (pandas alias; default W)")
+    p_thermal.add_argument(
+        "--radius-km", type=float, dest="radius_km", help="facility join radius km"
+    )
+    p_thermal.set_defaults(func=_cmd_build_thermal_series)
+
+    p_tri = sub.add_parser(
+        "triangulate-thermal",
+        help="NO2<->VIIRS + CREA<->VIIRS robust significance -> feature-vs-target diagnosis",
+    )
+    p_tri.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_tri.set_defaults(func=_cmd_triangulate_thermal)
+
+    p_cal = sub.add_parser(
+        "assemble-calendar",
+        help="assemble/validate the curtailment calendar; --probe = T1 feasibility spike (NOX-012)",
+    )
+    p_cal.add_argument(
+        "--probe",
+        action="store_true",
+        help="T1 feasibility spike: coverage+provenance report + go/no-go (no build)",
+    )
+    p_cal.set_defaults(func=_cmd_assemble_calendar)
+
+    p_reg = sub.add_parser(
+        "regime-study",
+        help="2023 rolling regime + event study + jackknife + scan-max null + FDR (NOX-012)",
+    )
+    p_reg.add_argument(
+        "--window-months",
+        type=int,
+        dest="window_months",
+        help="rolling window in months (default 18)",
+    )
+    p_reg.add_argument("--draws", type=int, help="bootstrap/permutation/scan-max draws")
+    p_reg.add_argument("--seed", type=int, help="RNG seed (default 20260720)")
+    p_reg.set_defaults(func=_cmd_regime_study)
+
+    p_vviirs = sub.add_parser(
+        "verify-viirs", help="render VIIRS detections over the AOI with facilities overlaid"
+    )
+    p_vviirs.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_vviirs.add_argument("--facilities", help="facilities CSV (default: data/derived/...)")
+    p_vviirs.add_argument("--out", help="output PNG path")
+    p_vviirs.set_defaults(func=_cmd_verify_viirs)
 
     args = parser.parse_args(argv)
     if args.command is None:
