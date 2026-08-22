@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Investment-grade activity nowcast (NOX-013)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-013</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Each task is small and independently verifiable. Mark complete by adding
+        <code>class="done"</code> to its <code>&lt;li class="task-item"&gt;</code>. Global status lives in
+        <code>tasks.json</code>. Do not start until the task is <code>human_approved</code>.</p>
+        <p><strong>T1 is a feasibility spike that GATES the build.</strong> Its three-way go/no-go
+        verdict (mirroring the GEMS/VIIRS/calendar T1 pattern) decides whether — and on which feature —
+        the rest proceeds. Stop and record the verdict before T2.</p>
+
+        <ol class="task-timeline">
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T1</span>
+              <strong>Feasibility spike — GATES THE BUILD (REQ-015, AT8).</strong></div>
+            <div class="task-item-body">New <code>noxus/nowcast/probe.py</code>:
+            <code>probe(cfg)</code> assesses (a) <em>feature availability</em> — is the NOX-011 VIIRS
+            thermal series present on disk (it is currently blocked on credentials), are NO<sub>2</sub>
+            events (NOX-004/012) and the NO<sub>2</sub> intensity residual (NOX-003.1) available? — and
+            (b) whether <em>any</em> available feature shows incremental information over CREA at the
+            fixed defaults (quick reused-<code>robust_corr</code>/<code>lead_lag</code> pass, no tuning).
+            Emit a <strong>three-way verdict</strong>: <em>GO-primary</em> (VIIRS available AND shows
+            incremental info &rarr; build on VIIRS), <em>GO-degraded</em> (VIIRS absent but events/
+            covariate show some incremental info &rarr; build degraded, flag reduced power), or
+            <em>NO-GO</em> (no feature yields any incremental info &rarr; honest null; stop, escalate to
+            developer — ERR-002). Write the verdict + evidence to <code>data/derived/nowcast_probe.txt</code>.
+            <strong>Stop and record</strong> before T2.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T2</span>
+              <strong>Config + feature selection (REQ-007/008, AT5, AT-EDGE-1).</strong></div>
+            <div class="task-item-body">Add frozen <code>NowcastConfig</code> to
+            <code>noxus/config/run.py</code> (feature priority, latency-days, freq, min-history, seed,
+            fixed defaults, triangulation sources). New <code>noxus/nowcast/features.py</code>:
+            <code>select_feature(cfg)</code> returns the highest available feature with
+            <code>source</code>/<code>degraded</code>/<code>reason</code>; never fabricates a VIIRS series
+            when absent. Tests first (feature-priority + degradation).</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T3</span>
+              <strong>Causal expectation baseline (REQ-002/006, NFR-001/002).</strong></div>
+            <div class="task-item-body">New <code>noxus/nowcast/baseline.py</code>:
+            <code>expectation_baseline(...)</code> = own seasonal/trend (harmonic-K1 / STL-trend, fit
+            past-only, reuse <code>signal/index.py</code> harmonic) combined with the last-known official
+            print, publication-lag-aware. Warm-up &rarr; NaN. <strong>Takes no market-returns argument
+            and is never fit against CREA values</strong> (anti-p-hacking). Write the AT3 guard test.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T4</span>
+              <strong>Surprise + causal z + latency stamp (REQ-003/004/005, AT1, EDGE-006).</strong></div>
+            <div class="task-item-body">New <code>noxus/nowcast/surprise.py</code>:
+            <code>build_surprise(...)</code> emits surprise, causal z (expanding mean/std, prior-only),
+            and <code>emission_ts</code> = overpass + latency &rarr; next session. NaN during warm-up;
+            never interpolate gaps (EDGE-002). Tests for causal correctness.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T5</span>
+              <strong>No-look-ahead guard test (NFR-001, AC-002, AT2, ERR-003).</strong></div>
+            <div class="task-item-body">Guard test: mutate future feature/print values, rebuild, assert
+            every previously emitted z is unchanged and <code>emission_ts</code> &gt; observation time.
+            This is a first-class acceptance test, not an afterthought.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T6</span>
+              <strong>Incremental-information vs CREA (REQ-011, AC-004, AT4).</strong></div>
+            <div class="task-item-body">New <code>noxus/nowcast/incremental.py</code>: reuse
+            <code>robust_corr</code>, <code>lead_lag</code>, <code>bh_fdr</code> and the NOX-008/003
+            weekly-resample-then-align convention (avoid the NOX-012 B3 exact-date-join bug). Report
+            <em>lead</em> (nowcast leads CREA?) and <em>orthogonality</em> (adds beyond CREA's own causal
+            baseline?) with BH-FDR across the config grid. Planted-lead + planted-null tests.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T7</span>
+              <strong>Triangulation QC + snapshots (REQ-009/010, AC-006, AT6, ERR-005).</strong></div>
+            <div class="task-item-body">Assemble committed public CSV snapshots under
+            <code>data/triangulation/</code> + <code>SOURCES.md</code> (NOX-012 pattern) for the sources
+            resolved at T1 (Q3). New <code>noxus/nowcast/triangulation.py</code>: resample to common
+            cadence (never interpolate up), flag nowcast-vs-official divergences <em>with uncertainty</em>
+            (never "fake"); reuse <code>robust_corr</code>. Unavailable source &rarr; QC degraded, nowcast
+            still emitted. Tests incl. the discrepancy-flag and cadence-mismatch cases.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T8</span>
+              <strong>Report incl. honest null + scale caveat (REQ-013/014, NFR-005, AT7).</strong></div>
+            <div class="task-item-body">New <code>noxus/nowcast/report.py</code>: nowcast summary,
+            incremental-information table, triangulation diagnostic, and an explicit honest-null verdict
+            when no edge exists; every output states the Tangshan ~13%/Hebei scale caveat. Committable
+            small stats + figures; derived series gitignored.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T9</span>
+              <strong>CLI wiring (REQ-012, AT1).</strong></div>
+            <div class="task-item-body">Add <code>noxus nowcast</code> (with <code>--probe</code> for T1),
+            <code>noxus triangulate-nowcast</code> to <code>noxus/cli/main.py</code>, mirroring existing
+            subcommands (config-driven, provenance-recording). CLI smoke tests.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T10</span>
+              <strong>Reproducible driver + figures (REQ-013).</strong></div>
+            <div class="task-item-body">New <code>analysis/activity_nowcast.py</code>: end-to-end run &rarr;
+            <code>docs/figures/</code> (surprise timeline, triangulation overlay, incremental-information
+            plot) + committable summary. Honest null rendered faithfully if that is the result.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T11</span>
+              <strong>Anti-p-hacking + reuse-regression sweep (NFR-002/004, AT3, AT-REG-1).</strong></div>
+            <div class="task-item-body">Assert the baseline/feature-model take no returns/CREA-fit
+            argument and that defaults are fixed constants; assert reused modules
+            (<code>robust.py</code>, <code>leadlag.py</code>, <code>scale.py</code>, <code>thermal.py</code>,
+            <code>catalyst/**</code>) are unchanged (diff-empty) and existing CLI commands still behave.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T12</span>
+              <strong>Run validation (all AC).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code>.
+            Confirm the T1 verdict, the no-look-ahead + anti-p-hacking guards, degradation, incremental-
+            information, triangulation, and honest-null tests all pass.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T13</span>
+              <strong>Update affected documentation.</strong></div>
+            <div class="task-item-body">Update the design's <code>Documentation targets</code>:
+            project-map (new package + CLI + <code>data/triangulation/</code>), data-access
+            (triangulation sources + credential names), README (nowcast product framing), a results note,
+            history, and <code>.env.example</code> if a new credential name was added. Reviewer confirms.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T14</span>
+              <strong>Update the project map + propose decision-log entries.</strong></div>
+            <div class="task-item-body">Refresh <code>.claude/context/project-map.md</code> for the new
+            <code>noxus/nowcast/</code> package, CLI command(s), and data dir. Draft (propose only)
+            decision-log entries: product reframed to a surprise nowcast; feature = physical proxy/events
+            not the NO<sub>2</sub> residual; incremental-info-over-CREA as the acceptance bar.</div></li>
+        </ol>
+      </section>
+
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <p>The reviewer verifies each item before marking the task <code>done</code>.</p>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> T1 spike ran; three-way go/no-go verdict recorded before the build.</li>
+          <li><input type="checkbox" disabled> No-look-ahead guard passes (AT2).</li>
+          <li><input type="checkbox" disabled> Anti-p-hacking guard passes — model takes no returns/CREA-fit arg (AT3).</li>
+          <li><input type="checkbox" disabled> Incremental-information vs CREA computed with robust inference + BH-FDR (AT4).</li>
+          <li><input type="checkbox" disabled> Graceful degradation exercised with VIIRS absent (AT5).</li>
+          <li><input type="checkbox" disabled> Triangulation QC flags divergence with uncertainty, never "fake" (AT6).</li>
+          <li><input type="checkbox" disabled> Honest null is reported as first-class if no edge exists (AT7).</li>
+          <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI unaffected (AT-REG-1).</li>
+          <li><input type="checkbox" disabled> Requirements covered by tests; tests + lint pass.</li>
+          <li><input type="checkbox" disabled> No protected files modified without approval.</li>
+          <li><input type="checkbox" disabled> Documentation decision recorded.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Investment-grade activity nowcast (NOX-013)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-013</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-draft">spec_draft</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Convert the NOXUS physical activity measurement into an <strong>investment-grade weekly
+        nowcast</strong> of Tangshan steel activity, expressed as a <strong>surprise</strong>: the
+        deviation of the satellite-implied activity from an expectation baseline (the feature's own
+        causal seasonal/trend model combined with the last published official print), emitted as a
+        <strong>causal z-score</strong> that would be tradable at the next session after overpass plus
+        processing latency.</p>
+        <p>The product is a signal, not a correlation study. Three project findings frame it and are
+        treated as hard constraints rather than open design space:</p>
+        <ul>
+          <li><strong>The continuous NO<sub>2</sub> residual alone is not a viable feature.</strong>
+          NOX-009 measured the steel-local share of NO<sub>2</sub> change-variance at ~0 (93–95%
+          regional common-mode; meteo ~0.3–0.5%). The nowcast feature must therefore come from an
+          independent physical proxy or from discrete event markers, with the NO<sub>2</sub> residual
+          used only as a contextual covariate.</li>
+          <li><strong>The primary physical feature is contingent and currently blocked.</strong> The
+          VIIRS thermal-anomaly series over the steel facility footprints (NOX-011) is the intended
+          primary activity proxy, but NOX-011 is data-gated (EOG VNF credentials + FIRMS
+          <code>MAP_KEY</code> the developer must supply). The spec must treat VIIRS as contingent and
+          provide a graceful-degradation path.</li>
+          <li><strong>The coupling is continuous, not event-bound, and decoupling over time.</strong>
+          NOX-012 concluded (2026-08-22) that the 2023 rolling-<em>r</em> peak is a scan-maximum
+          artefact and that the coupling is continuous with a 2024 intensity-decoupling. This bears
+          directly on how much incremental information any feature can carry.</li>
+        </ul>
+        <p>Triangulation against hard-to-falsify quantities measured outside China (exporter-side
+        iron-ore shipments, Capesize/Baltic freight, coking-coal exports) is used as
+        <strong>quality control</strong> and a discrepancy-vs-official-statistics diagnostic — not as
+        the goal. The benchmark to beat/complement is the weekly Mysteel/WIND blast-furnace
+        operating-rate survey (the CREA series): the nowcast must show <strong>incremental
+        information</strong> (earlier or orthogonal) over the incumbent, else no edge exists.
+        An honest null is an acceptable, first-class outcome.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for design, tasks, and tests.</p>
+
+        <div class="req-row">
+          <span class="req-id">REQ-001</span>
+          <span>When the nowcast is built, the system shall emit a <strong>weekly</strong> Tangshan
+          steel-activity <strong>surprise</strong> series: the deviation of the satellite-implied
+          activity feature from an expectation baseline, at the configured analysis frequency
+          (weekly default).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-002</span>
+          <span>The system shall compute the expectation baseline <em>causally</em> from
+          (a) the feature's own seasonal/trend model fit on data available strictly before the target
+          period, and (b) the last official activity print (CREA) published and known at that time.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-003</span>
+          <span>The system shall compute the surprise as feature-activity minus expectation baseline
+          for each period, using only information available at emission time.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-004</span>
+          <span>The system shall standardise the surprise into a <strong>causal z-score</strong> using
+          an expanding/rolling mean and standard deviation computed only from prior periods (no
+          in-sample or full-series normalisation).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-005</span>
+          <span>When emitting a z-score for an overpass/observation, the system shall stamp it as
+          tradable at the <strong>next session after overpass + processing latency</strong>
+          (a configurable latency), never at or before the observation time.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-006</span>
+          <span>The system shall align official prints (CREA) to the nowcast timeline in a
+          <strong>publication-lag-aware</strong> way: a print may only inform the baseline for periods
+          on or after its publication date, using the last print known at each period.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-007</span>
+          <span>The system shall select the nowcast feature according to a roadmap-contingent priority:
+          (a) VIIRS thermal-anomaly activity (NOX-011) as the primary physical proxy; (b) NO<sub>2</sub>
+          event/catalyst markers (NOX-004/NOX-012) for discrete curtailment starts/stops; (c) the
+          NO<sub>2</sub> continuous residual (NOX-003.1) only as a contextual covariate, never as the
+          sole feature.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-008</span>
+          <span>If the VIIRS feature is unavailable (NOX-011 blocked or its thermal series absent), the
+          system shall <strong>gracefully degrade</strong> to the available features (event markers
+          and/or NO<sub>2</sub> covariate), clearly label the run as degraded, and record which feature
+          was used.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-009</span>
+          <span>The system shall produce a <strong>triangulation quality-control</strong> diagnostic
+          that cross-checks the nowcast against independent, out-of-China quantities (exporter-side
+          iron-ore shipments, Capesize/Baltic freight, coking-coal exports) at their native cadence.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-010</span>
+          <span>When the nowcast diverges from the official print but agrees with the independent
+          triangulation consensus (or vice versa), the system shall <strong>flag the period with
+          uncertainty</strong> as a discrepancy, and shall <em>not</em> label any series as "fake"
+          or fraudulent.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-011</span>
+          <span>The system shall run the <strong>incremental-information test vs the CREA incumbent</strong>:
+          quantify whether the satellite nowcast surprise carries information about steel activity that
+          is <em>earlier</em> (leads CREA) or <em>orthogonal</em> (adds explanatory content beyond
+          CREA's own causal baseline), using the NOX-008 autocorrelation-robust inference and BH-FDR
+          across the tested configurations. This is the primary acceptance criterion.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-012</span>
+          <span>The system shall expose the nowcast and its QC/incremental-information diagnostics via
+          the existing <code>noxus</code> CLI pattern (config-driven, resumable/idempotent where a
+          fetch is involved), following the conventions of the existing subcommands.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-013</span>
+          <span>The system shall write NO<sub>2</sub>/VIIRS/price-derived nowcast series to gitignored
+          derived paths, and shall emit small committable summary statistics and figures (the nowcast
+          report, incremental-information table, triangulation diagnostic).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-014</span>
+          <span>The system shall report an <strong>honest null</strong> as a first-class outcome: if no
+          available feature shows incremental information over CREA, the report shall state that no
+          tradable edge exists, without discarding or re-tuning to manufacture one.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-015</span>
+          <span>Before the build proceeds, the system shall run a <strong>feasibility spike</strong>
+          (T1) that assesses feature availability (given NOX-011 blocked) and whether any candidate
+          feature yields incremental information over CREA, and shall record a three-way go/no-go
+          verdict (<em>GO-primary</em> / <em>GO-degraded</em> / <em>NO-GO</em>) before any downstream
+          task runs.</span>
+        </div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-001</span>
+          <span><strong>Strict no-look-ahead.</strong> Every baseline, standardisation, and alignment
+          shall be causal: no computation for period <em>t</em> may use data from any period &gt; the
+          information-availability time for <em>t</em> (overpass + latency for the feature; publication
+          date for official prints).</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-002</span>
+          <span><strong>Anti-p-hacking.</strong> The expectation baseline / feature model shall be fit
+          <em>without reference to market returns and without tuning against CREA or returns</em>. All
+          detection thresholds, smoothing, and windows shall be fixed as defaults before any
+          incremental-information or outcome statistic is viewed. No parameter may be selected to
+          maximise the reported edge.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-003</span>
+          <span><strong>Public/free data only, reproducible.</strong> All inputs (satellite, benchmark,
+          shipments, freight, coking-coal) shall be public/free; credentials referenced by environment
+          variable name only, never read or logged.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-004</span>
+          <span><strong>Reuse, do not reimplement.</strong> The build shall reuse the NOX-008
+          autocorrelation-robust machinery (<code>noxus/validation/robust.py</code>:
+          <code>robust_corr</code>, <code>block_permutation_p</code>, <code>bh_fdr</code>,
+          <code>block_bootstrap_statistic</code>), <code>leadlag.py</code>
+          (<code>lead_lag</code>), the NOX-003.1 intensity residual, the NOX-004/NOX-012 event
+          machinery, the NOX-011 thermal series, and the existing config/CLI patterns.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-005</span>
+          <span><strong>Scale caveat explicit.</strong> Every output shall state that Tangshan is
+          ~13% of national steel and that provincial (Hebei) statistics are preferred where available;
+          the nowcast is a cluster signal, not a national estimate.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-006</span>
+          <span><strong>Determinism.</strong> Bootstrap/permutation-based inference shall use a fixed
+          seed so results are reproducible; the seed and all fixed defaults shall be recorded in the
+          output provenance.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-007</span>
+          <span><strong>Additive, non-breaking.</strong> The feature shall not alter the behaviour of
+          existing pipeline stages, CLI commands, or reused modules; it adds new modules/commands only.</span>
+        </div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-001</span>
+          <span>VIIRS thermal series absent (NOX-011 blocked): the nowcast runs in degraded mode on the
+          available features and is labelled degraded (REQ-008); it does not crash or silently emit a
+          VIIRS-based series.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-002</span>
+          <span>Coverage gaps / missing weeks in the feature: never interpolated; the surprise/z-score
+          for those periods is NaN (or marked), not fabricated.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-003</span>
+          <span>Variable publication lag of the official print: the last-known print is used per period
+          per REQ-006; a print with an unknown publication date is treated with the configured
+          conservative (maximal) lag.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-004</span>
+          <span>Triangulation sources are at a coarser cadence (monthly shipments/exports) than the
+          weekly nowcast: the QC aligns by resampling to a common frequency (never interpolating
+          upward to fabricate weekly values), and reports at the coarser cadence.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-005</span>
+          <span>Sparse discrete event markers (few curtailment starts/stops in the degraded path): the
+          incremental-information test reports low power honestly rather than over-claiming.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-006</span>
+          <span>Warm-up period: causal expanding baselines emit NaN until the configured minimum
+          history is reached; no z-score is emitted before then.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-007</span>
+          <span>Series too short for autocorrelation-robust inference after alignment: the system
+          reports insufficient-power rather than a spuriously significant result.</span>
+        </div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err">
+          <span class="req-id err">ERR-001</span>
+          <span>If no feature store is available at all (neither VIIRS thermal series, nor
+          NO<sub>2</sub> events, nor NO<sub>2</sub> residual), the system shall raise a clear error
+          naming the missing inputs and the commands that produce them, and shall not emit a nowcast.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-002</span>
+          <span>If the T1 feasibility spike returns <em>NO-GO</em> (no feature yields any incremental
+          information over CREA at the fixed defaults), the system shall stop the build and record the
+          honest-null verdict; downstream tasks shall not run.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-003</span>
+          <span>If the no-look-ahead guard detects that a past emission changed when future data was
+          altered, the system shall fail loudly (test-time), never ship a leaking signal.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-004</span>
+          <span>If configuration is invalid (e.g. negative latency, unknown feature source, frequency
+          finer than the feature supports), the system shall raise a validation error before any
+          computation.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-005</span>
+          <span>If a triangulation source is unavailable, the QC diagnostic shall be marked degraded
+          but the nowcast shall still be emitted (QC is not a gate on emission).</span>
+        </div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-001</span>
+          <span>Running the nowcast command produces a weekly series with surprise and causal z-score
+          columns, latency-stamped emission times, and provenance recording feature source, latency,
+          seed, and fixed defaults. (REQ-001..005, REQ-012, REQ-013)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-002</span>
+          <span>A no-look-ahead guard test proves that altering future feature/print values does not
+          change any previously emitted z-score. (NFR-001, ERR-003)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-003</span>
+          <span>An anti-p-hacking guard test proves the expectation-baseline/feature-model function
+          takes no market-returns argument and no CREA-for-fit argument. (NFR-002)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-004</span>
+          <span>The incremental-information test vs CREA runs with NOX-008 robust inference + BH-FDR and
+          reports lead (does the nowcast lead CREA?) and orthogonality (does it add beyond CREA's own
+          causal baseline?). (REQ-011, NFR-004)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-005</span>
+          <span>With the VIIRS series absent, the nowcast runs in degraded mode, is labelled degraded,
+          and records the fallback feature used. (REQ-008, EDGE-001)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-006</span>
+          <span>The triangulation QC diagnostic is produced and, for a constructed divergence, flags
+          the period with uncertainty without labelling any series fraudulent. (REQ-009, REQ-010)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-007</span>
+          <span>When features carry no incremental information, the report states an honest null and no
+          parameter is re-tuned to manufacture an edge. (REQ-014, NFR-002)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-008</span>
+          <span>The T1 spike records a three-way go/no-go verdict (GO-primary / GO-degraded / NO-GO)
+          with its evidence before any downstream task runs. (REQ-015)</span>
+        </div>
+      </section>
+
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> — this feature has no browser UI. Outputs are CLI, parquet series, small
+        stat tables, and static figures.</p>
+      </section>
+
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code> — no screenshots or mockups are inputs. Figures produced by this feature
+        (nowcast surprise timeline, triangulation overlay, incremental-information plot) are outputs,
+        specified in <code>design.html</code>.</p>
+      </section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>CREA / Mysteel / WIND</strong> Tangshan blast-furnace operating rate — already
+          ingested (NOX-001, <code>noxus ingest-benchmark</code>); the incumbent and the official-print
+          input.</li>
+          <li><strong>VIIRS thermal series</strong> (NOX-011, VNF/FIRMS) — primary feature; contingent
+          and currently blocked on credentials.</li>
+          <li><strong>Exporter-side shipments / freight / coking-coal</strong> for triangulation QC:
+          candidate public/free sources include Pilbara Ports monthly throughput, Vale production/sales
+          reports, Baltic/Capesize freight indices, and public coking-coal export series. The exact
+          free source per series is an open question (see <code>open-questions.html</code> Q3); a
+          committed CSV snapshot pattern (à la the NOX-012 curtailment calendar) is the safe default.</li>
+          <li><strong>Existing internal features</strong>: NO<sub>2</sub> intensity residual
+          (NOX-003.1), NO<sub>2</sub> events (NOX-004/NOX-012).</li>
+        </ul>
+        <p>Verification evidence (sources, dates, versions) belongs in the design's
+        <em>External dependencies and freshness</em> section.</p>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>.claude/context/project-map.md</code> (new module(s) + CLI
+        command(s)), <code>docs/data-access.md</code> (triangulation sources + credentials by name),
+        <code>README.md</code> (nowcast product framing), <code>docs/exploration-results.html</code> or
+        a results note (the incremental-information verdict), <code>history.html</code>, and
+        <code>.env.example</code> if any new credential variable name is introduced. The reviewer makes
+        the final documentation decision.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entries (proposed at review time, developer decides):</p>
+        <ul>
+          <li>The project product is reframed from a correlation study to an investment-grade
+          <em>surprise</em> nowcast; triangulation is QC, not the goal.</li>
+          <li>The nowcast feature is an independent physical proxy (VIIRS) or discrete event markers —
+          not the continuous NO<sub>2</sub> residual — a consequence of the NOX-009 ~0 change-variance
+          finding.</li>
+          <li>Incremental-information-over-CREA is adopted as the acceptance bar for the signal
+          (edge = earlier or orthogonal), with honest-null as a first-class outcome.</li>
+        </ul>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001</span></td><td>AT1</td><td>Weekly surprise series shape + columns.</td></tr>
+            <tr><td><span class="req-id">REQ-002</span>, <span class="req-id">REQ-003</span></td><td>AT1, AT2</td><td>Baseline + surprise from causal inputs.</td></tr>
+            <tr><td><span class="req-id">REQ-004</span></td><td>AT1, AT2</td><td>Causal z-score uses only prior periods.</td></tr>
+            <tr><td><span class="req-id">REQ-005</span>, <span class="req-id">REQ-006</span></td><td>AT2, AT-EDGE-3</td><td>Latency + publication-lag alignment.</td></tr>
+            <tr><td><span class="req-id">REQ-007</span>, <span class="req-id">REQ-008</span></td><td>AT5, AT-EDGE-1</td><td>Feature priority + graceful degradation.</td></tr>
+            <tr><td><span class="req-id">REQ-009</span>, <span class="req-id">REQ-010</span></td><td>AT6</td><td>Triangulation QC + discrepancy flag.</td></tr>
+            <tr><td><span class="req-id">REQ-011</span></td><td>AT4</td><td>Incremental-information vs CREA (robust + FDR).</td></tr>
+            <tr><td><span class="req-id">REQ-012</span>, <span class="req-id">REQ-013</span></td><td>AT1, AT-REG-1</td><td>CLI + outputs + gitignore.</td></tr>
+            <tr><td><span class="req-id">REQ-014</span></td><td>AT7</td><td>Honest-null report.</td></tr>
+            <tr><td><span class="req-id">REQ-015</span></td><td>AT8</td><td>T1 three-way go/no-go verdict.</td></tr>
+            <tr><td><span class="req-id">NFR-001</span></td><td>AT2 (no-look-ahead guard)</td><td>Future edits do not change past emissions.</td></tr>
+            <tr><td><span class="req-id">NFR-002</span></td><td>AT3 (anti-p-hacking guard)</td><td>Model takes no returns/CREA-fit arg.</td></tr>
+            <tr><td><span class="req-id">NFR-004</span></td><td>AT-REG-1</td><td>Reused modules unchanged (byte-for-byte).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — Investment-grade activity nowcast</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>Investment-grade activity nowcast</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Source document</th> <td><code>tasks.json / NOX-013 (developer direction 2026-07-12)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-013</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-08-22</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records unresolved questions found while converting the NOX-013 direction into a spec. The
+        spec is authored to be <strong>zero-blocking</strong> — each question has a safe default so the
+        task can reach <code>spec_ready</code> — while <em>not</em> papering over the VIIRS-feature
+        dependency risk (Q1), which is surfaced explicitly.</p>
+      </section>
+
+      <hr>
+
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Type</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">5</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking questions present:</strong></p>
+        <pre><code>None. The task can reach spec_ready. Q1 (VIIRS dependency) is non-blocking
+for the build via graceful degradation, but is the key risk and must be visible.</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header">
+            <span class="req-id">Q1</span>
+            <span class="card-title">Proceed on the degraded path now, or wait for VIIRS credentials?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>NOX-011 (the primary VIIRS feature) is blocked on EOG VNF credentials + FIRMS <code>MAP_KEY</code>. Should NOX-013 be built and validated now on the graceful-degradation path (event markers / NO<sub>2</sub> covariate), with the primary-feature scientific verdict deferred to a later live VIIRS run — or should the build wait until credentials are supplied?</dd>
+              <dt>Why it matters</dt>                    <dd>Determines whether the delivered nowcast verdict covers the intended primary feature or only the degraded path. This is the central dependency risk of the task.</dd>
+              <dt>Blocking</dt>                          <dd>No (build). The primary-feature verdict is contingent regardless.</dd>
+              <dt>Default assumption if not answered</dt><dd>Build + validate now on the degraded path (assumption A1); the T1 gate emits GO-degraded if VIIRS is absent but events/covariate carry incremental info, or NO-GO otherwise. The VIIRS primary verdict re-runs once the NOX-011 live series exists.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-007/008), <code>design.html</code> (reuse map, risks), <code>tasks.html</code> (T1, T2), <code>assumptions.html</code> (A1)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-007, REQ-008, EDGE-001, ERR-002</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header">
+            <span class="req-id">Q2</span>
+            <span class="card-title">Exact free/public triangulation sources + license</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>Which specific free/public series should back the triangulation QC — Pilbara Ports monthly throughput, Vale production/sales, a Baltic/Capesize freight index, public coking-coal export series — and under what license/cadence?</dd>
+              <dt>Why it matters</dt>                    <dd>Determines the QC coverage and the committed snapshot contents; some indices are paywalled.</dd>
+              <dt>Blocking</dt>                          <dd>No — QC is not a gate on emission (ERR-005).</dd>
+              <dt>Default assumption if not answered</dt><dd>T1 surveys and records the verified free sources (source/date/cadence/license) into <code>data/triangulation/SOURCES.md</code> (NOX-012 pattern); any paywalled series is omitted and the QC marked degraded for it.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>design.html</code> (external deps), <code>tasks.html</code> (T1, T7)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-009, ERR-005</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header">
+            <span class="req-id">Q3</span>
+            <span class="card-title">Default processing latency per feature</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>What processing/availability latency should the causal emission assume per feature (VIIRS NRT vs standard; FIRMS ~3 h NRT; NO<sub>2</sub> composite lag)?</dd>
+              <dt>Why it matters</dt>                    <dd>Too-short a latency leaks look-ahead; too-long understates the edge.</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>A conservative config default (<code>--latency-days</code>, assumption A6), recorded in provenance and refined by the T1 measurement; the no-look-ahead guard (AT2) protects against leakage.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-005), <code>design.html</code> (surprise.py)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-005, NFR-001</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header">
+            <span class="req-id">Q4</span>
+            <span class="card-title">Should the baseline ingest a provincial (Hebei/NBS) official print?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>NFR-005 prefers Hebei/provincial statistics. Should the expectation baseline ingest a provincial official print in addition to CREA, or is CREA sufficient for this task?</dd>
+              <dt>Why it matters</dt>                    <dd>Adding a provincial statistical feed is new acquisition scope; CREA is already available.</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>Use CREA only for the official-print term (assumption A8); document the Hebei-preference as a caveat and defer a provincial feed to a follow-up.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-002, NFR-005), <code>design.html</code></dd>
+              <dt>Related requirements</dt>              <dd>REQ-002, REQ-006, NFR-005</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header">
+            <span class="req-id">Q5</span>
+            <span class="card-title">Is incremental-info-vs-CREA (not market alpha) the right NOX-013 bar?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>Should NOX-013's acceptance test be incremental information about <em>activity</em> vs the CREA incumbent (leads/orthogonal), with the market-return mapping/backtest left to NOX-014 — or should market-return evaluation be pulled into NOX-013?</dd>
+              <dt>Why it matters</dt>                    <dd>Defines the task boundary vs NOX-014 (<code>market-mapping-backtest</code>, <code>depends_on: NOX-013</code>).</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>Incremental-info-vs-CREA is the NOX-013 bar (assumption A3); market mapping + IC/CAR backtest stay in NOX-014.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-011), <code>design.html</code> (incremental.py)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-011, AC-004</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="resolved-questions">
+        <h2>Resolved questions</h2>
+        <p>Move questions here after the developer answers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="deferred-questions">
+        <h2>Deferred questions</h2>
+        <p>Move non-blocking questions here if the developer explicitly defers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>No question is blocking; the task may be marked <code>spec_ready</code>. Mention the 5 non-blocking questions to the developer at approval time.</li>
+            <li>Q1 (VIIRS dependency) is the key risk — do not treat the degraded-path verdict as the primary-feature verdict.</li>
+            <li>Do not answer product/architecture questions silently; defaults are explicit and reversible.</li>
+            <li>When the developer answers, update this file and reflect the decision across the spec.</li>
+            <li>Before <code>human_approved</code>, verify no blocking question is pending.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

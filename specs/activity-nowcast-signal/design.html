@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Investment-grade activity nowcast (NOX-013)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-013</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A new <code>noxus/nowcast/</code> package turns an activity feature into a weekly,
+        latency-aware <em>surprise</em> nowcast and its QC/incremental-information diagnostics. The
+        pipeline is:</p>
+        <ol>
+          <li><strong>Feature selection</strong> (roadmap-contingent, REQ-007/008): pick the highest
+          available feature — VIIRS thermal activity (NOX-011) &rarr; NO<sub>2</sub> event markers
+          (NOX-004/012) &rarr; NO<sub>2</sub> intensity residual (NOX-003.1, covariate only). The
+          selected feature is a causal, coverage-screened weekly series.</li>
+          <li><strong>Expectation baseline</strong> (REQ-002): a causal seasonal/trend model of the
+          feature (harmonic-K1 / STL-trend style, fit only on the past) combined additively with the
+          last official CREA print known at each period (publication-lag-aware, REQ-006).</li>
+          <li><strong>Surprise + causal z</strong> (REQ-003/004): surprise = feature − baseline;
+          z = (surprise − expanding-mean) / expanding-std, all from prior periods only.</li>
+          <li><strong>Latency-aware emission</strong> (REQ-005): each z is stamped tradable at the next
+          session after overpass + processing latency.</li>
+          <li><strong>Triangulation QC</strong> (REQ-009/010): compare the nowcast to independent
+          out-of-China quantities; flag divergences with uncertainty.</li>
+          <li><strong>Incremental-information test vs CREA</strong> (REQ-011): the acceptance bar —
+          does the nowcast lead CREA or add orthogonal content beyond CREA's own causal baseline, under
+          NOX-008 robust inference + BH-FDR?</li>
+        </ol>
+        <p>The build is <strong>gated by a T1 feasibility spike</strong> (REQ-015) that measures feature
+        availability (NOX-011 is blocked) and whether any feature yields incremental information at all,
+        emitting a three-way go/no-go verdict before the rest is implemented. An honest null is a valid
+        terminal outcome.</p>
+      </section>
+
+      <section id="reuse-map">
+        <h2>Reuse map (reuse, do not reimplement — NFR-004)</h2>
+        <table>
+          <thead>
+            <tr><th>Need</th><th>Reused artefact</th><th>How</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Autocorrelation-robust <em>r</em> + CI + null</td><td><code>noxus/validation/robust.py</code> — <code>robust_corr</code>, <code>block_permutation_p</code>, <code>block_bootstrap_statistic</code></td><td>All incremental-information and triangulation correlations use <code>robust_corr</code> (effective-N + Newey-West + moving-block bootstrap + block-permutation null). No new stats.</td></tr>
+            <tr><td>Multiple-testing control</td><td><code>bh_fdr</code> (robust.py)</td><td>BH-FDR across the feature × horizon × config grid, as in NOX-008/012.</td></tr>
+            <tr><td>Lead/lag (does the nowcast lead CREA?)</td><td><code>noxus/validation/leadlag.py</code> — <code>lead_lag</code></td><td>Cross-correlation of nowcast vs CREA to test "earlier".</td></tr>
+            <tr><td>Weekly alignment / resample convention</td><td><code>noxus/validation/scale.py</code> resample + <code>preprocess.align_series</code></td><td>Reuse the NOX-008/003 canonical weekly-resample-then-align to avoid the NOX-012 B3 exact-date-join bug.</td></tr>
+            <tr><td>VIIRS thermal feature</td><td><code>noxus/signal/thermal.py</code> — <code>build_thermal_series</code>, <code>thermal_activity</code></td><td>Primary feature series (benchmark-blind). Consumed if the NOX-011 series exists.</td></tr>
+            <tr><td>Discrete event markers</td><td><code>noxus/catalyst/events.py</code> (<code>detect_events</code>, <code>causal_robust_z</code>), <code>groundtruth.py</code>, <code>noxus/catalyst/regime.py</code></td><td>Degraded-path feature: curtailment starts/stops; causal robust-z already implemented and no-look-ahead.</td></tr>
+            <tr><td>NO<sub>2</sub> intensity residual (covariate)</td><td><code>noxus/signal/intensity.py</code>, <code>noxus/signal/index.py</code> (<code>deseasonalize</code>, harmonic)</td><td>Contextual covariate only; harmonic-K1 also informs the expectation-baseline seasonal term.</td></tr>
+            <tr><td>Config + CLI patterns</td><td><code>noxus/config/run.py</code> dataclasses, <code>noxus/cli/main.py</code> subcommand style</td><td>New frozen <code>NowcastConfig</code> + new subcommand(s), mirroring existing commands.</td></tr>
+            <tr><td>Committed-CSV provenance pattern</td><td><code>data/curtailment/</code> + <code>SOURCES.md</code> (NOX-012)</td><td>Triangulation snapshots follow the same committed-CSV-with-SOURCES.md pattern.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="300" viewBox="0 0 720 300" aria-label="Nowcast data flow">
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+              </marker>
+            </defs>
+            <!-- features -->
+            <rect x="10" y="20" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="85" y="42" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">VIIRS thermal (NOX-011)*</text>
+            <rect x="10" y="64" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="85" y="86" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">NO2 events (004/012)</text>
+            <rect x="10" y="108" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="85" y="130" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">NO2 residual (003.1)</text>
+            <!-- feature select -->
+            <line x1="160" y1="80" x2="205" y2="80" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="207" y="55" width="120" height="54" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="267" y="78" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">feature select</text>
+            <text x="267" y="94" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7c3aed">+ graceful degrade</text>
+            <!-- CREA print -->
+            <rect x="207" y="130" width="120" height="34" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+            <text x="267" y="152" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#854d0e">CREA print (pub-lag)</text>
+            <!-- baseline+surprise -->
+            <line x1="327" y1="82" x2="372" y2="82" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="327" y1="147" x2="360" y2="147" stroke="#6b7280" stroke-width="1.5"/>
+            <line x1="360" y1="147" x2="360" y2="100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="374" y="60" width="130" height="60" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="439" y="82" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">causal baseline</text>
+            <text x="439" y="97" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">surprise + z</text>
+            <text x="439" y="112" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">+ latency stamp</text>
+            <!-- outputs -->
+            <line x1="504" y1="90" x2="549" y2="90" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="551" y="30" width="150" height="34" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="626" y="52" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">nowcast series (gitignored)</text>
+            <rect x="551" y="74" width="150" height="34" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="626" y="96" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">incr-info vs CREA</text>
+            <rect x="551" y="118" width="150" height="34" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="626" y="140" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">triangulation QC</text>
+            <!-- triangulation input -->
+            <rect x="374" y="185" width="200" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="474" y="207" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">shipments / freight / coking-coal (ex-China)</text>
+            <line x1="574" y1="200" x2="626" y2="200" stroke="#6b7280" stroke-width="1.5"/>
+            <line x1="626" y1="200" x2="626" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <text x="360" y="260" font-family="sans-serif" font-size="10" fill="#9ca3af">* VIIRS is primary but currently blocked (NOX-011); pipeline degrades to events / NO2 covariate. All baselines/standardisation causal.</text>
+            <text x="360" y="278" font-family="sans-serif" font-size="10" fill="#9ca3af">Build gated by the T1 three-way go/no-go spike before anything downstream is implemented.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Touches: a new <code>noxus/nowcast/</code> package (peer of <code>signal/</code>,
+        <code>catalyst/</code>, <code>validation/</code>); <code>noxus/config/run.py</code> (new
+        <code>NowcastConfig</code>); <code>noxus/cli/main.py</code> (new subcommand(s)); a new
+        <code>analysis/</code> driver; <code>data/derived/</code> (gitignored nowcast series) and a new
+        committed <code>data/triangulation/</code> snapshot dir + <code>SOURCES.md</code>. Reuses
+        <code>signal/thermal.py</code>, <code>catalyst/</code>, <code>validation/robust.py</code> +
+        <code>leadlag.py</code> + <code>scale.py</code> unchanged. The project map must be refreshed
+        (closing task) for the new package, command(s), and data dir.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <p>Recorded as <code>scope</code> globs in <code>tasks.json</code> for the spec-drift hook.</p>
+        <table>
+          <thead>
+            <tr><th>File</th><th>Change</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>noxus/nowcast/__init__.py</code></td><td>new</td><td>Package init.</td></tr>
+            <tr><td><code>noxus/nowcast/features.py</code></td><td>new</td><td>Roadmap-contingent feature selection + graceful degradation (REQ-007/008).</td></tr>
+            <tr><td><code>noxus/nowcast/baseline.py</code></td><td>new</td><td>Causal expectation baseline (own seasonal/trend + last official print, pub-lag-aware) (REQ-002/006).</td></tr>
+            <tr><td><code>noxus/nowcast/surprise.py</code></td><td>new</td><td>Surprise + causal z-score + latency-aware emission stamp (REQ-003/004/005).</td></tr>
+            <tr><td><code>noxus/nowcast/triangulation.py</code></td><td>new</td><td>External-quantity QC + discrepancy flag (REQ-009/010).</td></tr>
+            <tr><td><code>noxus/nowcast/incremental.py</code></td><td>new</td><td>Incremental-information vs CREA using reused robust inference (REQ-011).</td></tr>
+            <tr><td><code>noxus/nowcast/report.py</code></td><td>new</td><td>Nowcast report incl. honest null + scale caveat (REQ-014, NFR-005).</td></tr>
+            <tr><td><code>noxus/nowcast/probe.py</code></td><td>new</td><td>T1 feasibility spike + three-way go/no-go verdict (REQ-015).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add <code>NowcastConfig</code></td><td>Frozen dataclass: feature priority, latency, freq, min-history, seed, fixed defaults, triangulation sources.</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>add subcommand(s)</td><td><code>nowcast</code> (+ <code>--probe</code>) and <code>triangulate-nowcast</code>, mirroring existing commands.</td></tr>
+            <tr><td><code>analysis/activity_nowcast.py</code></td><td>new</td><td>Reproducible driver &rarr; committable stats + figures.</td></tr>
+            <tr><td><code>data/triangulation/*.csv</code>, <code>SOURCES.md</code></td><td>new (committed)</td><td>Public shipment/freight/coking-coal snapshots + provenance (NOX-012 pattern).</td></tr>
+            <tr><td><code>tests/nowcast/**</code></td><td>new</td><td>Unit + guard tests (no-look-ahead, anti-p-hacking, degradation, incremental-info).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add derived nowcast paths</td><td>NO<sub>2</sub>/VIIRS/price-derived series gitignored (REQ-013).</td></tr>
+            <tr><td><code>.env.example</code></td><td>doc names only (if new)</td><td>Any new credential var name for a triangulation source (Q3).</td></tr>
+          </tbody>
+        </table>
+        <p>Proposed <code>scope</code> for <code>tasks.json</code>:
+        <code>["noxus/nowcast/**", "noxus/config/run.py", "noxus/cli/main.py", "analysis/**",
+        "data/triangulation/**", "tests/nowcast/**", "tests/cli/**", ".gitignore", ".env.example"]</code>.</p>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead>
+            <tr><th>File or directory</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>noxus/validation/robust.py</code>, <code>leadlag.py</code>, <code>scale.py</code></td><td>Reused byte-for-byte (NFR-004); statistical core must stay stable.</td></tr>
+            <tr><td><code>noxus/signal/thermal.py</code>, <code>intensity.py</code>, <code>index.py</code></td><td>Consumed as-is; nowcast is additive.</td></tr>
+            <tr><td><code>noxus/catalyst/**</code></td><td>Event machinery reused, not modified.</td></tr>
+            <tr><td><code>noxus/data/**</code> acquisition</td><td>No new acquisition path here beyond triangulation snapshots; VIIRS/NO<sub>2</sub> use existing stores.</td></tr>
+            <tr><td><code>.env</code>, credentials</td><td>Protected; referenced by name only, never read/logged.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Schema</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/nowcast/features.py
+def select_feature(cfg: NowcastConfig) -&gt; FeatureResult:
+    """Return the highest-priority AVAILABLE feature series (VIIRS -&gt; events -&gt; NO2 covariate).
+    FeatureResult carries: series (weekly, causal), source ('viirs'|'events'|'no2_residual'),
+    degraded: bool, reason: str. Never fabricates a VIIRS series when absent (REQ-007/008)."""
+
+# noxus/nowcast/baseline.py  (BENCHMARK model may READ the last published CREA print, but is
+# NEVER fit against CREA values, and takes NO market-returns argument — NFR-002)
+def expectation_baseline(feature: pd.Series, official_print: pd.Series | None, cfg) -&gt; pd.Series:
+    """Causal baseline = own seasonal/trend(feature, past-only) (+) last-known official print,
+    publication-lag-aware. Uses expanding/rolling fits; emits NaN during warm-up (EDGE-006)."""
+
+# noxus/nowcast/surprise.py
+def build_surprise(feature: pd.Series, baseline: pd.Series, cfg) -&gt; pd.DataFrame:
+    """surprise = feature - baseline; z = causal_zscore(surprise); emission_ts = overpass +
+    latency -&gt; next session. Columns: feature, baseline, surprise, z, emission_ts, warmup."""
+
+# noxus/nowcast/incremental.py  (REUSES robust_corr / lead_lag / bh_fdr)
+def incremental_information(nowcast_z: pd.Series, crea: pd.Series, cfg) -&gt; IncrementalResult:
+    """Does the nowcast LEAD CREA (lead_lag) or add ORTHOGONAL content beyond CREA's own causal
+    AR/seasonal baseline (partialled residual correlation), under robust_corr + BH-FDR?"""
+
+# noxus/nowcast/triangulation.py  (QC, not a gate)
+def triangulation_qc(nowcast: pd.Series, crea: pd.Series, external: dict[str, pd.Series], cfg):
+    """Resample to common cadence (never interpolate up). Flag periods where nowcast+external
+    consensus diverge from the official print WITH UNCERTAINTY; never labels a series 'fake'."""
+
+# noxus/nowcast/probe.py  (T1 GATE)
+def probe(cfg: NowcastConfig) -&gt; ProbeVerdict:
+    """Assess feature availability + any-incremental-info-over-CREA. Verdict in
+    {GO-primary, GO-degraded, NO-GO} with evidence. Stop-and-record before the build."""</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># Nowcast series (gitignored parquet), one row per analysis period:
+#   period            (index, weekly, Sunday-anchored per project convention)
+#   feature           float   selected activity feature value (causal)
+#   feature_source    str     'viirs' | 'events' | 'no2_residual'
+#   baseline          float   causal expectation baseline
+#   surprise          float   feature - baseline
+#   z                 float   causal z-score (NaN during warm-up)
+#   emission_ts       datetime  tradable-at: next session after overpass + latency
+#   degraded          bool    True when running without the primary VIIRS feature
+#   warmup            bool    True until min-history reached
+# Provenance sidecar: feature_source, latency, freq, seed, fixed defaults, scale caveat.
+
+# Committable outputs (small): incremental_information.csv, triangulation_qc.csv,
+#   nowcast_summary.txt (incl. honest-null verdict + Tangshan ~13% scale caveat).</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># Build/inspect the nowcast (config-driven, additive)
+uv run noxus nowcast [--feature auto|viirs|events|no2] [--latency-days N] [--freq W]
+# T1 feasibility spike — three-way go/no-go (run FIRST; gates the build)
+uv run noxus nowcast --probe
+# Triangulation QC diagnostic
+uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
+# (reuses existing: ingest-benchmark, build-thermal-series, detect-events, index)</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>No changes to existing stores. New: a gitignored derived nowcast parquet + provenance
+        sidecar (schema above); a new committed <code>data/triangulation/</code> directory of small
+        public CSV snapshots + <code>SOURCES.md</code>. No migrations.</p>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>No new heavy runtime dependency is planned; statistics reuse the existing numpy/pandas/scipy/
+        statsmodels stack. The external <em>data</em> systems and their freshness status:</p>
+        <table>
+          <thead>
+            <tr><th>External system / dependency</th><th>Docs checked (source, date)</th><th>Version constraints</th><th>Deprecated APIs avoided</th><th>Compatibility notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CREA / Mysteel / WIND BF operating rate</td><td>Existing NOX-001 ingestion (validated 2026-06-13)</td><td>n/a (CSV snapshot)</td><td>n/a</td><td>Incumbent + official-print input; already public/free.</td></tr>
+            <tr><td>VIIRS VNF / FIRMS (NOX-011)</td><td>NOX-011 spec/data-access.md (2026-07-12)</td><td>VNF CSV / FIRMS VNP14</td><td>Keyless VNF path falsified (EOG SSO); FIRMS needs <code>MAP_KEY</code></td><td><strong>BLOCKED</strong> — credentials pending; graceful degradation required.</td></tr>
+            <tr><td>Iron-ore shipments (Pilbara Ports, Vale)</td><td>TO VERIFY at T1: exact free/public URL + license + cadence (monthly)</td><td>CSV/HTML snapshot</td><td>n/a</td><td>Open question Q3; default = committed CSV snapshot + SOURCES.md (NOX-012 pattern).</td></tr>
+            <tr><td>Freight (Baltic/Capesize), coking-coal exports</td><td>TO VERIFY at T1: free source availability</td><td>CSV snapshot</td><td>n/a</td><td>QC only, not a gate on emission (ERR-005).</td></tr>
+          </tbody>
+        </table>
+        <p>The T1 spike must record verified source/date/cadence/license for each triangulation series
+        it uses; unavailable sources degrade the QC (ERR-005), not the nowcast.</p>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>Credentials (EOG VNF, FIRMS <code>MAP_KEY</code>, any triangulation key) are referenced by
+        environment-variable name only, never read or logged; download URLs are scrubbed of secrets in
+        logs (reuse the NOX-011 convention). No trust-boundary or authz changes. Derived NO<sub>2</sub>/
+        VIIRS/price series remain gitignored (reproducibility + provenance discipline). This is not a
+        high-risk category (no auth/payments/migrations/infra), so the deep-review escalation ladder is
+        not triggered on security grounds; see <em>Risks</em> for the methodological deep-review flag.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>.claude/context/project-map.md</code> (new package + CLI + data dir),
+        <code>docs/data-access.md</code> (triangulation sources + credential names),
+        <code>README.md</code> (nowcast product framing), a results note in
+        <code>docs/exploration-results.html</code> (incremental-information verdict),
+        <code>history.html</code>, and <code>.env.example</code> if a new credential name is added. The
+        reviewer confirms the final list.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>No-look-ahead guard</strong> (AT2/NFR-001): build the nowcast, mutate future
+          feature/print values, rebuild, assert every previously emitted z is unchanged. Also assert
+          emission_ts &gt; observation time.</li>
+          <li><strong>Anti-p-hacking guard</strong> (AT3/NFR-002): introspect
+          <code>expectation_baseline</code>/feature-model signatures to assert no market-returns
+          argument and no CREA-values-for-fit argument; assert defaults are constants, not fit against
+          outcomes.</li>
+          <li><strong>Surprise/z correctness</strong> (AT1): on a synthetic feature with a known
+          seasonal component, assert baseline removes it causally and z uses only prior periods.</li>
+          <li><strong>Latency + publication-lag</strong> (AT2/AT-EDGE-3): assert prints only inform
+          periods on/after publication; conservative lag when unknown.</li>
+          <li><strong>Graceful degradation</strong> (AT5/AT-EDGE-1): with VIIRS absent, assert degraded
+          mode + fallback source recorded; no crash.</li>
+          <li><strong>Incremental-information</strong> (AT4): planted-lead synthetic where the nowcast
+          leads CREA &rarr; robust test detects it; planted-null &rarr; BH-FDR rejects nothing.</li>
+          <li><strong>Triangulation QC</strong> (AT6): constructed divergence flagged with uncertainty;
+          no "fake" label; monthly-vs-weekly cadence handled without upward interpolation.</li>
+          <li><strong>Honest null</strong> (AT7): null feature &rarr; report states no edge, no
+          re-tuning.</li>
+          <li><strong>T1 verdict</strong> (AT8): synthetic availability scenarios &rarr; correct
+          GO-primary / GO-degraded / NO-GO.</li>
+          <li><strong>Reuse regression</strong> (AT-REG-1): reused modules unchanged (diff-empty);
+          existing CLI commands still behave.</li>
+        </ul>
+        <p>Test command: <code>uv run pytest</code>; lint <code>uv run ruff check .</code>. New tests in
+        <code>tests/nowcast/</code>.</p>
+      </section>
+
+      <section id="ui-verification-plan">
+        <h2>UI verification plan</h2>
+        <p><code>None</code> — no browser UI.</p>
+      </section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>VIIRS-feature dependency risk (primary risk).</strong> The intended primary
+          feature (NOX-011) is blocked on credentials the developer must supply. The nowcast can be
+          built and tested end-to-end on the degraded path, but its <em>scientific</em> verdict on the
+          primary feature is contingent on the VIIRS series existing. This is disclosed as assumption
+          A1 (blocking-for-primary-verdict, non-blocking-for-build) and drives the T1 gate.</li>
+          <li><strong>Low incremental-information risk.</strong> NOX-009 (~0 steel-local NO<sub>2</sub>
+          change-variance) and NOX-012 (continuous, decoupling coupling) make an honest null a
+          realistic outcome. The design treats null as first-class (REQ-014); the value is a
+          <em>disciplined, no-look-ahead</em> answer to "is there an edge?", not a guaranteed edge.</li>
+          <li><strong>Deep-review flag (methodological, not security).</strong> This task makes a
+          quantitative claim of predictive edge over an incumbent. Per the deep-review policy
+          (<code>reference/deep-review-policy.md</code>), the reviewer will apply the escalation ladder
+          to the no-look-ahead and anti-p-hacking guards specifically — surfaced here before
+          implementation so it is not a surprise at review.</li>
+          <li><strong>Scale.</strong> Tangshan ≈ 13% of national steel; the nowcast is a cluster
+          signal. Provincial (Hebei) statistics preferred where available (NFR-005). Rejected
+          alternative: presenting it as a national activity nowcast.</li>
+          <li><strong>Triangulation cadence.</strong> Shipments/exports are monthly; the QC is
+          therefore a coarse cross-check, not a weekly validator. Rejected alternative: interpolating
+          shipments to weekly (would fabricate data — forbidden).</li>
+          <li><strong>Rejected alternative:</strong> using the continuous NO<sub>2</sub> residual as
+          the sole feature — falsified by NOX-009; retained only as a covariate.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>The feature is additive: a new <code>noxus/nowcast/</code> package, new CLI subcommand(s),
+        new config dataclass, new gitignored/committed data dirs. Rollback = remove the package,
+        subcommand registration, and <code>NowcastConfig</code>, and revert the <code>.gitignore</code>
+        / <code>.env.example</code> additions. No existing module is modified beyond additive
+        registration, so reverting cannot regress the existing pipeline. Committed triangulation CSVs
+        can be deleted without affecting other stages.</p>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

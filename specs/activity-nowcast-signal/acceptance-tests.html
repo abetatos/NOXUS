@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Investment-grade activity nowcast</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>Investment-grade activity nowcast</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Source document</th>  <td><code>tasks.json / NOX-013</code></td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-013</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-08-22</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Acceptance-level scenarios for the nowcast. They describe observable behaviour that must hold
+        for the feature to be accepted. Four guards are load-bearing and non-negotiable: a
+        <strong>no-look-ahead guard</strong> (AT2), an <strong>anti-p-hacking guard</strong> (AT3), an
+        <strong>incremental-information-vs-CREA test</strong> (AT4), and an <strong>honest-null
+        test</strong> (AT7).</p>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <p>Verify user-facing CLI behaviour, causal correctness, graceful degradation, the four guards,
+        edge/error handling, and that reused modules and existing commands are unaffected.</p>
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest unit + guard tests; synthetic fixtures with planted signal/null;
+introspection-based guards for anti-p-hacking; diff-empty checks for reuse.</code></pre>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest        # all tests
+uv run ruff check .  # lint</code></pre>
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/nowcast/   (new)
+tests/cli/       (CLI smoke for the new subcommands)</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001..004</span></td><td>AT1, AT2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-005/006</span></td><td>AT2, AT-EDGE-3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-007/008</span></td><td>AT5, AT-EDGE-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-009/010</span></td><td>AT6</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-011</span></td><td>AT4</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-012/013</span></td><td>AT1, AT-REG-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-014</span></td><td>AT7</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-015</span></td><td>AT8</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-001</span></td><td>AT2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-002</span></td><td>AT3, AT7</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-004</span></td><td>AT-REG-1</td><td class="ok">Yes</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header">
+            <span class="req-id">AT1</span>
+            <span class="card-title">Weekly surprise + causal z series is produced</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-001, REQ-003, REQ-004, REQ-012, REQ-013</dd>
+              <dt>Scenario</dt>              <dd>A feature series and a CREA print are available.</dd>
+              <dt>Preconditions</dt>         <dd>Feature store present (thermal series, or events, or NO<sub>2</sub> residual); CREA parquet present.</dd>
+              <dt>Action</dt>                <dd>Run <code>uv run noxus nowcast</code>.</dd>
+              <dt>Expected result</dt>       <dd>A gitignored weekly parquet with columns <code>feature, feature_source, baseline, surprise, z, emission_ts, degraded, warmup</code>; provenance records feature source, latency, seed, fixed defaults, scale caveat.</dd>
+              <dt>Negative expectations</dt> <dd>No full-series or in-sample standardisation; no interpolated gaps.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_surprise.py</code>, <code>tests/cli/test_nowcast_cli.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at2">
+          <div class="card-header">
+            <span class="req-id">AT2</span>
+            <span class="card-title">No-look-ahead guard</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>NFR-001, REQ-004, REQ-005, REQ-006, AC-002, ERR-003</dd>
+              <dt>Scenario</dt>              <dd>Emitted z-scores must depend only on information available at emission time.</dd>
+              <dt>Preconditions</dt>         <dd>A built nowcast on a synthetic series.</dd>
+              <dt>Action</dt>                <dd>Mutate future feature/print values (periods &gt; t), rebuild, compare all emissions at periods ≤ t.</dd>
+              <dt>Expected result</dt>       <dd>Every previously emitted z at periods ≤ t is byte-identical; <code>emission_ts</code> is strictly after the observation time (overpass + latency &rarr; next session); official prints only inform periods on/after their publication date.</dd>
+              <dt>Negative expectations</dt> <dd>No past emission changes when the future changes; no expanding-window uses future points.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_no_lookahead_guard.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at3">
+          <div class="card-header">
+            <span class="req-id">AT3</span>
+            <span class="card-title">Anti-p-hacking guard — model never sees market returns or fits to CREA</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>NFR-002, AC-003</dd>
+              <dt>Scenario</dt>              <dd>The expectation-baseline/feature-model must be fit without reference to returns and without tuning against CREA/returns.</dd>
+              <dt>Preconditions</dt>         <dd>The baseline/feature-model functions exist.</dd>
+              <dt>Action</dt>                <dd>Introspect signatures; assert no market-returns parameter and no CREA-values-for-fit parameter; assert detection thresholds/smoothing/windows are fixed constants (config defaults), not derived from any outcome series.</dd>
+              <dt>Expected result</dt>       <dd>Signature/introspection assertions pass; a test that attempts to pass returns is rejected by design.</dd>
+              <dt>Negative expectations</dt> <dd>No parameter is selected to maximise the reported edge; the last CREA print may be READ into the baseline but is never a fit target.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_anti_phacking_guard.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header">
+            <span class="req-id">AT4</span>
+            <span class="card-title">Incremental-information vs CREA (robust + FDR)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-011, AC-004, NFR-004</dd>
+              <dt>Scenario</dt>              <dd>Does the nowcast lead CREA or add orthogonal content beyond CREA's own causal baseline?</dd>
+              <dt>Preconditions</dt>         <dd>Nowcast z + CREA aligned weekly (resample-then-align convention).</dd>
+              <dt>Action</dt>                <dd>Run <code>incremental_information</code>: <code>lead_lag</code> for "earlier" + partialled residual <code>robust_corr</code> for "orthogonal", with <code>bh_fdr</code> across the config grid. Test on a planted-lead synthetic and a planted-null synthetic.</dd>
+              <dt>Expected result</dt>       <dd>Planted-lead: robust test detects the lead and survives BH-FDR. Planted-null: BH-FDR rejects nothing.</dd>
+              <dt>Negative expectations</dt> <dd>No naive-only significance is reported as robust; effective-N/Newey-West applied.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_incremental.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header">
+            <span class="req-id">AT5</span>
+            <span class="card-title">Graceful degradation when VIIRS is unavailable</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-007, REQ-008, AC-005, EDGE-001</dd>
+              <dt>Scenario</dt>              <dd>The VIIRS thermal series is absent (NOX-011 blocked); events/covariate are present.</dd>
+              <dt>Preconditions</dt>         <dd>No <code>viirs_thermal_series.parquet</code>; NO<sub>2</sub> events/residual present.</dd>
+              <dt>Action</dt>                <dd>Run the nowcast with feature priority <code>auto</code>.</dd>
+              <dt>Expected result</dt>       <dd><code>feature_source</code> is the fallback (events or no2_residual), <code>degraded=True</code>, and the reason is recorded; the run completes without crashing.</dd>
+              <dt>Negative expectations</dt> <dd>No fabricated VIIRS series; no silent substitution without the degraded flag.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_features.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at6">
+          <div class="card-header">
+            <span class="req-id">AT6</span>
+            <span class="card-title">Triangulation QC flags divergence with uncertainty</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-009, REQ-010, AC-006</dd>
+              <dt>Scenario</dt>              <dd>A constructed period where the nowcast + external consensus diverge from the official print.</dd>
+              <dt>Preconditions</dt>         <dd>Nowcast series + committed triangulation snapshots (monthly) present.</dd>
+              <dt>Action</dt>                <dd>Run <code>uv run noxus triangulate-nowcast</code>.</dd>
+              <dt>Expected result</dt>       <dd>The divergent period is flagged as a discrepancy <em>with uncertainty</em>; monthly external data is aligned by resampling (never interpolated up to weekly); correlations use <code>robust_corr</code>.</dd>
+              <dt>Negative expectations</dt> <dd>No series is labelled "fake"/fraudulent; the QC does not gate emission.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_triangulation.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at7">
+          <div class="card-header">
+            <span class="req-id">AT7</span>
+            <span class="card-title">Honest null is a first-class outcome</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-014, NFR-002, AC-007</dd>
+              <dt>Scenario</dt>              <dd>The available feature carries no incremental information over CREA.</dd>
+              <dt>Preconditions</dt>         <dd>A planted-null feature/nowcast.</dd>
+              <dt>Action</dt>                <dd>Run the report.</dd>
+              <dt>Expected result</dt>       <dd>The report states clearly that no tradable edge exists; the code path does not re-tune thresholds/smoothing/windows to manufacture significance.</dd>
+              <dt>Negative expectations</dt> <dd>No parameter search against the outcome; no dropping of "inconvenient" periods.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_report.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header">
+            <span class="req-id">AT8</span>
+            <span class="card-title">T1 feasibility spike emits a three-way go/no-go verdict</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-015, AC-008</dd>
+              <dt>Scenario</dt>              <dd>Feature availability and any-incremental-info are assessed before the build.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic availability scenarios (VIIRS present+informative / VIIRS absent but events informative / nothing informative).</dd>
+              <dt>Action</dt>                <dd>Run <code>uv run noxus nowcast --probe</code>.</dd>
+              <dt>Expected result</dt>       <dd>Verdict is <em>GO-primary</em> / <em>GO-degraded</em> / <em>NO-GO</em> respectively, with evidence written to <code>data/derived/nowcast_probe.txt</code>; NO-GO stops the build (ERR-002).</dd>
+              <dt>Negative expectations</dt> <dd>The build does not proceed past T1 on a NO-GO.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_probe.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+
+        <div class="card" id="at-edge-1">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-1</span>
+            <span class="card-title">VIIRS store absent — no crash, degraded label</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-001, REQ-008</dd>
+              <dt>Scenario</dt>              <dd>VIIRS thermal parquet missing.</dd>
+              <dt>Preconditions</dt>         <dd>Only events/NO<sub>2</sub> residual available.</dd>
+              <dt>Action</dt>                <dd>Run the nowcast.</dd>
+              <dt>Expected result</dt>       <dd>Degraded run completes; fallback source recorded.</dd>
+              <dt>Negative expectations</dt> <dd>No exception; no VIIRS fabrication.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_features.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-2">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-2</span>
+            <span class="card-title">Coverage gaps are not interpolated; warm-up emits NaN</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-002, EDGE-006</dd>
+              <dt>Scenario</dt>              <dd>Feature has missing weeks and an initial history shorter than min-history.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic series with gaps.</dd>
+              <dt>Action</dt>                <dd>Build the nowcast.</dd>
+              <dt>Expected result</dt>       <dd>Gap periods and warm-up periods have NaN z (marked <code>warmup</code>), never interpolated values.</dd>
+              <dt>Negative expectations</dt> <dd>No forward/backward fill of the feature or the z.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_surprise.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-3">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-3</span>
+            <span class="card-title">Publication-lag-aware official print + cadence mismatch</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-003, EDGE-004, REQ-006</dd>
+              <dt>Scenario</dt>              <dd>Official print with a publication lag; monthly triangulation vs weekly nowcast.</dd>
+              <dt>Preconditions</dt>         <dd>Print with a publication date; monthly external series.</dd>
+              <dt>Action</dt>                <dd>Build baseline + triangulation.</dd>
+              <dt>Expected result</dt>       <dd>A print only informs periods on/after its publication date (conservative lag if unknown); monthly external data is compared at the coarser cadence without upward interpolation.</dd>
+              <dt>Negative expectations</dt> <dd>No use of a print before it was published; no fabricated weekly external values.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_baseline.py</code>, <code>test_triangulation.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-1</span>
+            <span class="card-title">No feature store at all — clear error</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-001</dd>
+              <dt>Scenario</dt>              <dd>Neither VIIRS, nor events, nor NO<sub>2</sub> residual available.</dd>
+              <dt>Preconditions</dt>         <dd>Empty derived stores.</dd>
+              <dt>Action</dt>                <dd>Run the nowcast.</dd>
+              <dt>Expected result</dt>       <dd>A clear error names the missing inputs and the commands that produce them; no nowcast emitted.</dd>
+              <dt>Negative expectations</dt> <dd>No silent empty output.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_features.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-2">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-2</span>
+            <span class="card-title">T1 NO-GO stops the build</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-002, REQ-015</dd>
+              <dt>Scenario</dt>              <dd>No feature yields incremental info over CREA at fixed defaults.</dd>
+              <dt>Preconditions</dt>         <dd>Planted-null features.</dd>
+              <dt>Action</dt>                <dd>Run <code>--probe</code>.</dd>
+              <dt>Expected result</dt>       <dd>NO-GO verdict recorded; downstream build tasks do not run.</dd>
+              <dt>Negative expectations</dt> <dd>No proceeding to T2+ on NO-GO.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_probe.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-3">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-3</span>
+            <span class="card-title">Invalid config rejected before computation</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-004</dd>
+              <dt>Scenario</dt>              <dd>Negative latency / unknown feature source / frequency finer than supported.</dd>
+              <dt>Preconditions</dt>         <dd>Invalid <code>NowcastConfig</code>.</dd>
+              <dt>Action</dt>                <dd>Build the nowcast.</dd>
+              <dt>Expected result</dt>       <dd>A validation error is raised before any computation.</dd>
+              <dt>Negative expectations</dt> <dd>No partial output written.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/nowcast/test_config.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header">
+            <span class="req-id">AT-REG-1</span>
+            <span class="card-title">Reused modules unchanged; existing CLI unaffected</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Existing behavior protected</dt> <dd>NOX-008 robust stats, lead-lag, scale align, thermal series, catalyst machinery, and all existing CLI commands.</dd>
+              <dt>Related requirements</dt>         <dd>NFR-004, NFR-007</dd>
+              <dt>Scenario</dt>                     <dd>Nowcast is additive.</dd>
+              <dt>Preconditions</dt>                <dd>Full test suite.</dd>
+              <dt>Action</dt>                       <dd>Run <code>uv run pytest</code> + a diff check on reused modules.</dd>
+              <dt>Expected result</dt>              <dd><code>robust.py</code>, <code>leadlag.py</code>, <code>scale.py</code>, <code>thermal.py</code>, <code>catalyst/**</code> are byte-for-byte unchanged; all pre-existing tests still pass.</dd>
+              <dt>Negative expectations</dt>        <dd>No change to existing command behaviour or outputs.</dd>
+              <dt>Suggested test location</dt>      <dd>existing suites + <code>tests/nowcast/test_reuse_integrity.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> Main success path (weekly surprise + z) is covered.</li>
+          <li><input type="checkbox" disabled> No-look-ahead guard is covered (AT2).</li>
+          <li><input type="checkbox" disabled> Anti-p-hacking guard is covered (AT3).</li>
+          <li><input type="checkbox" disabled> Incremental-information vs CREA is covered (AT4).</li>
+          <li><input type="checkbox" disabled> Honest-null outcome is covered (AT7).</li>
+          <li><input type="checkbox" disabled> Graceful degradation with VIIRS absent is covered (AT5).</li>
+          <li><input type="checkbox" disabled> Triangulation discrepancy-with-uncertainty is covered (AT6).</li>
+          <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI unaffected (AT-REG-1).</li>
+          <li><input type="checkbox" disabled> Tests feasible with the current setup; no hidden assumptions.</li>
+          <li><input type="checkbox" disabled> Any unresolved behavior is listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behaviour absent from the NOX-013 direction or approved assumptions.</li>
+            <li>The four guards (AT2 no-look-ahead, AT3 anti-p-hacking, AT4 incremental-info, AT7 honest-null) are non-negotiable acceptance gates.</li>
+            <li>If a test needs an unresolved decision, update <code>open-questions.html</code>.</li>
+            <li>The reviewer verifies implemented tests cover this document and applies the deep-review escalation ladder to the guards.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

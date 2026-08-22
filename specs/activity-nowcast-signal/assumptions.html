@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Investment-grade activity nowcast</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Investment-grade activity nowcast</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>Investment-grade activity nowcast</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>activity-nowcast-signal</code></td></tr>
+          <tr><th>Source document</th> <td><code>tasks.json / NOX-013 (developer direction 2026-07-12)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-013</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-08-22</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records assumptions made while converting the NOX-013 developer direction into an SDD spec.
+        Assumptions are explicit and reviewable; the developer accepts, corrects, or removes them before
+        implementation.</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Risk level</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">5</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">3</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">1</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>None block the BUILD. A1 blocks only the PRIMARY-FEATURE scientific verdict
+(VIIRS), which is expected and handled by the graceful-degradation path + the T1 gate.</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-high" id="a1">
+          <div class="card-header">
+            <span class="req-id">A1</span>
+            <span class="card-title">VIIRS primary feature is contingent (NOX-011 blocked)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The VIIRS thermal series (NOX-011) may be absent at build time (blocked on EOG VNF credentials + FIRMS <code>MAP_KEY</code>). The build and all tests proceed on the graceful-degradation path (event markers / NO<sub>2</sub> covariate); the primary-feature scientific verdict is produced only if/when the VIIRS series exists.</dd>
+              <dt>Reason</dt>                <dd>NOX-011 is data-gated; the developer must supply credentials and run the live fetch. The nowcast machinery should not be blocked on that.</dd>
+              <dt>Risk level</dt>            <dd>High</dd>
+              <dt>Impact if wrong</dt>       <dd>If VIIRS were available, the primary run would exercise the intended feature; if it stays blocked, the delivered verdict is degraded-path only until a later live run.</dd>
+              <dt>Blocks implementation</dt> <dd>No (build). Yes (primary-feature scientific verdict only).</dd>
+              <dt>Related requirements</dt>  <dd>REQ-007, REQ-008, EDGE-001, ERR-002</dd>
+              <dt>Related design sections</dt><dd>Reuse map; Risks and trade-offs; External dependencies and freshness</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header">
+            <span class="req-id">A2</span>
+            <span class="card-title">Expectation-baseline seasonal model = harmonic-K1 (reused)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The feature's own seasonal/trend model defaults to the reused harmonic-K1 / STL-trend approach (<code>signal/index.py</code>), fit causally, rather than introducing a new model (e.g. Prophet, which NOX-006 showed adds no marginal value).</dd>
+              <dt>Reason</dt>                <dd>Reuse + anti-p-hacking; harmonic-K1 is the method of record and dependency-light.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>A different baseline model could change the surprise; but the choice is fixed pre-outcome and reversible.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-002, NFR-002, NFR-004</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Reuse map</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header">
+            <span class="req-id">A3</span>
+            <span class="card-title">Incremental-info bar = leads-or-orthogonal vs CREA (not market alpha)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>NOX-013's acceptance bar is incremental information about <em>activity</em> relative to the CREA incumbent (earlier, or orthogonal beyond CREA's own causal baseline). The market-return mapping and backtest (information coefficient vs forward returns, event-study CARs, transaction costs) are NOX-014, out of scope here.</dd>
+              <dt>Reason</dt>                <dd>The task description separates the nowcast (NOX-013) from the market backtest (NOX-014, <code>depends_on: NOX-013</code>).</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the developer wants market-return testing inside NOX-013, scope expands; kept out to preserve small tasks and the NOX-014 boundary.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-011, AC-004</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Interfaces (incremental.py)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a4">
+          <div class="card-header">
+            <span class="req-id">A4</span>
+            <span class="card-title">Triangulation sources = committed public CSV snapshots (NOX-012 pattern)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>External shipment/freight/coking-coal series are stored as small committed CSV snapshots under <code>data/triangulation/</code> with a <code>SOURCES.md</code>, mirroring the NOX-012 curtailment-calendar pattern, rather than building a new live acquisition path.</dd>
+              <dt>Reason</dt>                <dd>QC only (not a gate); keeps the task small, reproducible, and free/public.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a live feed is preferred, add an acquisition module later; snapshot is safe and reversible.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-009, ERR-005</dd>
+              <dt>Related design sections</dt><dd>Files to change; External dependencies and freshness</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a5">
+          <div class="card-header">
+            <span class="req-id">A5</span>
+            <span class="card-title">Weekly, Sunday-anchored analysis frequency (project convention)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The nowcast is weekly and Sunday-anchored, matching the existing cube/series convention; CREA (mostly Friday-dated) is resampled to weekly before alignment (reusing the NOX-008/003 convention that fixed the NOX-012 B3 join bug).</dd>
+              <dt>Reason</dt>                <dd>Consistency with existing series; avoids the known exact-date-join pitfall.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>Minimal; frequency is configurable.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-001, REQ-006</dd>
+              <dt>Related design sections</dt><dd>Reuse map; Interfaces (schema)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header">
+            <span class="req-id">A6</span>
+            <span class="card-title">Default processing latency (placeholder, config-driven)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>A conservative default processing latency (order a few days for the feature's data availability) is used, configurable via <code>--latency-days</code>; the exact value per feature (VIIRS NRT vs standard; FIRMS ~3 h NRT) is recorded in provenance and refined at T1.</dd>
+              <dt>Reason</dt>                <dd>Latency must be causal and honest; a config knob keeps it explicit without over-committing before the T1 measurement.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>Too-short latency would leak look-ahead; the guard test + a conservative default protect against that.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-005, NFR-001</dd>
+              <dt>Related design sections</dt><dd>Interfaces (surprise.py); External dependencies</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a7">
+          <div class="card-header">
+            <span class="req-id">A7</span>
+            <span class="card-title">No new heavy runtime dependency</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>All statistics reuse the existing numpy/pandas/scipy/statsmodels stack and the NOX-008 robust module; no new heavy dependency (e.g. scikit-learn) is added.</dd>
+              <dt>Reason</dt>                <dd>Reuse + reproducibility; keeps <code>uv.lock</code> stable.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a new dep is later justified, it needs developer approval per project policy.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>NFR-004</dd>
+              <dt>Related design sections</dt><dd>External dependencies and freshness</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a8">
+          <div class="card-header">
+            <span class="req-id">A8</span>
+            <span class="card-title">"Official print" = the CREA series (no separate NBS/provincial feed)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The "last published official print" used in the baseline is the already-ingested CREA/Mysteel/WIND BF operating rate (NOX-001), treated with a publication lag; no separate NBS/Hebei statistical feed is ingested in this task (Hebei-preference is documented as a caveat, NFR-005, and can be added later).</dd>
+              <dt>Reason</dt>                <dd>CREA is the incumbent and already available; adding a provincial statistical feed is new acquisition scope.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If a provincial official print is required in the baseline, scope expands to a new ingestion; deferred as a caveat.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-002, REQ-006, NFR-005</dd>
+              <dt>Related design sections</dt><dd>Technical summary; External dependencies</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="accepted-assumptions">
+        <h2>Accepted assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts them.</p>
+      </section>
+
+      <hr>
+
+      <section id="rejected-or-replaced-assumptions">
+        <h2>Rejected or replaced assumptions</h2>
+        <p>Move assumptions here when the developer rejects or replaces them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>. A1 blocks only the primary-feature verdict, not the build; the degraded path proceeds.</li>
+            <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
+            <li>The VIIRS dependency (A1) must not be papered over: the build ships degraded and the primary verdict waits for the live VIIRS series.</li>
+            <li>If implementation requires a new assumption, stop and update this file first.</li>
+            <li>If assumptions contradict requirements, design, or developer instructions, stop and ask.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>
