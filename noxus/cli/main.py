@@ -138,11 +138,15 @@ def _cmd_attribute(args: argparse.Namespace) -> int:
 
 def _cmd_index(args: argparse.Namespace) -> int:
     """Meteo regress-out + deseasonalise + relative activity index (NOX-003)."""
+    from dataclasses import replace
+
     from noxus.config.run import SignalConfig
     from noxus.data.era5 import ERA5SnapshotError
     from noxus.signal.index import build_activity_index
 
     cfg = SignalConfig()
+    if getattr(args, "deseason", None):
+        cfg = replace(cfg, deseason_method=args.deseason)
     try:
         out = build_activity_index(cfg, use_meteo=not args.no_meteo)
     except (FileNotFoundError, ERA5SnapshotError) as exc:
@@ -549,6 +553,12 @@ def main(argv: list[str] | None = None) -> int:
     p_index = sub.add_parser("index", help="meteo regress-out + deseason + relative activity index")
     p_index.add_argument(
         "--no-meteo", action="store_true", help="skip ERA5 meteo regress-out (no snapshot needed)"
+    )
+    p_index.add_argument(
+        "--deseason",
+        default=None,
+        help="deseason basis method (e.g. intensity-model); default from SignalConfig. "
+        "'intensity-model' emits steel_intensity_decomposition.parquet (NOX-003.1 residual).",
     )
     p_index.set_defaults(func=_cmd_index)
 

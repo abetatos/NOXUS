@@ -293,11 +293,13 @@ first — see `docs/data-access.md`).
 A **2023-regime event-study** capability has likewise landed (`noxus assemble-calendar` /
 `noxus regime-study`, NOX-012): a public, source-cited Tangshan/Hebei curtailment calendar at
 **coarse-floor** granularity (holidays + heating-season windows; committed under `data/curtailment/`,
-with a richer event-level survey pending a live run) plus rolling-regime identification, a
+with a richer event-level survey still pending a live run) plus rolling-regime identification, a
 regime-conditioned event study, a leave-one-event-out jackknife and a rolling **scan-maximum null** with
-BH-FDR. The machinery is implemented and tested offline; the real-data run on the 2023 rolling-correlation
-regime **is pending** a developer live run (it needs the intensity-residual series — see
-`docs/data-access.md`).
+BH-FDR. The real-data run on the 2023 rolling-correlation regime has now **completed**: the mid-2023 peak
+(exploratory r≈0.76) attenuates to r=0.276 and is **consistent with a rolling-window multiple-comparisons
+artefact** (scan-max null p=0.325) — a valid, first-class result, not a failure; the little coupling present
+is **continuous, not event-bound**, and the 2024 breakdown is **intensity-decoupling** (secular per-tonne
+decline), not a curtailment-regime change. See `docs/exploration-results.html` §10 for the full thread-close.
 See `docs/data-access.md` for data access and `docs/motivation.md` for the preprint-oriented motivation.
 
 # License

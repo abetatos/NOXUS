@@ -1,0 +1,12 @@
+NOX-012 — 2023 regime event study findings
+==========================================
+
+Verdict: multiple-comparisons-artefact
+n_tests (fixed grid, BH-FDR): 6
+Peak r=0.276 at 2023-08-27; collapse r=-0.124 at 2024-02-18.
+Scan-max null: observed=0.276 p=0.32533733133433285 beyond_band=False.
+Event-bound jackknife: continuous (full r=0.257 -> 0.349).
+2024 collapse: intensity-decoupling.
+Peak survives BH-FDR: True.
+
+Regime identification is descriptive/in-sample, not a forward-predictive claim (no-look-ahead).

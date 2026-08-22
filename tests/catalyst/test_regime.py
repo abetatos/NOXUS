@@ -546,6 +546,176 @@ def test_cloud_gapped_curtailment_is_honest_missed_recall():
     assert mr.recall < clear_mr.recall
 
 
+# --------------------------------------------------------------------------- B3 (weekday-anchor alignment)
+
+
+def _misaligned_pair(n_weeks=260):
+    """A Sunday-anchored weekly residual + a Friday-dated near-daily benchmark (the real-run shape).
+
+    Mirrors the on-disk artifacts: the NOX-003.1 residual is Sunday-anchored weekly while the CREA
+    benchmark is mostly Friday-dated (near-daily). With an exact-date inner join only a handful of
+    dates coincide, so any rolling correlation dies with "series too short" (B3). The two series
+    carry a genuine weekly-scale coupling so that, once weekly-aligned, a correlation exists.
+    """
+    rng = np.random.default_rng(42)
+    sun_idx = pd.date_range("2019-01-06", periods=n_weeks, freq="W-SUN")  # Sunday-anchored weekly
+    base = rng.normal(0, 1.0, n_weeks)
+    resid = pd.Series(base, index=sun_idx, name="residual_activity")
+    # A Friday-anchored near-daily benchmark spanning the same era; its weekly mean tracks `base`
+    # inside a coupled block so the aligned correlation is well-defined.
+    fri_idx = pd.date_range("2019-01-04", periods=n_weeks, freq="W-FRI")
+    bench_vals = base + rng.normal(0, 0.2, n_weeks)
+    bench = pd.Series(bench_vals, index=fri_idx, name="value")
+    # Add extra mid-week Wednesday points so the benchmark is not itself on a single weekday.
+    wed_idx = pd.date_range("2019-01-02", periods=n_weeks, freq="W-WED")
+    bench_extra = pd.Series(base + rng.normal(0, 0.2, n_weeks), index=wed_idx, name="value")
+    bench = pd.concat([bench, bench_extra]).sort_index()
+    return resid, bench
+
+
+def test_rolling_regime_aligns_mismatched_weekday_anchors():
+    """B3 regression: a Sunday residual + Friday/Wednesday benchmark must weekly-align and correlate,
+    NOT raise 'series too short'. Exact-date inner join yields ~0 common dates; this fails without the
+    resample-to-freq fix in _join and passes with it."""
+    resid, bench = _misaligned_pair()
+    # Sanity: the two series share almost no exact dates (the bug's precondition).
+    common = set(pd.to_datetime(resid.index)) & set(pd.to_datetime(bench.index))
+    assert len(common) < 5
+    res = R.rolling_regime(resid, bench, window=WINDOW, n_boot=100, n_perm=100, freq="W")
+    assert res.peak_r > 0.5  # a real coupling recovered after weekly alignment
+    assert res.segments["peak"].n > WINDOW // 2
+
+
+def test_join_without_resample_would_be_too_short():
+    """The exact-date join (freq=None) on mismatched anchors is what raised 'series too short'; the
+    weekly-aligned join (freq='W') recovers a usable overlap (B3)."""
+    resid, bench = _misaligned_pair()
+    exact = R._join(resid, bench, freq=None)
+    weekly = R._join(resid, bench, freq="W")
+    assert len(exact) < WINDOW  # too short for the rolling window -> the original crash
+    assert len(weekly) >= WINDOW  # weekly alignment restores the overlap
+
+
+def test_regime_study_end_to_end_on_mismatched_anchors():
+    """The full driver runs (no 'series too short') on real-shaped mismatched-anchor inputs (B3)."""
+    resid, bench = _misaligned_pair()
+    art = R.regime_study(_fast_cfg(), resid=resid, bench=bench, calendar=None, write=False)
+    assert art.n_tests > 0
+    assert art.verdict in (
+        R.VERDICT_EVENT_BOUND,
+        R.VERDICT_CONTINUOUS,
+        R.VERDICT_ARTEFACT,
+        R.VERDICT_INCONCLUSIVE,
+    )
+
+
+# --------------------------------------------------------------------------- B4 (secular-trend column contract)
+
+
+def test_load_series_reads_secular_trend_from_writer_column(tmp_path):
+    """B4 regression: the NOX-003.1 writer emits the secular trend as 'trend_s_t' (the real column
+    names are date/signal/trend_s_t/residual_activity). The loader must read it — not the stale
+    's_trend' name — so secular_trend is non-None and the collapse intensity arm is exercised, not
+    forced-inert. Fails before the fix (loader read 's_trend' -> None), passes after."""
+    from dataclasses import replace
+
+    from noxus.config.run import RegimeStudyConfig
+
+    n = 340  # span 2019-01-06 into 2025 so the pre-period (2022-23) and 2024 collapse both have data
+    idx = _weekly_index(n)
+    rng = np.random.default_rng(9)
+    t = np.arange(n)
+    # A decomp frame with the EXACT writer column names.
+    decomp = pd.DataFrame(
+        {
+            "date": idx,
+            "signal": 5.0 + rng.normal(0, 0.3, n),
+            "trend_s_t": 5.0 - 0.01 * t,  # a real secular intensity decline
+            "residual_activity": rng.normal(0, 1.0, n),
+        }
+    )
+    decomp_path = tmp_path / "steel_intensity_decomposition.parquet"
+    decomp.to_parquet(decomp_path)
+    bench = pd.DataFrame(
+        {"date": pd.date_range("2019-01-04", periods=n, freq="W-FRI"), "value": rng.normal(0, 1, n)}
+    )
+    bench_path = tmp_path / "benchmark.parquet"
+    bench.to_parquet(bench_path)
+
+    cfg = replace(RegimeStudyConfig(), decomposition_path=decomp_path, benchmark_path=bench_path)
+    _resid, _bench, secular, _decomp = R._load_series_from_cfg(cfg)
+    assert secular is not None  # the whole point of B4
+    assert len(secular) == len(decomp)
+    assert np.isfinite(secular.to_numpy()).all()
+
+    # The collapse diagnostic's intensity arm is genuinely exercised (finite pre/collapse means),
+    # not forced-inert by a missing secular trend.
+    diag = R.collapse_attribution(
+        _resid,
+        _bench.resample("W").mean(),
+        None,
+        secular,
+        pre_period=cfg.pre_period,
+        collapse_window=cfg.collapse_window,
+    )
+    assert np.isfinite(diag.intensity_pre)
+    assert np.isfinite(diag.intensity_collapse)
+
+
+def test_load_series_secular_trend_legacy_fallback(tmp_path):
+    """A legacy decomp using the old 's_trend' name still loads (fallback), and one lacking any
+    trend column yields None (genuinely absent) — never a crash (B4)."""
+    from dataclasses import replace
+
+    from noxus.config.run import RegimeStudyConfig
+
+    idx = _weekly_index(120)
+    rng = np.random.default_rng(4)
+    bench = pd.DataFrame({"date": idx, "value": rng.normal(0, 1, 120)})
+    bench_path = tmp_path / "b.parquet"
+    bench.to_parquet(bench_path)
+
+    legacy = pd.DataFrame(
+        {"date": idx, "s_trend": np.linspace(5, 4, 120), "residual_activity": rng.normal(0, 1, 120)}
+    )
+    lp = tmp_path / "legacy.parquet"
+    legacy.to_parquet(lp)
+    cfg = replace(RegimeStudyConfig(), decomposition_path=lp, benchmark_path=bench_path)
+    _, _, sec_legacy, _ = R._load_series_from_cfg(cfg)
+    assert sec_legacy is not None  # legacy name accepted as fallback
+
+    absent = pd.DataFrame({"date": idx, "residual_activity": rng.normal(0, 1, 120)})
+    ap = tmp_path / "absent.parquet"
+    absent.to_parquet(ap)
+    cfg2 = replace(RegimeStudyConfig(), decomposition_path=ap, benchmark_path=bench_path)
+    _, _, sec_absent, _ = R._load_series_from_cfg(cfg2)
+    assert sec_absent is None  # genuinely absent -> None, no crash
+
+
+# --------------------------------------------------------------------------- B1 (harmonic variant on file path)
+
+
+def test_harmonic_variant_on_decomp_frame_does_not_raise():
+    """B1 regression: the 'harmonic' variant through the real file path (a decomp frame carrying a
+    'signal' column) re-deseasonalises without AttributeError and yields a series distinct from the
+    passed intensity residual. This crashed before harmonic_order was added to RegimeStudyConfig."""
+    from noxus.config.run import RegimeStudyConfig
+
+    idx = _weekly_index(200)
+    rng = np.random.default_rng(3)
+    # A raw footprint 'signal' with an annual cycle (what the file path deseasonalises).
+    t = np.arange(200)
+    signal = 5.0 + 2.0 * np.sin(2 * np.pi * t / 52.0) + rng.normal(0, 0.3, 200)
+    resid = pd.Series(rng.normal(0, 1.0, 200), index=idx)  # the intensity residual as passed
+    decomp = pd.DataFrame({"date": idx, "signal": signal})
+    cfg = RegimeStudyConfig()
+    out = R._deseason_variant(resid, "harmonic", decomp, cfg)
+    assert isinstance(out, pd.Series)
+    assert len(out) == len(resid)
+    # Genuinely distinct from the intensity residual (not a silent fallback).
+    assert not np.allclose(np.nan_to_num(out.to_numpy()), np.nan_to_num(resid.to_numpy()))
+
+
 def _fast_cfg():
     """A RegimeStudyConfig with small draw counts for fast, deterministic tests."""
     from dataclasses import replace

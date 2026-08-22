@@ -58,11 +58,26 @@ COLLAPSE_NOT_IDENTIFIABLE = "not-identifiable"
 COLLAPSE_INCONCLUSIVE = "inconclusive"
 
 
-def _join(resid: pd.Series, bench: pd.Series) -> pd.DataFrame:
-    """Inner-join two date-indexed series on their jointly-observed dates (no interpolation)."""
-    df = pd.concat(
-        {"x": pd.Series(resid).astype(float), "y": pd.Series(bench).astype(float)}, axis=1
-    )
+def _join(resid: pd.Series, bench: pd.Series, freq: str | None = "W") -> pd.DataFrame:
+    """Weekly-align two date-indexed series to ``freq`` then inner-join on jointly-observed periods.
+
+    B3 fix: the NOX-003.1 residual is Sunday-anchored weekly while the CREA benchmark is mostly
+    Friday-dated, so an exact-date inner join keeps only the handful of coincident dates (47 on the
+    real series) and every downstream rolling correlation then dies with "series too short". Both
+    series are first composited to the configured cadence with ``.resample(freq).mean()`` — the
+    canonical convention already used by ``noxus.validation.preprocess.align_series`` and
+    ``noxus.validation.scale`` — and then inner-joined on the periods observed in **both** (no
+    interpolation, no look-ahead, no fabricated coverage). ``freq=None`` disables resampling for
+    callers that pass series already on a shared index (offline test fixtures).
+    """
+    x = pd.Series(resid).astype(float)
+    y = pd.Series(bench).astype(float)
+    x.index = pd.to_datetime(x.index)
+    y.index = pd.to_datetime(y.index)
+    if freq is not None:
+        x = x.resample(freq).mean()
+        y = y.resample(freq).mean()
+    df = pd.concat({"x": x, "y": y}, axis=1)
     return df.dropna().sort_index()
 
 
@@ -107,6 +122,7 @@ def rolling_regime(
     n_perm: int = 5000,
     seed: int = 20260720,
     boundary_shifts: tuple[int, ...] = (-4, 0, 4),
+    freq: str | None = "W",
 ) -> RegimeResult:
     """Recompute the rolling correlation, locate the peak/collapse, segment by a fixed rule (REQ-010/011).
 
@@ -119,8 +135,11 @@ def rolling_regime(
 
     The function exposes **no** CREA-agreement / optimisation argument: the boundary is never selected
     to maximise the within-regime correlation (NFR-005, ERR-004).
+
+    ``freq`` weekly-aligns the residual/benchmark pair before correlating (B3); ``None`` for
+    already-aligned series.
     """
-    df = _join(resid, bench)
+    df = _join(resid, bench, freq=freq)
     min_periods = max(3, window // 2)
     rolling = df["x"].rolling(window, min_periods=min_periods).corr(df["y"])
     valid = rolling.dropna()
@@ -209,6 +228,7 @@ def event_bound_jackknife(
     window_periods: int = 4,
     min_events: int = 3,
     drop_frac: float = 0.5,
+    freq: str | None = "W",
 ) -> JackknifeResult:
     """Leave-one-large-event-out on the peak regime: is the r event-bound or continuous? (REQ-021).
 
@@ -220,9 +240,10 @@ def event_bound_jackknife(
     dominates). Below ``min_events`` securely-dated events the event-level test is **refused** and the
     study falls back to the coarse calendar (ERR-003) — it does not emit an unstable rate.
 
-    Exposes **no** CREA-agreement objective (NFR-005, ERR-004).
+    Exposes **no** CREA-agreement objective (NFR-005, ERR-004). ``freq`` weekly-aligns the pair
+    before correlating (B3); ``None`` for already-aligned series.
     """
-    df = _join(resid, bench)
+    df = _join(resid, bench, freq=freq)
     full_r = float(np.corrcoef(df["x"], df["y"])[0, 1]) if len(df) > 2 else float("nan")
     ev_dates = (
         pd.to_datetime(pd.Series(events["date"]).reset_index(drop=True))
@@ -492,6 +513,7 @@ def scan_max_null(
     block: int | None = None,
     seed: int = 20260720,
     alpha: float = 0.05,
+    freq: str | None = "W",
 ) -> ScanMaxNull:
     """Block-permutation distribution of the MAX rolling-``window`` correlation across windows (REQ-030).
 
@@ -501,9 +523,10 @@ def scan_max_null(
     convention, reusing ``robust.block_length``) the maximum rolling correlation over the whole scan is
     recorded per draw. The observed scan-max's percentile / p-value against that distribution is the
     reported significance: a high p-value means the peak is **unsurprising** given how many windows were
-    scanned (an honest-null, artefact-consistent outcome).
+    scanned (an honest-null, artefact-consistent outcome). ``freq`` weekly-aligns the pair before
+    scanning (B3); ``None`` for already-aligned series.
     """
-    df = _join(resid, bench)
+    df = _join(resid, bench, freq=freq)
     n = len(df)
     min_periods = max(3, window // 2)
     x = df["x"].to_numpy()
@@ -678,9 +701,14 @@ def _load_series_from_cfg(
     decomp = pd.read_parquet(decomp_path)
     idx = pd.DatetimeIndex(pd.to_datetime(decomp["date"]))
     resid = pd.Series(decomp["residual_activity"].to_numpy(dtype=float), index=idx)
+    # Secular intensity trend s(t) for the collapse diagnostic's intensity arm (B4). The NOX-003.1
+    # writer (_write_intensity_decomposition, signal/index.py) emits it as the canonical column
+    # ``trend_s_t``; ``s_trend`` is accepted as a legacy fallback. Only None when genuinely absent —
+    # never silently None on a real decomposition (which would leave intensity_shift inert).
+    trend_col = next((c for c in ("trend_s_t", "s_trend") if c in decomp.columns), None)
     secular = (
-        pd.Series(decomp["s_trend"].to_numpy(dtype=float), index=idx)
-        if "s_trend" in decomp.columns
+        pd.Series(decomp[trend_col].to_numpy(dtype=float), index=idx)
+        if trend_col is not None
         else None
     )
     bench_df = pd.read_parquet(bench_path)
@@ -753,6 +781,7 @@ def regime_study(
                 n_perm=cfg.n_perm,
                 seed=cfg.seed,
                 boundary_shifts=cfg.boundary_robustness_periods,
+                freq=cfg.freq,
             )
     regime = rolling_by_vw[(headline, primary_window)]
     peak_lo, peak_hi = regime.peak_window
@@ -766,7 +795,7 @@ def regime_study(
     rows = []
     seen: set[tuple] = set()
     for vlabel, vseries in variant_series.items():
-        df_v = _join(vseries, bench)
+        df_v = _join(vseries, bench, freq=cfg.freq)
         # peak regime: span depends on the window -> distinct per (variant, window).
         for w in windows:
             plo, phi = rolling_by_vw[(vlabel, w)].peak_window
@@ -795,6 +824,7 @@ def regime_study(
         n_draws=cfg.scanmax_draws,
         seed=cfg.seed,
         alpha=cfg.fdr_alpha,
+        freq=cfg.freq,
     )
 
     # --- regime-conditioned event study: precision/recall/lead per (threshold × regime) (REQ-020, F1) ---
@@ -872,6 +902,7 @@ def regime_study(
         window_periods=cfg.jackknife_event_window,
         min_events=cfg.min_events,
         drop_frac=cfg.event_bound_drop_frac,
+        freq=cfg.freq,
     )
 
     # --- 2024 collapse dual diagnostic (REQ-022) ---

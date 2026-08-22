@@ -61,7 +61,8 @@
     <a href="#daily">7 · Daily &amp; the weekly lever</a> ·
     <a href="#scale">8 · Spatial-scale sensitivity</a> ·
     <a href="#variance">9 · Change-variance decomposition</a> ·
-    <a href="#takeaways">10 · Takeaways</a></p>
+    <a href="#regime2023">10 · 2023 regime peak, resolved</a> ·
+    <a href="#takeaways">11 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -118,9 +119,12 @@
     <figcaption>Weekly 52-week rolling correlation — same story, noisier: epochs of genuine positive
     coupling separated by breakdowns.</figcaption></figure>
   <div class="callout">
-    <p><strong>Caveat:</strong> a single-window r=0.73 on a partial series can be over-fitting a good
-    stretch. The full TROPOMI fetch is the arbiter — but a regime/state-conditioned model (not one global
-    r) is clearly the right framing.</p>
+    <p><strong>Caveat (now resolved — see §10):</strong> a single-window r=0.73 on a partial series can be
+    over-fitting a good stretch. This exploratory peak was carried as an <em>open thread</em> for a
+    pre-registered, multiplicity-disciplined test. That test (NOX-012, on the full-series intensity residual
+    with a scan-maximum null) has now run: the peak attenuates to r=0.276 and is <strong>consistent with a
+    rolling-window multiple-comparisons artefact</strong>. The regime/event framing was still the right lens
+    to test it under — but the "one window the signal appeared" does not survive the honest null.</p>
   </div>
 
   <h2 id="artifact">3 · The −0.35 "decoupling" is mostly a whole-sample trend artifact</h2>
@@ -319,13 +323,97 @@
   <code>variance_decomposition_findings.txt</code>. This closes the variance-share question and feeds the
   NOX-010 (deweathering) / NOX-011 (VIIRS triangulation) go/no-go.</p>
 
-  <h2 id="takeaways">10 · Takeaways &amp; next probes</h2>
+  <h2 id="regime2023">10 · The 2023 regime peak, resolved — a scan-maximum artefact (NOX-012)</h2>
+  <p>§2 surfaced the most tantalising pattern in the whole exploration: a rolling-18-month correlation that
+  <em>peaked</em> in mid-2023 (exploratory r≈0.73–0.78, above the literature bar) and then broke down through
+  2024 — "the one window the signal appeared". That was always an <strong>open thread</strong>, not a result:
+  a rolling-window maximum is a multiple-comparisons statistic (the single most favourable window will look
+  large by chance), so a naïve peak r is not evidence. NOX-012 built the machinery to test it honestly and
+  ran it on the full-series NOX-003.1 intensity residual (weekly-mean-aligned), under fixed
+  <code>RegimeStudyConfig</code> knobs chosen <em>before</em> any CREA outcome was viewed (benchmark-blind;
+  no CREA-tuning parameter), with strict no-look-ahead and a public, source-cited curtailment calendar as the
+  event ground truth. Three questions, three answers.</p>
+
+  <div class="callout warn">
+    <h3>Verdict: the 2023 peak is consistent with a rolling-window multiple-comparisons artefact</h3>
+    <p>Headline cell (harmonic deseasonalisation, 18-month / 78-week window): <strong>peak r=0.276 at
+    2023-08-27</strong>. The <strong>scan-maximum null</strong> — a serial-dependence-preserving moving-block
+    permutation whose reference distribution is the <em>max</em> rolling-r across all 341 overlapping windows —
+    puts this peak at observed=0.276, <strong>p=0.325</strong>, the 67.5th percentile, <code>beyond_band=False</code>
+    (block=7, draws=2000). A peak of this size is <strong>unsurprising</strong> given how many overlapping
+    windows were effectively scanned. This is a valid, first-class finding (Morris &amp; Zhang 2019), not a
+    failed experiment — the exploratory r≈0.76 was a favourable-window maximum, and the pre-registered,
+    scan-max-disciplined construction exists precisely to regress it to the mean.</p>
+  </div>
+
+  <figure><img src="figures/exploration/regime_rolling_bands.png" alt="rolling-r with scan-max band">
+    <figcaption>Rolling correlation (intensity residual vs BF rate) with the scan-maximum null band. The
+    2023-08-27 peak (r=0.276) sits <em>inside</em> the band expected from scanning 341 overlapping windows —
+    descriptive peak locator, corrected for its own multiplicity.</figcaption></figure>
+  <figure><img src="figures/exploration/regime_scanmax_null.png" alt="scan-maximum null distribution">
+    <figcaption>Scan-maximum null distribution of the max rolling-r under block permutation. Observed 0.276
+    lands at the 67.5th percentile (p=0.325, <code>beyond_band=False</code>) — the peak is not surprising under
+    its own scan multiplicity.</figcaption></figure>
+
+  <h3>Two multiplicity lenses — and which one governs</h3>
+  <p>BH-FDR over the <strong>fixed 6-cell correlation grid</strong> (2 deseason variants × {18-month, 52-week}
+  peak cells + the 2024 collapse cell per variant, <code>n_tests=6</code>) reports "peak survives BH-FDR:
+  True" — but that boolean is driven by the two <strong>52-week secondary</strong> cells
+  (<code>fdr_significant=True</code>, p_fdr≈0.0078). The <strong>18-month headline peak is itself marginally
+  <em>not</em> FDR-significant</strong> (p_fdr≈0.0516). These are two different lenses and both are reported:
+  the grid-FDR answers "among these specific pre-registered spans, which survive?"; the scan-maximum null
+  answers the question the headline claim actually makes — "is a rolling-window <em>maximum</em> of 0.276
+  surprising given how many windows were scanned?". Because "the correlation peaked at X" is intrinsically a
+  rolling-max claim, <strong>the scan-max null is the honest arbiter and it governs the verdict</strong>. No
+  contradiction: a fixed 52-week span can clear FDR while the rolling-window peak is unsurprising under the
+  multiplicity that generated it.</p>
+
+  <h3>What coupling exists is continuous, not event-bound</h3>
+  <p>A leave-one-event-out jackknife against the coarse-floor curtailment calendar tests whether the coupling
+  is carried by a few large curtailment events. It is <strong>not</strong>: full r=0.257 → r=0.349 with the
+  top 3 events removed. Removing the largest events does not kill (indeed slightly strengthens) the
+  correlation, so whatever coupling is present is <strong>continuous</strong>, not driven by a handful of big
+  curtailments. The regime-conditioned event study is consistent — precision/recall of NO₂ production events
+  against the calendar is low across thresholds (e.g. thr=2.0 peak regime precision=0.00 / recall=0.00;
+  collapse regime precision=0.50 / recall=0.22), the picture of a weak, diffuse link rather than sharp
+  event locking.</p>
+  <div class="grid2">
+    <figure><img src="figures/exploration/regime_jackknife.png" alt="event-bound jackknife">
+      <figcaption>Leave-one-event-out jackknife: full r=0.257 → 0.349 without the top 3 events — continuous
+      coupling, not event-bound.</figcaption></figure>
+    <figure><img src="figures/exploration/regime_precision_recall.png" alt="regime event-study precision/recall">
+      <figcaption>Regime-conditioned event study: NO₂-event precision/recall/median-lead vs the curtailment
+      calendar per magnitude threshold — low and threshold-fragile, consistent with a weak, diffuse link.</figcaption></figure>
+  </div>
+
+  <h3>The 2024 breakdown is intensity-decoupling, not a curtailment regime change</h3>
+  <p>The dual collapse diagnostic attributes the 2024 fall-off to <strong>intensity-decoupling</strong>
+  (<code>calendar_shift=False</code>, <code>intensity_shift=True</code> — a single arm shifted). This is
+  consistent with the NOX-003.1 <em>secular intensity decline</em> (steel getting cleaner per tonne), not
+  with a change in the curtailment regime. So the "it worked in 2023 and stopped in 2024" story is better
+  read as a slow decoupling of NO₂ from output, not as a policy/curtailment switch.</p>
+
+  <p style="color:var(--muted);font-size:14px">Calendar note: the T1 feasibility gate landed at
+  <code>GO-coarse-floor</code> — 21 sourced structural events (Spring Festival + Golden Week holidays +
+  winter heating-season restriction windows, each cited to State Council / MEE-Hebei DEE). A richer
+  <em>event-level</em> curtailment-campaign calendar remains pending a live survey (<code>live_survey_pending=True</code>);
+  no event-level dates were fabricated. Reproduce: <code>uv run noxus regime-study</code> →
+  <code>data/derived/regime_study.csv</code> + <code>regime_event_study.csv</code> +
+  <code>regime_study_summary.txt</code>, then <code>uv run python analysis/regime_2023_event_study.py</code>
+  → the four figures above + <code>regime_2023_findings.txt</code>. This closes the 2023-regime thread the
+  full-series arbiter run (NOX-003.1 T10) left open.</p>
+
+  <h2 id="takeaways">11 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>
-    <li><strong>Chase the regime, not the global r.</strong> The 2022–2023 window reached r≈0.73; a
-    state-conditioned model (or testing what switches the regime on/off — seasonal? policy? market?) is the
-    most promising next step. The full fetch decides if it's real or over-fit.</li>
+    <li><strong>The 2023 regime peak was a scan-maximum artefact (NOX-012, §10).</strong> The exploratory
+    mid-2023 peak (r≈0.73–0.78) was carried as an open thread and tested pre-registered on the full series:
+    it attenuates to r=0.276 and is <em>unsurprising</em> under a rolling-window scan-maximum null (p=0.325).
+    The little coupling present is <strong>continuous, not event-bound</strong> (jackknife: removing the top
+    3 curtailment events does not kill it), and the 2024 breakdown is <strong>intensity-decoupling</strong>
+    (secular per-tonne decline), not a curtailment regime switch. The regime/event framing was the right lens
+    — but there is no over-fit "good window" to promote to a state-conditioned model.</li>
     <li><strong>Better seasonality removal helps — modestly and only in-regime.</strong> A Prophet-style
     single annual Fourier harmonic on top of the intensity trend gives the best coupling (best-regime
     r≈0.78, above the bar); K≥3 over-fits. Worth promoting to a <code>deseason_method="harmonic"</code> in

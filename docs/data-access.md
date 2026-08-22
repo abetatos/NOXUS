@@ -249,10 +249,14 @@ No event-level curtailment dates were fabricated: specific campaign dates that c
 offline are recorded as a **documented gap** in `SOURCES.md`, not invented events. Re-running the
 probe with a live survey is what could upgrade the verdict to `GO-event-level`.
 
-**Status:** the calendar-assembly and regime/event-study **machinery has landed and is tested
-offline**; the real-data `regime-study` run (on the 2023 rolling-correlation regime / 2024 breakdown)
-needs the gitignored NOX-003.1 intensity-residual parquet and is a **developer live run** — its
-verdict is not asserted here.
+**Status:** the calendar-assembly and regime/event-study machinery has landed and been tested
+offline, and the real-data `regime-study` run (on the 2023 rolling-correlation regime / 2024 breakdown)
+has now **completed** on the full-series NOX-003.1 intensity residual. Verdict: the 2023 peak (r=0.276 at
+2023-08-27) is **consistent with a rolling-window multiple-comparisons artefact** under the scan-maximum
+null (p=0.325) — a valid, first-class finding; the coupling present is **continuous, not event-bound**
+(jackknife), and the 2024 breakdown is **intensity-decoupling**, not a curtailment-regime change. Full
+write-up in `docs/exploration-results.html` §10. The coarse-floor calendar was the event ground truth; the
+richer **event-level** campaign survey (above) remains the one outstanding data gap.
 
 ---
 

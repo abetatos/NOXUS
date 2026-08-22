@@ -57,6 +57,38 @@ def test_assemble_calendar_writes_csv(monkeypatch, tmp_path, capsys):
     assert list(loaded.columns) == ["start", "end", "direction", "cause"]
 
 
+def test_index_deseason_flag_threads_to_cfg(monkeypatch):
+    """B2: `noxus index --deseason intensity-model` parses and threads through to
+    cfg.deseason_method, so the ERR-001 message ('Run noxus index --deseason intensity-model') is a
+    valid instruction. Captures the cfg build_activity_index actually receives."""
+    import noxus.signal.index as SI
+
+    seen = {}
+
+    def _fake_build_activity_index(cfg, use_meteo=True):
+        seen["deseason_method"] = cfg.deseason_method
+        seen["use_meteo"] = use_meteo
+
+        class _Out:
+            index_path = "x"
+            summary = "stub"
+
+        return _Out()
+
+    monkeypatch.setattr(SI, "build_activity_index", _fake_build_activity_index)
+    rc = main(["index", "--deseason", "intensity-model", "--no-meteo"])
+    assert rc == 0
+    assert seen["deseason_method"] == "intensity-model"
+
+
+def test_index_help_shows_deseason_flag(capsys):
+    """B2: the --deseason flag is advertised on `noxus index --help`."""
+    with pytest.raises(SystemExit) as exc:
+        main(["index", "--help"])
+    assert exc.value.code == 0
+    assert "--deseason" in capsys.readouterr().out
+
+
 def test_regime_study_missing_residual_is_actionable(monkeypatch, tmp_path, capsys):
     """AT-ERR-1 / ERR-001: absent NOX-003.1 residual -> failure naming the producing command."""
     monkeypatch.chdir(tmp_path)

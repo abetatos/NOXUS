@@ -484,6 +484,9 @@ class RegimeStudyConfig:
     # Deseason variants in the fixed grid; the harmonic-K1 method of record headlines (Q3).
     variants: tuple[str, ...] = ("harmonic", "intensity-model")
     headline_variant: str = "harmonic"
+    # Annual harmonics removed in the "harmonic" variant; K=1 is the method of record (mirrors
+    # SignalConfig.harmonic_order). Consumed by deseasonalize() on the real file path (regime.py).
+    harmonic_order: int = 1
 
     # --- Regime segmentation (fixed pre-registered rule, Q4/A5) -------------------------------
     # The "2023 peak" regime is the ``window_months`` window centred on the located rolling-r peak;

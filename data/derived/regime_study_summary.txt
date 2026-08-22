@@ -1,0 +1,20 @@
+NOX-012 — 2023 regime event study (regime identification is descriptive, not predictive).
+
+VERDICT: The 2023 peak is consistent with a MULTIPLE-COMPARISONS ARTEFACT of the rolling window (scan-maximum null): the r is unsurprising given how many overlapping windows were effectively scanned. This is a valid, first-class finding (Morris & Zhang 2019).
+
+n_tests (fixed correlation grid, BH-FDR — genuinely distinct cells): 6
+  distinct deseason variants: ['harmonic', 'intensity-model']; rolling windows tested (periods): [78, 52] (18-month primary + 52-week secondary, REQ-010).
+  (Event-magnitude thresholds parametrise the event-study table below, not the correlation grid — a threshold does not change the correlation statistic, so it is not padded into the FDR family.)
+peak r=0.276 at 2023-08-27 (rolling-max 'collapse' locator r=-0.124 at 2024-02-18; note this rolling-min locator differs from the fixed 2024 calendar-year 'collapse' regime used in the grid/diagnostic).
+scan-max null: observed=0.276 p=0.32533733133433285 percentile=0.675 beyond_band=False (block=7, windows=341, draws=2000).
+peak survives BH-FDR: True.
+event-bound jackknife: continuous (full r=0.257 -> without top 3 events 0.349). Removing the top 3 events moved r 0.257 -> 0.349; continuous coupling.
+2024 collapse: intensity-decoupling (calendar_shift=False, intensity_shift=True). Single arm shifted.
+
+Event-study table (precision/recall/lead per threshold × regime — the REQ-020 headline metric, never a Pearson r):
+  thr=1.5 regime=collapse: precision=0.300 recall=0.333 fdr=0.700 median_lead_days=-9.0 (n_no2=10, n_prod=9, matched=3, low_power=False).
+  thr=2.0 regime=collapse: precision=0.500 recall=0.222 fdr=0.500 median_lead_days=-5.5 (n_no2=4, n_prod=9, matched=2, low_power=False).
+  thr=2.5 regime=collapse: precision=0.667 recall=0.222 fdr=0.333 median_lead_days=-5.5 (n_no2=3, n_prod=9, matched=2, low_power=False).
+  thr=1.5 regime=peak: precision=0.167 recall=0.067 fdr=0.833 median_lead_days=12.0 (n_no2=6, n_prod=15, matched=1, low_power=False).
+  thr=2.0 regime=peak: precision=0.000 recall=0.000 fdr=1.000 median_lead_days=nan (n_no2=3, n_prod=15, matched=0, low_power=False).
+  thr=2.5 regime=peak: precision=0.000 recall=0.000 fdr=1.000 median_lead_days=nan (n_no2=1, n_prod=15, matched=0, low_power=True).

@@ -16,9 +16,9 @@
         <tr><th>Task ID</th><td><code>NOX-012</code></td></tr>
         <tr><th>Feature slug</th><td><code>regime-2023-event-study</code></td></tr>
         <tr><th>Reviewer</th><td>reviewer agent</td></tr>
-        <tr><th>Date</th><td><code>2026-08-04</code> · re-checked <code>2026-08-08</code></td></tr>
-        <tr><th>Verdict</th><td><span class="badge badge-ready">RE-CHECK: offline machinery review-clean — F1–F4 resolved. Only G1 (T12 real run) + G2 (T13 docs) remain before <code>done</code>.</span></td></tr>
-        <tr><th>State-machine decision</th><td><code>approved</code> (offline machinery); task stays <code>in_progress</code> pending the two data/doc gates. Original verdict below retained for the record.</td></tr>
+        <tr><th>Date</th><td><code>2026-08-04</code> · re-checked <code>2026-08-08</code> · T12 real-data pass <code>2026-08-22</code></td></tr>
+        <tr><th>Verdict</th><td><span class="badge badge-ok">FINAL: docs-approved — all gates cleared. NOX-012 is READY FOR <code>done</code>.</span></td></tr>
+        <tr><th>State-machine decision</th><td><code>approved</code> — machinery review-clean (offline + real-data), G1 data gate cleared, documentation complete &amp; re-checked (<code>documentation_status: updated</code>). Ready for <code>done</code> pending the main-conversation's mechanical status flip. Full trail below, newest first.</td></tr>
       </tbody></table>
     </header>
     <main>
@@ -95,6 +95,185 @@
         </ul>
         <p>Task must not be marked <code>done</code> while G1/G2 remain; <code>tasks.json</code> was not edited and
         nothing was committed, per instruction.</p>
+      </section>
+
+      <section id="final-docs-recheck">
+        <h2>Final docs re-check (2026-08-22, post-T12) — <code>docs-approved</code>: NOX-012 ready for <code>done</code></h2>
+        <p>The documenter wrote the T12 verdict into the docs. I verified every documented number against the actual
+        artifacts (<code>regime_study.csv</code> / <code>regime_study_summary.txt</code>) and checked the six points.
+        <strong>Verdict: docs-approved.</strong> No scientific overstatement; the artefact result is honest and
+        first-class; the event-level-calendar gap stays disclosed; DL-1/DL-2 remain proposed-only.</p>
+        <table>
+          <thead><tr><th>Check</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>1. Numbers match the artifacts</td><td class="ok">PASS — verified against source: peak r=0.276 @ 2023-08-27; scan-max p=0.325, 67.5th pct, <code>beyond_band=False</code> (block=7, 341 windows, 2000 draws); 52-week peak cells <code>fdr_significant=True</code> p_fdr≈0.0078; 18-month headline p_fdr≈0.0516 (CSV 0.05159/0.05189) — the "marginally not significant" nuance is exact; jackknife continuous, full r=0.257 → 0.349; collapse=intensity-decoupling (<code>calendar_shift=False</code>, <code>intensity_shift=True</code>); <code>n_tests=6</code>. Consistent across exploration-results §10, decisions, history, README. No mismatch or overstatement.</td></tr>
+            <tr><td>2. N-T12-1 resolved in §10 wording</td><td class="ok">PASS — §10 states the "survives BH-FDR: True" boolean is driven by the <em>52-week secondary</em> cells, that the 18-month headline peak is itself marginally <em>not</em> FDR-significant (p_fdr≈0.0516), and that grid-FDR vs the scan-maximum null are different lenses with the scan-max governing the rolling-peak claim. No bare/misleading "survives BH-FDR" claim.</td></tr>
+            <tr><td>3. Null/artefact as honest first-class finding</td><td class="ok">PASS — "a valid, first-class finding … not a failure" (Morris &amp; Zhang 2019) in §10, decisions and history; framed as the pre-registered construction regressing an exploratory number to the mean, not spun as success or buried as failure.</td></tr>
+            <tr><td>4. No claim beyond the run; event-level gap disclosed</td><td class="ok">PASS — coupling described as "the little coupling present … continuous, not event-bound"; README/data-access keep the richer event-level campaign survey as "the one outstanding data gap" / "still pending a live run." Honest.</td></tr>
+            <tr><td>5. DL-1/DL-2 not adopted</td><td class="ok">PASS — decisions entry keeps the "Note (proposed, not adopted here)" bullet; history says they "remain deliberately not recorded … need explicit developer approval."</td></tr>
+            <tr><td>6. Four figures exist &amp; referenced</td><td class="ok">PASS — all four PNGs present under <code>docs/figures/exploration/</code> (regime_rolling_bands, regime_scanmax_null, regime_precision_recall, regime_jackknife) and referenced correctly in §10.</td></tr>
+          </tbody>
+        </table>
+        <p>Also confirmed: history badge is "review — final docs check pending" and Status reads "In review — not yet
+        done" — the docs do <strong>not</strong> self-assert <code>done</code> (correct; that is the
+        main-conversation's call). <code>references.bib</code> is absent and the project map is unaffected by T12 —
+        both correctly left untouched.</p>
+        <p><strong>NOX-012 is ready to be marked <code>done</code>.</strong> All gates are cleared: machinery
+        review-clean (offline + real-data), G1 data gate cleared, documentation complete and re-checked
+        (<code>documentation_status: updated</code>), the single wording nit (N-T12-1) folded in. Remaining mechanical
+        steps are the main-conversation's: set <code>tasks.json</code> status → <code>done</code>, mark the
+        <code>tasks.html</code> item states, and flip the <code>history.html</code> badge to done. Per instruction,
+        <code>tasks.json</code> was not edited and nothing was committed. (The generated
+        <code>data/derived/regime_study.csv</code>, <code>regime_event_study.csv</code>,
+        <code>regime_study_summary.txt</code> and the four figures are committable per git policy — commit on request.)</p>
+      </section>
+
+      <section id="t12-realdata-pass">
+        <h2>T12 real-data pass (2026-08-22) — <code>approved-with-nits</code></h2>
+        <p>The data gate was lifted (the NOX-003.1 residual was regenerated locally from the on-disk NO₂ cube +
+        full-series ERA5 — a reproducible derived artifact, not external data). The real
+        <code>noxus regime-study</code> now runs; it surfaced four real-run bugs the offline fixtures missed
+        (fixtures inject pre-aligned series on a shared index). All four are fixed with genuine
+        fail-without/pass-with regression tests. <strong>Verdict: approved-with-nits.</strong> This review does not
+        record any scientific verdict — that is the documenter's/developer's to record.</p>
+
+        <h3>Four fixes — verified correct, minimal, in-scope, each with a load-bearing regression test</h3>
+        <table>
+          <thead><tr><th>Bug</th><th>Fix (verified)</th><th>Regression test</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>B1</strong> — harmonic variant crashed on the real file path</td>
+              <td><code>RegimeStudyConfig.harmonic_order: int = 1</code> (run.py:489), matching the K=1 method of
+              record. Confirmed load-bearing: <code>deseasonalize()</code> reads <code>cfg.harmonic_order</code>
+              (signal/index.py:184) — without the attr the harmonic variant raises.</td>
+              <td class="ok"><code>test_harmonic_variant_on_decomp_frame_does_not_raise</code> — also asserts the
+              harmonic residual is genuinely distinct from the intensity residual (not a silent fallback).</td>
+            </tr>
+            <tr>
+              <td><strong>B2</strong> — ERR-001 message named a nonexistent flag</td>
+              <td><code>index --deseason</code> added (main.py:558), threading to <code>cfg.deseason_method</code>
+              (mirrors <code>variance</code>). The ERR-001 instruction "Run 'noxus index --deseason intensity-model'"
+              is now valid.</td>
+              <td class="ok"><code>test_index_deseason_flag_threads_to_cfg</code> (captures the cfg build receives) +
+              <code>test_index_help_shows_deseason_flag</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>B3 (significant)</strong> — exact-date inner join kept only 47 common dates → "series too short"</td>
+              <td><code>_join(resid, bench, freq)</code> now resamples both to weekly
+              (<code>.resample(freq).mean()</code>, regime.py:78-79) before the inner join — <strong>faithful to the
+              canonical convention</strong> in <code>preprocess.align_series</code> (lines 77-78) and
+              <code>scale.py</code> (123/148). Threaded through all four correlation-join sites via
+              <code>freq=cfg.freq</code> (rolling_regime 784, grid 798, scan_max_null 827, jackknife 905);
+              <code>freq=None</code> disables it for pre-aligned fixtures. <strong>No look-ahead</strong>
+              (contemporaneous week-mean + inner-join dropna, no interpolation), <strong>benchmark-blind</strong>
+              (resample is value-independent), and <strong>event-detection semantics genuinely unchanged</strong> —
+              <code>regime_event_study</code> does <em>not</em> route through <code>_join</code>; it calls
+              <code>detect_events</code>/<code>bf_rate_events</code>/<code>match_events</code> on the native cadence.</td>
+              <td class="ok"><code>test_rolling_regime_aligns_mismatched_weekday_anchors</code>,
+              <code>test_join_without_resample_would_be_too_short</code> (directly asserts freq=None &lt; WINDOW vs
+              freq="W" ≥ WINDOW — the fix is provably load-bearing),
+              <code>test_regime_study_end_to_end_on_mismatched_anchors</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>B4</strong> — secular trend read from wrong column → 2024-collapse intensity arm always inert</td>
+              <td><code>_load_series_from_cfg</code> reads canonical <code>trend_s_t</code> (the writer's column,
+              index.py:441) with legacy <code>s_trend</code> fallback (regime.py:708). The collapse intensity arm is
+              now genuinely exercised.</td>
+              <td class="ok"><code>test_load_series_reads_secular_trend_from_writer_column</code> (asserts
+              <code>secular is not None</code> + finite pre/collapse means) +
+              <code>test_load_series_secular_trend_legacy_fallback</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Independent verification</h3>
+        <p><code>uv run pytest</code> → <strong>256 passed</strong> (+8 delta tests over the 248 at the last
+        re-check); <code>uv run ruff check .</code> → clean; <code>git diff</code> on the reused NOX-004/NOX-008
+        modules (<code>catalyst/{events,groundtruth,study,report}.py</code>,
+        <code>validation/{robust,leadlag,preprocess,scale}.py</code>) is <strong>empty</strong> — still byte-for-byte
+        unchanged. I re-ran <code>uv run noxus regime-study</code> myself and inspected all three artifacts.</p>
+
+        <h3>Artifact internal consistency (point 3) — PASS</h3>
+        <ul>
+          <li><code>n_tests=6</code> in the summary equals the 6 rows of <code>regime_study.csv</code> (2 distinct
+          variants × {peak@78, peak@52} + {collapse@78 per variant}); B1 now produces genuinely-distinct
+          harmonic vs intensity-model residuals on the file path (the offline dedup no longer collapses them).</li>
+          <li>Headline values in <code>regime_study_summary.txt</code> (peak r=0.276 @ 2023-08-27, scan-max
+          observed=0.276, block=7, windows=341, draws=2000) match the harmonic@78 primary cell in the CSV.</li>
+          <li>"peak survives BH-FDR: True" matches the CSV: of the four peak cells, the two 52-week cells have
+          <code>fdr_significant=True</code> (p_fdr≈0.0078) and the two 78-week cells <code>False</code>; the
+          any-cell boolean is therefore True. Consistent.</li>
+          <li>The event-study block in the summary matches <code>regime_event_study.csv</code> row-for-row
+          (precision/recall/FDR/median-lead per threshold × regime).</li>
+        </ul>
+
+        <h3>Point 4 — the "survives BH-FDR: True" vs "artefact" tension: COHERENT, not a defect</h3>
+        <p>These are two <strong>different multiplicity lenses</strong> and reporting both is correct:</p>
+        <ul>
+          <li><strong>BH-FDR over the fixed 6-cell correlation grid</strong> asks: among the six pre-registered
+          correlations, which survive FDR control? Answer: the two 52-week peak cells do. This is a narrow statement
+          about specific pre-registered spans.</li>
+          <li><strong>The scan-maximum null over the 341 overlapping rolling windows</strong> asks the question the
+          headline peak claim actually makes — "is a rolling-window <em>maximum</em> of 0.276 surprising given how
+          many overlapping windows were effectively scanned?" Answer: no (observed=0.276, p=0.325,
+          <code>beyond_band=False</code>; the peak sits at the 67.5th percentile of its own scan-max null). Because a
+          "the correlation peaked at X" claim is intrinsically a rolling-max claim, the scan-max null is the honest
+          arbiter, and the driver correctly lets it govern the verdict.</li>
+        </ul>
+        <p>So there is no self-contradiction: a specific fixed window can be FDR-significant while the
+        <em>rolling-window peak</em> is unsurprising under the multiplicity that generated it. <strong>Non-blocking
+        clarity nit (N-T12-1):</strong> the summary's bare boolean "peak survives BH-FDR: True" is driven by the
+        <em>52-week secondary</em> cells; the 18-month <em>headline</em> peak (harmonic@78) is itself marginally
+        <em>not</em> FDR-significant (p_fdr≈0.0516). To pre-empt a misread as contradiction, the summary/thread-close
+        text should name which window survives and state plainly that the grid-FDR and the scan-max are different
+        lenses (grid-FDR is not the test for the rolling-peak claim). Wording only — the logic is correct.</p>
+
+        <h3>Point 5 — r=0.276 (pre-registered) vs the exploratory r≈0.76: expected, not a bug; nothing selected against CREA</h3>
+        <ul>
+          <li>The exploratory r≈0.76 (NOX-003.1 T10) was on a differently-constructed series (raw de-trended
+          footprint NO₂); the pre-registered run correlates the <strong>NOX-003.1 intensity residual</strong>
+          (<code>residual_activity</code>), weekly-mean-aligned (B3), under the fixed harmonic-K1 / intensity-model
+          variants and 18-month primary window. Different input series + deseason + weekly compositing legitimately
+          yield a smaller r. This attenuation is exactly the kind of favourable-number regression the pre-registered,
+          scan-max-disciplined construction exists to produce.</li>
+          <li><strong>Benchmark-blindness intact:</strong> the peak <em>date</em> is located as the argmax of the
+          rolling r (descriptive identification, labelled so, and corrected by the scan-max null) — but no
+          variant/window/threshold/boundary is <em>chosen</em> to maximise CREA agreement. Decisive tell: the headline
+          is the fixed <em>primary</em> cell (harmonic@78, r=0.276), <strong>not</strong> the larger 52-week cells
+          (r≈0.39) that would have been promoted if anything were selecting for the biggest number. The grid is fixed
+          and every cell is reported. No silent selection against CREA.</li>
+        </ul>
+
+        <h3>T12 verdict &amp; remaining gate</h3>
+        <p><strong>approved-with-nits.</strong> The four fixes are correct, minimal, in-scope and genuinely tested;
+        the machinery (offline + real-data) is review-clean; artifacts are internally consistent; points 4 and 5 are
+        coherent. One non-blocking wording nit (N-T12-1) to fold into the thread-close text. The data gate (G1) is now
+        <strong>cleared</strong>. The only remaining gate before <code>done</code> is the documentation pass below.</p>
+        <p><strong>Documentation: now REQUIRED to be updated by the documenter</strong> (a real verdict/artifacts now
+        exist; the previously-deferred targets can be completed). <code>documentation_status</code> moves back to
+        <code>pending</code>. Targets:</p>
+        <ul>
+          <li><code>docs/exploration-results.html</code> — <strong>now unblocked:</strong> close the 2023-regime
+          thread with the actual regime figure + event-study table + scan-max-null framing (the deferral reason is
+          resolved).</li>
+          <li><code>docs/figures/exploration/</code> — generate the four figures via
+          <code>analysis/regime_2023_event_study.py</code> (rolling bands, precision/recall, jackknife, scan-max null)
+          + the findings note.</li>
+          <li><code>decisions/architecture-decisions.md</code> — the entry's "Pending (do NOT record until the live
+          run)" verdict can now be recorded factually. DL-1/DL-2 standing-methodology proposals still require explicit
+          developer approval (unchanged).</li>
+          <li><code>history.html</code> — flip the NOX-012 badge from "blocked — data-gated" to done and add the
+          Result once recorded.</li>
+          <li><code>README.md</code> — Status: flip "real-data run pending" to landed.</li>
+          <li><code>docs/data-access.md</code> — update the "verdict not asserted here / pending" status line.</li>
+          <li><code>references.bib</code> — add the Morris &amp; Zhang (2019) multiple-testing citation if the
+          thread-close cites it (optional).</li>
+        </ul>
+        <p>N-T12-1 should be incorporated into the summary/thread-close wording as part of that pass. After the
+        documenter completes these and the reviewer runs a final docs re-check, <strong>NOX-012 can go to
+        <code>done</code></strong>. The generated <code>data/derived/regime_study.csv</code>,
+        <code>regime_event_study.csv</code> and <code>regime_study_summary.txt</code> are committable per git policy
+        (commit on request). <code>tasks.json</code> not edited; nothing committed.</p>
       </section>
 
       <section id="docs-recheck">
