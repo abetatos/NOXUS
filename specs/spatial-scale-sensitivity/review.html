@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Spatial-scale sensitivity (NOX-008)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Spatial-scale sensitivity of the NO₂↔steel signal</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-008</code></td></tr>
+        <tr><th>Feature slug</th><td><code>spatial-scale-sensitivity</code></td></tr>
+        <tr><th>Reviewed commit</th><td><code>433b49c</code> (feature/gems-acquisition → master)</td></tr>
+        <tr><th>Human approval</th><td>abetatos, 2026-06-14 (Q1 resolved: resolutions {native, 0.10, 0.15, 0.25}°)</td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved (with non-blocking nits)</span></td></tr>
+        <tr><th>Documentation</th><td><span class="badge badge-ok">updated — complete &amp; accurate</span></td></tr>
+        <tr><th>Next state</th><td><code>done</code> (no blocking items)</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-008 is <strong>faithfully implemented against the approved spec</strong> and the recorded
+        honest-null result is fully supported by the committed artifacts. The two scale axes are pure
+        re-aggregations of the existing cube (clip = strict subset; coarsen = block-mean), with no
+        interpolation-to-finer path anywhere; finer-than-native is refused at runtime. The
+        autocorrelation-robust significance machinery (effective-N first-order + Newey-West, moving-block
+        bootstrap CI, block-permutation null, BH-FDR) is real, tested, and used by the sweep — not stubbed.
+        The pipeline is benchmark-blind. <code>uv run pytest</code> (248 passed) and
+        <code>uv run ruff check .</code> (clean) both pass. Two minor non-blocking nits are recorded and
+        deferred with justification; neither blocks marking the task <code>done</code>.</p>
+      </section>
+
+      <section id="commands-run">
+        <h2>Commands run</h2>
+        <table>
+          <thead><tr><th>Command</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run pytest -q</code></td><td><span class="badge badge-ok">248 passed in 8.89s</span></td></tr>
+            <tr><td><code>uv run ruff check .</code></td><td><span class="badge badge-ok">All checks passed!</span></td></tr>
+            <tr><td>CSV audit (<code>scale_sensitivity.csv</code>: rows, verdict/FDR counts)</td><td>128 rows; 0 robust; 34 fragile (naive-only); 94 ns; all <code>fdr_reject=False</code>; min <code>p_fdr</code>=0.196</td></tr>
+            <tr><td>Findings vs CSV cross-check (Parubets [2] / source-isolation [3] r-values)</td><td>Match (e.g. ME intensity wide 0.1238≈+0.12, tight 0.0912≈+0.09; W level wide −0.0314, tight −0.0478)</td></tr>
+            <tr><td><code>grep interp/reindex/upsample</code> in gridding.py + scale.py</td><td>Only refusal + doc comments; no interpolation code path</td></tr>
+            <tr><td><code>git show --stat 433b49c</code> (docs + additivity)</td><td>leadlag.py / preprocess.py / signal/index.py NOT modified; doc targets modified</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="requirement-traceability">
+        <h2>Requirement traceability</h2>
+        <table>
+          <thead><tr><th>Req / AC</th><th>Implementation</th><th>Test / evidence</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>REQ-001 (clip = strict subset, no interp)</td><td><code>gridding.clip_cube_to_region</code> (<code>isel</code> on centre coords)</td><td><code>test_scale_ops.test_clip_is_strict_subset_no_interpolation</code> (AT1)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-002/003 (block-mean + coverage + realised spacing)</td><td><code>coarsen_cube</code> (<code>.coarsen(boundary="trim").mean(skipna)</code>; realised spacing/factors in <code>.attrs</code>)</td><td><code>test_coarsen_block_mean_and_realised_spacing</code>, <code>test_coarsen_all_nan_block_is_nan</code> (AT2, EDGE-001)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-010 (per-scale re-derive via existing pathway)</td><td><code>scale.derive_scale_signal</code> reuses <code>attribution.source</code> footprint + <code>signal.index.deseasonalize</code> unchanged</td><td><code>test_scale.test_sweep_table_has_columns_and_is_deterministic</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-011 / EDGE-002 (AOI-mean fallback, labelled)</td><td><code>derive_scale_signal</code> catches <code>GeometryError</code>/&lt;<code>min_footprint_cells</code> → <code>aoi-mean-fallback</code></td><td><code>test_aoi_mean_fallback_labelled_when_too_few_cells</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-020 (effective-N first-order + Newey-West + p)</td><td><code>robust.effective_n</code> (Bayley–Hammersley + Bartlett/NW bandwidth), <code>p_from_r</code></td><td><code>test_effective_n_below_n_for_autocorrelated_and_near_n_for_white</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-021 (moving-block bootstrap CI, seeded)</td><td><code>robust.block_bootstrap_ci</code></td><td><code>test_autocorrelated_null_...</code>, <code>test_planted_signal_recovered...</code> (AT3/AT4)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-022 / EDGE-003 (block-permutation p, seeded, (c+1)/(n+1))</td><td><code>robust.block_permutation_p</code></td><td>AT3 (null ≈ α &lt; naive) / AT4 (perm p &lt; α)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-023 (additive to leadlag; contracts unchanged)</td><td>New <code>robust.py</code>; <code>leadlag.py</code>/<code>preprocess.py</code> untouched in 433b49c</td><td>git stat + <code>test_validation.py</code> still green</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-030 (BH-FDR)</td><td><code>robust.bh_fdr</code> (monotone, NaN-carrying)</td><td><code>test_bh_fdr_matches_reference</code>, <code>test_bh_fdr_all_null_no_discoveries_and_nan_carried</code> (AT5)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-040 (tidy table, all columns, FDR across family)</td><td><code>scale.scale_sweep</code> → CSV with all REQ-040 columns; FDR within each <code>lag_kind</code> family</td><td><code>test_sweep_table_has_columns_and_is_deterministic</code>; committed CSV header has all columns</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-041 (scale-grid figures + Parubets/isolation verdicts)</td><td><code>analysis/scale_sensitivity.py</code> → scale_grid_r/sig PNGs + findings</td><td>16 figures committed; findings [2]/[3] state both verdicts</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-042 / NFR-007 (honest null framing, no cherry-pick)</td><td>findings verdict framing; all scales reported with FDR caveat</td><td><code>scale_sensitivity_findings.txt</code> §Verdict framing</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>REQ-050 (CLI + recorded config)</td><td><code>ScaleSweepConfig</code>; <code>noxus scale-sweep</code> subcommand (<code>_cmd_scale_sweep</code>)</td><td>CLI wiring present; existing commands unchanged</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>ERR-002 (finer-than-native refused)</td><td><code>coarsen_cube</code> raises <code>ValueError</code></td><td><code>test_coarsen_finer_than_native_refused</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>ERR-003 (empty clip refused)</td><td><code>clip_cube_to_region</code> raises <code>GriddingError</code></td><td><code>test_clip_outside_extent_raises</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>ERR-001 (missing cube actionable)</td><td><code>run_scale_sweep</code> raises <code>FileNotFoundError</code> naming <code>noxus grid</code></td><td>Code path present; <em>no explicit unit test</em> (Nit N1)</td><td><span class="badge badge-warn">met (untested)</span></td></tr>
+            <tr><td>NFR-001 (reproducible, fixed seeds)</td><td>seed 20260614 in config; deterministic bootstrap/perm RNG</td><td><code>test_...is_deterministic</code> (assert_frame_equal)</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>NFR-002 (no interpolation; gaps stay NaN)</td><td>clip=subset, coarsen=block-mean skipna, all-NaN→NaN</td><td>grep + <code>test_coarsen_all_nan_block_is_nan</code></td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>NFR-003 (anti-p-hacking / benchmark-blind)</td><td><code>deseasonalize</code> takes no benchmark; scale never selected to max r; FDR over whole family</td><td>signature review; config docstring; 0/128 reported honestly</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>NFR-004 (additive)</td><td>new modules only; existing contracts/CLI unchanged</td><td>git stat; full suite green</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>NFR-005 (NO₂-derived gitignored)</td><td><code>.gitignore</code> <code>data/derived/no2/</code></td><td>per-scale cubes not committed; only small stats + figures</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>NFR-006 (stack conformance; tests+lint)</td><td>no new heavy dep</td><td>pytest 248 passed; ruff clean</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>AC-006 (deterministic re-run)</td><td>seeded sweep</td><td>determinism test</td><td><span class="badge badge-ok">met</span></td></tr>
+            <tr><td>AC-007 (Parubets + isolation verdicts; honest null)</td><td>findings [2]/[3] + framing</td><td>findings file</td><td><span class="badge badge-ok">met</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="key-verifications">
+        <h2>Key verifications (checked against actual code/artifacts)</h2>
+        <ol>
+          <li><strong>Two-axis sweep as specified.</strong> Axis 1 = <code>clip_cube_to_region</code> using
+          <code>tangshan_aoi(0.25)</code> vs <code>tangshan_aoi(0.10)</code> — a strict <code>isel</code> subset
+          on existing centre coords. Axis 2 = <code>coarsen_cube</code> over {native, 0.10, 0.15, 0.25}° via
+          <code>xr.coarsen(boundary="trim").mean(skipna=True)</code> — block-mean only. CSV confirms all four
+          resolutions × both buffers.</li>
+          <li><strong>No interpolation-to-finer path exists.</strong> <code>grep</code> over gridding.py +
+          scale.py finds <code>interp</code> only in refusal messages and docstrings. <code>coarsen_cube</code>
+          computes <code>fx=round(target/dx)</code> and raises <code>ValueError</code> (ERR-002) when finer
+          than native — no upsampling/reindex/ffill/bfill anywhere.</li>
+          <li><strong>Robust machinery is real and used.</strong> <code>robust_corr</code> composes
+          <code>effective_n</code> (1st-order + NW), <code>block_bootstrap_ci</code>,
+          <code>block_permutation_p</code>; <code>scale_sweep</code> calls it per row and applies
+          <code>bh_fdr</code> within each <code>lag_kind</code> family. AT3 proves the naive p over-rejects
+          AR(1) nulls while the robust tests hold near α; AT4 proves they still recover a planted signal
+          (not merely conservative).</li>
+          <li><strong>Benchmark-blindness.</strong> <code>deseasonalize(...)</code> signature carries no
+          benchmark/CREA argument; <code>_variant_series</code> passes only the NO₂ series + cfg. The sweep
+          computes every scale and reports all with the FDR caveat; the config docstring records that no
+          scale is selected to maximise the benchmark correlation. Honest null is the accepted outcome.</li>
+          <li><strong>Recorded result faithfully supported.</strong> <code>data/derived/scale_sensitivity.csv</code>
+          has exactly 128 rows (64 lag0 + 64 peak; 2 buffers × 4 resolutions × 2 freqs × 4 variants × 2 lag
+          kinds), 0 <code>verdict==robust</code>, 34 fragile (naive-only), all <code>fdr_reject=False</code>,
+          min <code>p_fdr</code>=0.196 — matching <code>scale_sensitivity_findings.txt</code> ("rows: 128 |
+          robust: 0 | fragile: 34") and the tasks.json follow_up ("0/128 … robust after FDR"). Spot-checked
+          Parubets and source-isolation r-values match the CSV to rounding. Tight 0.10 AOI does not rescue;
+          native↔coarse sign flips are near-zero noise.</li>
+          <li><strong>Documentation targets updated and accurate</strong> (see docs re-check below).</li>
+        </ol>
+      </section>
+
+      <section id="high-risk-review">
+        <h2>High-risk review record</h2>
+        <ul>
+          <li><strong>Categories touched:</strong> None of the high-risk categories (auth/authz, payments,
+          DB migrations, infrastructure/deployment, public APIs, security-sensitive code, data-loss). This is
+          additive, offline statistical-analysis code over a committed local cube; no network egress, no new
+          secrets, no schema change (design "Security and permissions" confirmed).</li>
+          <li><strong>Escalation rung run:</strong> standard review, plus a targeted adversarial pass on the
+          load-bearing risk for this task — statistical honesty. I specifically probed for (a) an
+          interpolation-to-finer backdoor, (b) benchmark leakage into signal derivation, (c) FDR family
+          pooling that could manufacture a discovery, and (d) mismatch between the CSV and the reported
+          null. All clear. A paid deep-review mode is not warranted for an additive analysis feature with a
+          null result.</li>
+          <li><strong>External dependencies &amp; freshness:</strong> NumPy/SciPy/statsmodels/xarray already
+          present; no version change, no new dependency. Bootstrap/permutation/FDR implemented locally.
+          Purely internal — no freshness evidence required beyond the design's recorded table.</li>
+        </ul>
+      </section>
+
+      <section id="findings">
+        <h2>Findings</h2>
+        <h3>Blocking</h3>
+        <p>None.</p>
+        <h3>Non-blocking nits (deferred with justification — do not block <code>done</code>)</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Finding</th><th>Disposition</th></tr></thead>
+          <tbody>
+            <tr><td>N1</td><td>ERR-001 (missing-cube) has a correct, actionable code path in
+            <code>run_scale_sweep</code> (raises <code>FileNotFoundError</code> naming <code>noxus grid</code>)
+            but no dedicated unit test; ERR-002/ERR-003 are both tested.</td>
+            <td><strong>Deferred.</strong> The path is a defensive one-liner exercised whenever the cube is
+            absent; the guarded behaviour is trivial and non-load-bearing to the scientific result. Recommend
+            adding a one-line test opportunistically in the next validation touch; not worth reopening the
+            feature.</td></tr>
+            <tr><td>N2</td><td>The commit adds an extra figure/stat set under
+            <code>docs/figures/nox008/</code> (fig1–fig5, <code>scale_meta.csv</code>,
+            <code>scale_significance.csv</code>) beyond the spec's declared
+            <code>docs/figures/exploration/</code> outputs.</td>
+            <td><strong>Accepted.</strong> Additive presentation artifacts consistent with the finding and
+            within the <code>analysis/**</code> + docs scope; no source/behaviour impact. Not spec drift.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="files-reviewed">
+        <h2>Changed files reviewed</h2>
+        <ul>
+          <li><code>noxus/data/gridding.py</code> — <code>clip_cube_to_region</code>, <code>coarsen_cube</code>, <code>_cube_lonlat</code>, <code>_native_spacing</code> (additive; existing compositing untouched).</li>
+          <li><code>noxus/validation/robust.py</code> — effective-N, bootstrap CI, block-permutation, BH-FDR, <code>robust_corr</code>.</li>
+          <li><code>noxus/validation/scale.py</code> — <code>derive_scale_signal</code>, <code>scale_sweep</code>, <code>run_scale_sweep</code>, verdict logic.</li>
+          <li><code>noxus/config/run.py</code> — <code>ScaleSweepConfig</code>.</li>
+          <li><code>noxus/cli/main.py</code> — <code>scale-sweep</code> subcommand.</li>
+          <li><code>analysis/scale_sensitivity.py</code> — figures + findings driver.</li>
+          <li>Tests: <code>tests/data/test_scale_ops.py</code>, <code>tests/validation/test_robust.py</code>, <code>tests/validation/test_scale.py</code>.</li>
+          <li>Artifacts: <code>data/derived/scale_sensitivity.csv</code>, <code>docs/figures/exploration/scale_sensitivity_findings.txt</code> + scale-grid PNGs.</li>
+          <li>Docs: <code>docs/exploration-results.html</code>, <code>decisions/architecture-decisions.md</code>, <code>history.html</code>, <code>.claude/context/project-map.md</code>, <code>.gitignore</code>.</li>
+        </ul>
+        <p>No protected files (<code>.env</code>/credentials) touched. No files outside the declared
+        spec-drift scope glob were changed (the extra <code>docs/figures/nox008/</code> is within
+        <code>analysis/**</code>/docs scope).</p>
+      </section>
+
+      <section id="documentation-decision">
+        <h2>Documentation decision &amp; re-check</h2>
+        <p><strong>Required:</strong> yes. <strong>Status:</strong> updated — verified complete and accurate.</p>
+        <table>
+          <thead><tr><th>Target</th><th>Re-check result</th></tr></thead>
+          <tbody>
+            <tr><td><code>docs/exploration-results.html</code></td><td>Scale-sensitivity section present, cites Parubets, matches the reviewed null result.</td></tr>
+            <tr><td><code>decisions/architecture-decisions.md</code></td><td>Two entries: (1) 2026-06-14 autocorrelation-robust + FDR standard (sourced to NOX-008 T3/T4); (2) spatial-scale finding closing the scale lever, sourced to the real run + CSV/findings. Rejected-options recorded (upsampling to finer grid; reporting best scale without FDR).</td></tr>
+            <tr><td><code>history.html</code></td><td>NOX-008 entry present (line ~167).</td></tr>
+            <tr><td><code>.claude/context/project-map.md</code></td><td>robust.py, scale.py, and gridding clip/coarsen scale ops documented.</td></tr>
+          </tbody>
+        </table>
+        <p>No secrets or unreviewed details appear in the docs; text matches the implementation and the
+        committed artifacts.</p>
+      </section>
+
+      <section id="decision-log-proposal">
+        <h2>Decision-log proposal</h2>
+        <p>The two durable decisions this task settled (the autocorrelation-robust + BH-FDR significance
+        standard for all index↔benchmark correlations, and the spatial-scale null closing scale as a lever
+        for the relative-index paradigm) are <strong>already recorded</strong> in
+        <code>decisions/architecture-decisions.md</code>. No further decision-log entry is proposed.</p>
+      </section>
+
+      <section id="final-decision">
+        <h2>Final decision</h2>
+        <p><span class="badge badge-ok">approved</span> with two non-blocking nits (N1, N2), both explicitly
+        deferred/accepted with justification above — <strong>no blocking items remain</strong>. Requirements,
+        design, implementation, tests, and the recorded result are aligned; documentation is updated and
+        accurate. <strong>NOX-008 is ready to be marked <code>done</code>.</strong></p>
+        <p>Completion steps owned by the main conversation: mark the <code>tasks.html</code> items done (already
+        classed <code>done</code>), set <code>status: "done"</code> in <code>tasks.json</code>, and confirm the
+        <code>history.html</code> entry (already present). Per instructions, this reviewer did not edit
+        <code>tasks.json</code> or commit.</p>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
