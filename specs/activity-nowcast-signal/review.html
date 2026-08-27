@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Investment-grade activity nowcast (NOX-013)</title>
+  <link rel="stylesheet" href="spec.css">
+  <script defer src="spec.js"></script>
+  <style>
+    .verdict-approved { color: #14532d; font-weight: 700; }
+    .blocking { background: #fee2e2; }
+    .warning  { background: #fef9c3; }
+    .ok       { background: #dcfce7; }
+    table td, table th { vertical-align: top; }
+    code { word-break: break-word; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Investment-grade activity nowcast (NOX-013): T1 feasibility-spike honest-null closeout</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-013</code></td></tr>
+        <tr><th>Feature slug</th><td><code>activity-nowcast-signal</code></td></tr>
+        <tr><th>Branch</th><td><code>feature/no2-variance-decomposition</code></td></tr>
+        <tr><th>Reviewed at</th><td><code>2026-08-27</code></td></tr>
+        <tr><th>Scope reviewed</th><td>T1 feasibility spike only (REQ-015, AT8). T2&ndash;T14 intentionally NOT implemented &mdash; the T1 gate terminated the build (spec-anticipated terminal NO-GO).</td></tr>
+        <tr><th>Decision</th><td><span class="verdict-approved">APPROVED &mdash; honest-null closeout is legitimate, traceable and disciplined</span></td></tr>
+        <tr><th>Documentation</th><td><code>required: true</code> &mdash; <code>documentation_status: updated</code> (docs re-check PASSED 2026-08-27, below). Documentation gate cleared.</td></tr>
+        <tr><th>Next state</th><td><span class="verdict-approved">CLEAR to mark <code>done</code></span> &mdash; implementation APPROVED and required docs updated + re-checked. Remaining action is the mechanical completion (<code>tasks.json</code> status &rarr; <code>done</code>, <code>tasks.html</code> item states, finalise the <code>history.html</code> badge) by the main conversation. (Reviewer did not edit <code>tasks.json</code> status and did not commit, per instruction.)</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The implementer built exactly the T1 deliverable specified in <code>tasks.html</code>: a new
+        <code>noxus/nowcast/probe.py</code> (<code>probe(cfg)</code>, <code>ProbeVerdict</code>/<code>FeatureEvidence</code>,
+        a pure <code>decide_verdict</code>), a frozen <code>NowcastConfig</code>, the package/export wiring, and unit +
+        real-data tests. Run against the real on-disk artefacts, the probe emits <strong>NO-GO / honest null</strong> to
+        <code>data/derived/nowcast_probe.txt</code>: the VIIRS proxy is present-but-invalid (triangulation
+        non-significant), and neither available NO&#8322; feature carries incremental information over the CREA
+        incumbent at the fixed defaults (<code>no2_corrected</code> r=&minus;0.014, p_perm=0.815; <code>residual_activity</code>
+        r=+0.063, p_perm=0.290; both lead_lag peaks at negative lag &rarr; feature lags, not leads). Per ERR-002 the
+        build stops and escalates. This is a first-class, designed-for outcome, coherent with NOX-009 (~0 steel-local
+        NO&#8322; change-variance), NOX-011 (no valid physical proxy) and NOX-012 (weak/artefactual continuous coupling).</p>
+        <p>The closeout is disciplined: the three reused inference modules are byte-for-byte unchanged, the
+        benchmark-blind (anti-p-hacking) invariant holds structurally, the weekly-resample-then-align convention is
+        used (not the NOX-012 B3 exact-date join), the dormant GO-primary branch never fabricates a thermal series,
+        and the "leads CREA" gate is hardened conservatively without introducing a new estimator. 280 tests pass,
+        <code>ruff</code> is clean, no dependency changed, no protected file touched.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Requirement / acceptance traceability</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Requirement</th><th>Evidence</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr class="ok"><td>REQ-015 / AT8</td><td>Run a feasibility spike that confirms the physical proxy is unavailable, assesses whether available NO&#8322; features yield any incremental info over CREA, and records a go/no-go verdict before any downstream task.</td>
+              <td><code>probe(cfg)</code> assesses (a) feature availability (<code>_assess_thermal</code>, <code>_events_available</code>, residual presence) and (b) incremental info (<code>_incremental_probe</code>); writes verdict + evidence to <code>data/derived/nowcast_probe.txt</code>; NO-GO sets <code>escalate=True</code> (ERR-002). Real run &rarr; NO-GO.</td><td>Met</td></tr>
+            <tr class="ok"><td>Three-way verdict</td><td>GO-primary (valid thermal) / GO-degraded (NO&#8322; info) / NO-GO (honest null).</td><td><code>decide_verdict</code> pure logic, unit-tested at all three thresholds incl. both NO-GO paths.</td><td>Met</td></tr>
+            <tr class="ok"><td>AT3 / NFR-002</td><td>Anti-p-hacking: expectation/inference never fit or tuned against the benchmark; fixed defaults.</td><td>CREA is loaded read-only (<code>_load_benchmark</code>) and passed only to <code>robust_corr</code>/<code>lead_lag</code> as a correlation target; nothing is fit to it. All defaults are frozen constants on <code>NowcastConfig</code> (<code>frozen=True</code>). No new estimator invented.</td><td>Met</td></tr>
+            <tr class="ok"><td>AT-REG-1 / NFR-004</td><td>Reused modules byte-for-byte unchanged; existing behaviour unaffected.</td><td><code>git status --porcelain noxus/validation/ noxus/signal/thermal.py noxus/catalyst/</code> &rarr; empty. Full suite 280 passed (was 280-class green pre-change per report).</td><td>Met</td></tr>
+            <tr class="ok"><td>Weekly-align convention</td><td>Use resample-then-align, not the NOX-012 B3 exact-date inner join.</td><td><code>_incremental_probe</code> calls <code>align_series(...)</code>, which resamples both series to <code>freq</code> (period-end mean) before the inner join. Confirmed in <code>preprocess.align_series</code>. n_common=364/379 weeks (an exact-date join would collapse to a handful).</td><td>Met</td></tr>
+            <tr class="ok"><td>No-VIIRS-fabrication</td><td>GO-primary must never invent a thermal series.</td><td><code>_assess_thermal</code> gates validity on the triangulation <code>significant</code> verdict, not file presence; when thermal is valid the NO&#8322; pass is skipped (<code>evidence == ()</code>) and nothing is synthesised. Two parametrized tests assert NO-GO whether the thermal file is present-invalid or absent.</td><td>Met</td></tr>
+            <tr class="ok"><td>REQ-011 (deferred)</td><td>Full incremental-info test (BH-FDR + orthogonality partialling) is T6.</td><td>Probe docstring explicitly scopes itself as a coarse T1 gate, not REQ-011. Correctly deferred (build stopped before T6).</td><td>Deferred (intended)</td></tr>
+            <tr class="warning"><td>AT8 action string</td><td>AT8 lists the action as <code>uv run noxus nowcast --probe</code>.</td><td>The CLI subcommand is a downstream deliverable (spec status-note lists <code>nowcast[--probe]</code> among the un-built package). T1's own <code>tasks.html</code> deliverable is the <code>probe(cfg)</code> function + report file, which is delivered and directly runnable. Non-blocking given the terminal NO-GO.</td><td>Non-blocking note</td></tr>
+            <tr class="warning"><td>T2&ndash;T14</td><td>features/baseline/surprise/triangulation/incremental/report + CLI.</td><td>Intentionally NOT implemented &mdash; the T1 gate terminated the build. Spec explicitly anticipates this terminal state (REQ-015 realistic verdicts). <code>NowcastConfig</code> was pulled forward from T2 as a prerequisite of <code>probe(cfg)</code>; the rest of T2 (<code>select_feature</code>) is not built. Acceptable.</td><td>Intended terminal</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="commands">
+        <h2>Commands run</h2>
+        <ul>
+          <li><code>git diff master...HEAD --stat</code> and <code>git status --porcelain</code> &mdash; isolated the T1 change to the uncommitted working tree: <code>noxus/config/run.py</code>, <code>noxus/config/__init__.py</code>, <code>tasks.json</code> (modified); <code>noxus/nowcast/</code>, <code>tests/nowcast/</code>, <code>data/derived/nowcast_probe.txt</code> (new).</li>
+          <li><code>git status --porcelain noxus/validation/ noxus/signal/thermal.py noxus/catalyst/</code> &rarr; empty (reuse integrity).</li>
+          <li><code>git status --porcelain pyproject.toml uv.lock</code> &rarr; neither changed (no new dependency).</li>
+          <li><code>uv run ruff check .</code> &rarr; <strong>All checks passed.</strong></li>
+          <li><code>uv run pytest -q</code> &rarr; <strong>280 passed in 8.80s.</strong></li>
+          <li><code>uv run pytest tests/nowcast/ -v</code> &rarr; 17 passed; the real-data smoke test <em>ran</em> (not skipped) and confirmed NO-GO on the on-disk artefacts.</li>
+          <li>Inspected <code>data/derived/nowcast_probe.txt</code> against the reported evidence &mdash; numbers match exactly.</li>
+        </ul>
+      </section>
+
+      <section id="changed-files">
+        <h2>Changed files reviewed</h2>
+        <ul>
+          <li><code>noxus/nowcast/probe.py</code> (new) &mdash; probe, verdict logic, availability + incremental-info passes, report render.</li>
+          <li><code>noxus/nowcast/__init__.py</code> (new) &mdash; exports <code>probe</code>, <code>ProbeVerdict</code>, <code>FeatureEvidence</code>.</li>
+          <li><code>noxus/config/run.py</code> &mdash; added frozen <code>NowcastConfig</code> (additive; existing configs untouched).</li>
+          <li><code>noxus/config/__init__.py</code> &mdash; added <code>NowcastConfig</code> to imports/<code>__all__</code>.</li>
+          <li><code>tests/nowcast/test_probe.py</code> (new) &mdash; verdict thresholds, no-fabrication, availability, planted-lead / planted-null / short-overlap, full-probe wiring for all three verdicts.</li>
+          <li><code>tests/nowcast/test_probe_realdata.py</code> (new) &mdash; skips without data, else runs the full probe and pins NO-GO.</li>
+          <li><code>data/derived/nowcast_probe.txt</code> (new) &mdash; committable go/no-go verdict report.</li>
+          <li><code>tasks.json</code> &mdash; NOX-013 &rarr; <code>in_progress</code>, <code>human_approved: true</code> (developer, 2026-08-27). Note: file lost its trailing newline (trivial).</li>
+        </ul>
+      </section>
+
+      <section id="findings">
+        <h2>Findings (per requested verification points)</h2>
+        <ol>
+          <li><strong>Traceability (PASS).</strong> T1 deliverables match REQ-015/AT8; the probe genuinely assesses feature availability and incremental-info-over-CREA at fixed defaults, and gates on the result.</li>
+          <li><strong>Anti-p-hacking / AT3 (PASS).</strong> CREA is read solely as a correlation target; nothing is fit or tuned to it; defaults are frozen constants; no new estimator. The dataclass is <code>frozen=True</code>.</li>
+          <li><strong>Reused modules unchanged / AT-REG-1 (PASS).</strong> <code>robust.py</code>, <code>leadlag.py</code>, <code>preprocess.py</code> untouched by the T1 change (empty diff). The weekly-resample-then-align convention (<code>align_series</code>) is used &mdash; NOT an exact-date join, so the NOX-012 B3 bug is avoided (evidenced by 364/379 common weeks).</li>
+          <li><strong>No-VIIRS-fabrication (PASS).</strong> Validity is gated on the triangulation significance verdict, not file presence; the dormant GO-primary branch synthesises nothing; tests assert NO-GO in both present-invalid and absent cases.</li>
+          <li><strong>"Leads CREA" hardening (PASS).</strong> A positive peak lag counts only if the lead correlation itself survives <code>robust_corr</code> (both Newey-West effective-N p and block-permutation p &lt; alpha). This reuses <code>robust_corr</code>/<code>lead_lag</code> unchanged (applied to a <code>.shift(peak_lag)</code> of the same series), is not a new estimator, and is not tuning-to-benchmark &mdash; it is a fixed-alpha guard that makes a GO <em>harder</em> to declare (conservative, correct direction for an honest-null gate). It kills an autocorrelated-noise edge-of-window false positive.</li>
+          <li><strong>Honest-null justified (PASS).</strong> Both features are far from significance (p_perm 0.82 / 0.29; bootstrap CIs span zero; peak lags negative &rarr; features lag CREA). The verdict does not overclaim: the report frames it as a designed-for null consistent with NOX-009/011/012, not a pipeline failure, and carries the Tangshan ~13% scale caveat.</li>
+          <li><strong>Green + protected files (PASS).</strong> 280 tests pass, ruff clean, verified by the reviewer. No <code>.env</code>/secret/credential files in the working tree; no dependency or lockfile change.</li>
+        </ol>
+      </section>
+
+      <section id="high-risk">
+        <h2>High-risk review record</h2>
+        <ul>
+          <li><strong>Categories touched:</strong> the guarded quantitative edge-over-incumbent claim is the sensitive surface (spec flags the deep-review escalation ladder). No security/auth/payments/migration/infra/public-API/data-loss category is touched. External dependencies: <strong>None</strong> (no new SDK/API/framework; internal derived artefacts only; pyproject/uv.lock unchanged).</li>
+          <li><strong>Escalation rungs run:</strong> standard review + a targeted <em>adversarial pass on the guards</em> (anti-p-hacking structural check, reuse-integrity empty-diff, no-look-ahead of the resample-then-align, no-fabrication of the thermal branch, and a specific check that the "leads CREA" hardening biases toward NO-GO rather than cherry-picking a GO). No paid deep-review mode invoked (not warranted for a NO-GO closeout that ships no signal; would be required before any GO-degraded build proceeds).</li>
+          <li><strong>Edge cases verified:</strong> too-few-overlap &rarr; not-info; alignment failure &rarr; not-info; thermal present-but-invalid vs absent both &rarr; NO-GO; valid-thermal short-circuit consumes no fabricated series.</li>
+          <li><strong>Reproduction:</strong> re-ran the probe via the real-data test &mdash; verdict and evidence reproduce the committed <code>nowcast_probe.txt</code> exactly (fixed seed 20260712).</li>
+          <li><strong>Remediation plan:</strong> none required; the honest null is the correct terminal state. Should a valid thermal series ever be supplied, T2+ resumes via the dormant branch.</li>
+        </ul>
+      </section>
+
+      <section id="documentation">
+        <h2>Documentation decision</h2>
+        <p><strong>Required: yes.</strong> A first-class NO-GO terminal result must be recorded so the project map, history and exploration record reflect that NOX-013 shipped no signal and why. <code>documentation_status</code> stays <code>pending</code>; run the <code>documenter</code>, then re-check before <code>done</code>. Targets:</p>
+        <ul>
+          <li><code>docs/exploration-results.html</code> &mdash; add the NOX-013 T1 honest-null entry (evidence table: no2_corrected / residual_activity r, p_perm, lead_lag; VIIRS present-but-invalid), placed in the NOX-009/011/012 arc.</li>
+          <li><code>decisions/architecture-decisions.md</code> (and/or <code>decisions/rejected-options.md</code>) &mdash; record the decision that the continuous-NO&#8322;-only nowcast is rejected on evidence (no incremental info over CREA), and that the VIIRS/FIRMS proxy is rejected as invalid for this cluster. See decision-log proposal below (developer approval required before writing).</li>
+          <li><code>history.html</code> &mdash; append the NOX-013 closeout entry after the <code>&lt;!-- INSERT-ENTRY-HERE --&gt;</code> marker (skip if the documenter already added it).</li>
+          <li><code>.claude/context/project-map.md</code> &mdash; note the new (partial, gated) <code>noxus/nowcast/</code> package and that the build is stopped at T1 / NO-GO.</li>
+          <li><code>docs/data-access.md</code> &mdash; <strong>only if</strong> any new credential/data source was introduced. None was in T1 (no new dependency); expected to be a no-op &mdash; documenter should confirm and record "unaffected".</li>
+        </ul>
+        <p>Not required: <code>README.md</code> command surface (no CLI shipped), API docs (no public API beyond the internal probe).</p>
+      </section>
+
+      <section id="decision-log">
+        <h2>Decision-log proposal (developer approval required &mdash; not written)</h2>
+        <ul>
+          <li><strong>DL-A</strong> &mdash; The continuous-NO&#8322;-residual-only activity nowcast is rejected on evidence: at fixed defaults neither <code>no2_corrected</code> nor <code>residual_activity</code> carries incremental information over the CREA incumbent (p_perm 0.82 / 0.29; no lead). Consistent with NOX-009 (~0 steel-local change-variance) and NOX-012 (continuous-not-event-bound). Standing conclusion: a viable nowcast needs a valid physical proxy or genuine event markers, not the continuous residual.</li>
+          <li><strong>DL-B</strong> &mdash; The VIIRS/FIRMS active-fire series is a rejected thermal proxy for the Tangshan steel cluster (crop-residue-burning-dominated, triangulation non-significant); validity of any future thermal series is gated on a significant NO&#8322;/CREA triangulation, never on file presence.</li>
+          <li><strong>DL-C (methodology)</strong> &mdash; A "leads-the-benchmark" claim from a &plusmn;max_lag lead/lag scan requires the peak lead correlation to survive autocorrelation-robust inference, to prevent scan-selected spurious leads on autocorrelated noise. Complements the NOX-012 DL-2 scan-maximum-null standing method.</li>
+        </ul>
+        <p>These are proposals only; trivial choices are not flagged. Do not write to <code>decisions/</code> without developer approval.</p>
+      </section>
+
+      <section id="docs-recheck">
+        <h2>Documentation re-check (2026-08-27) &mdash; PASSED, <code>documentation_status: updated</code></h2>
+        <p>Lightweight docs-only re-check after the documenter completed the targets. Each documented number was
+        verified against <code>data/derived/nowcast_probe.txt</code> and this review; no over-claiming; framing
+        stays an honest NO-GO null consistent with the NOX-009/011/012 arc.</p>
+        <table>
+          <thead><tr><th>Target</th><th>Check</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr class="ok"><td><code>docs/exploration-results.html</code></td>
+              <td>New <strong>&sect;12</strong> ("activity nowcast has no edge over CREA &mdash; a fourth convergent null (NOX-013)"). Evidence table matches the probe exactly: <code>no2_corrected</code> n=364, r=&minus;0.014, p<sub>perm</sub>=0.815, boot95 [&minus;0.120,+0.081], peak lag &minus;8 (lags); <code>residual_activity</code> n=379, r=+0.063, p<sub>perm</sub>=0.290, boot95 [&minus;0.049,+0.157], peak lag &minus;2 (lags). Fourth-convergent-null framing, dormant-scaffolding note, ~13% scale caveat all present. TOC updated (12 &middot; Nowcast, 13 &middot; Takeaways); old Takeaways renumbered &sect;12&rarr;&sect;13; no dangling &sect;-refs (all internal &sect;9&ndash;&sect;13 / #nowcast / #takeaways links consistent).</td><td>PASS</td></tr>
+            <tr class="ok"><td><code>history.html</code></td>
+              <td>NOX-013 closeout entry present immediately after the <code>&lt;!-- INSERT-ENTRY-HERE --&gt;</code> marker; result/numbers/dormant-scaffolding/docs-updated fields consistent with the probe and this review. (Badge still "review &mdash; final docs check" pending the mechanical <code>done</code> flip.)</td><td>PASS</td></tr>
+            <tr class="ok"><td><code>.claude/context/project-map.md</code></td>
+              <td>Terse partial/gated <code>noxus/nowcast/</code> package note (<code>probe.py</code> + <code>NowcastConfig</code>, build stopped at the T1 NO-GO gate); <code>NowcastConfig</code> recorded on the <code>config/run.py</code> line; <code>nowcast_probe.txt</code> recorded on the <code>data/derived/</code> line.</td><td>PASS</td></tr>
+            <tr class="ok"><td><code>docs/data-access.md</code></td>
+              <td>Confirmed no-op &mdash; T1 introduced no new credential or data source (no dependency change). No NOX-013/nowcast edits present, correctly.</td><td>PASS (no-op)</td></tr>
+            <tr class="ok"><td><code>decisions/architecture-decisions.md</code></td>
+              <td>TWO new 2026-08-27 entries at the top, in the file's entry format: the NOX-013 honest-null closeout (build stopped at the T1 gate) and DL-3 ("leads-the-benchmark" claim must survive autocorrelation-robust inference). Numbers match the probe.</td><td>PASS</td></tr>
+            <tr class="ok"><td><code>decisions/rejected-options.md</code></td>
+              <td>TWO new 2026-08-27 entries in the file's entry format: DL-A (continuous-NO&#8322;-only nowcast rejected on evidence) and DL-B (VIIRS/FIRMS active-fire rejected as the nowcast thermal feature). Cross-links to the architecture entries are correct.</td><td>PASS</td></tr>
+          </tbody>
+        </table>
+        <p>No secrets or unreviewed details appear in any target. All six review-proposed decision-log entries
+        (DL-A/DL-B in rejected-options, the closeout + DL-3 in architecture-decisions) were written per the
+        documenter/developer note; they match the reviewed evidence. Documentation gate: <strong>cleared</strong>.</p>
+      </section>
+
+      <section id="decision">
+        <h2>Final decision</h2>
+        <p><span class="verdict-approved">APPROVED</span> &mdash; the NOX-013 T1 honest-null closeout is legitimate, traceable and disciplined. No blocking findings. Non-blocking items: (N1) AT8's CLI action string is not wired (downstream, acceptable under the terminal NO-GO); (N2) <code>tasks.json</code> lost its trailing newline. Neither blocks <code>done</code>. The required documentation has now been completed and re-checked (see Documentation re-check, 2026-08-27 &mdash; PASSED; <code>documentation_status: updated</code>), so the documentation gate is cleared and the task is <span class="verdict-approved">CLEAR to mark <code>done</code></span>. Per instruction, the reviewer did not change <code>tasks.json</code> status and did not commit.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

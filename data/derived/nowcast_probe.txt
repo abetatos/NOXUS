@@ -1,0 +1,37 @@
+NOX-013 T1 feasibility spike — activity-nowcast go/no-go gate
+==============================================================================
+Generated: 2026-08-27T07:25:31+00:00
+
+VERDICT: NO-GO
+  reduced_power: True
+  escalate (ERR-002 honest-null stop): True
+
+Feature availability
+------------------------------------------------------------------------------
+  VIIRS thermal proxy: available=True valid=False
+    Thermal series present but triangulation NON-significant (FIRMS active-fire empirically invalid for this cluster: crop-residue-burning-dominated, r=-0.05 ns vs NO2 and CREA; misses year-round furnaces). VIIRS proxy INVALID — not selectable (finding 2026-08-27).
+  NO2 event markers (NOX-004/012): available=True
+  NO2 intensity residual (NOX-003.1): available=True
+
+Incremental information over CREA (quick pass; robust_corr + lead_lag, no tuning)
+------------------------------------------------------------------------------
+  Convention: weekly-resample-then-align (align_series), benchmark-blind — CREA is read only to MEASURE incremental info, never to fit.
+  Fixed defaults: freq=W seed=20260712 n_boot=5000 n_perm=5000 max_lag=8 min_overlap=26 sig_alpha=0.05
+
+  [no2_residual (no2_corrected, NOX-003.1 footprint)]
+    n_common=364 r=-0.0138 p_eff_nw=0.8186 p_perm=0.8150 boot95=[-0.1200, +0.0814]
+    lead_lag: peak_lag=-8 peak_r=-0.0854 sig_bound=±0.1027  (peak_lag>0 ⇒ feature leads CREA)
+    robust_significant=False leads_crea=False → incremental_info=False
+
+  [no2_intensity_residual (residual_activity, NOX-003.1 decomposition covariate)]
+    n_common=379 r=+0.0625 p_eff_nw=0.2852 p_perm=0.2895 boot95=[-0.0491, +0.1570]
+    lead_lag: peak_lag=-2 peak_r=+0.0824 sig_bound=±0.1007  (peak_lag>0 ⇒ feature leads CREA)
+    robust_significant=False leads_crea=False → incremental_info=False
+
+  any_incremental_info: False
+
+Interpretation
+------------------------------------------------------------------------------
+  HONEST NULL. No available NO2 feature carries incremental information over the CREA incumbent at the fixed defaults, and no valid physical proxy exists. Per ERR-002 the build STOPS here and escalates to the developer. This is a valid, designed-for outcome (consistent with NOX-009 ~0 steel-local NO2 change-variance and NOX-012 weak/artefactual continuous coupling), not a pipeline failure.
+
+Scale caveat: Tangshan is ~13% of national steel; this is a cluster signal, Hebei-provincial statistics preferred where available.

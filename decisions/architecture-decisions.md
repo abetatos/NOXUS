@@ -28,6 +28,24 @@ Entry format:
 
 ---
 
+## 2026-08-27 — NOX-013 activity nowcast: honest NULL, no edge over CREA — build stopped at the T1 gate
+
+- Status: accepted (first-class negative result)
+- Context: NOX-013 reframed the product as an investment-grade weekly SURPRISE nowcast of Tangshan steel activity, whose acceptance bar is INCREMENTAL information over the incumbent (the weekly CREA blast-furnace operating-rate survey). The spec made T1 a feasibility spike that GATES the build: it must show that some available feature carries incremental info over CREA at fixed defaults before T2–T14 are written. The primary physical proxy (VIIRS thermal) was already lost to the 2026-08-27 NOX-011 negative result, so the realistic feature layer was NO₂ event markers (NOX-004/012) + the continuous NO₂ residual as a covariate.
+- Decision (what the data says): **NO-GO / honest null.** Run benchmark-blind against real on-disk data at fixed defaults (weekly-resample-then-align, NOX-008 autocorrelation-robust `robust_corr`/`lead_lag` reused byte-for-byte): the continuous residual `no2_corrected` r=−0.014 (p_perm=0.815, lead_lag −8 → it LAGS CREA); the decomposition covariate `residual_activity` r=+0.063 (p_perm=0.290, lead_lag −2 → also lags); both bootstrap CIs span zero; VIIRS thermal present-but-INVALID (triangulation non-significant, gated on the significance verdict not file presence). No available NO₂ feature carries incremental information over CREA, so ERR-002 fires (escalate) and the build stops. Verdict artefact: `data/derived/nowcast_probe.txt`.
+- Consequences: (1) NOX-013 closes as a documented honest null — the **fourth convergent null** in the arc (NOX-009 steel-local NO₂ change-variance share ≈0; NOX-011 no valid public physical proxy; NOX-012 weak/artefactual coupling; NOX-013-T1 no edge over CREA): the public-data nowcast has no demonstrable edge over the incumbent. (2) Tasks T2–T14 are intentionally NOT built — the spec-anticipated terminal state of a gate that returns NO-GO. (3) The T1 infrastructure stays as **dormant scaffolding** (`noxus/nowcast/probe.py` + frozen `NowcastConfig`); the GO-primary VIIRS branch only ever fires if a genuinely significant thermal series is supplied, and never fabricates one. (4) Scale caveat stands (Tangshan ~13% of national steel; Hebei provincial stats preferred). See rejected-options.md 2026-08-27 for the specific approaches ruled out (continuous-NO₂-only nowcast; VIIRS/FIRMS as the nowcast thermal feature).
+- Alternatives rejected: building the reduced-power nowcast anyway despite no gate edge (would ship an untradable signal and invite p-hacking to manufacture one); relaxing the fixed defaults to rescue a marginal lead (forbidden — the spec fixes defaults benchmark-blind); see rejected-options.md for the feature-level rejections.
+- Source: NOX-013 (specs/activity-nowcast-signal); T1 feasibility spike + review 2026-08-27 (specs/activity-nowcast-signal/review.html, APPROVED); developer-directed closeout 2026-08-27.
+
+## 2026-08-27 — A "leads-the-benchmark" claim from a ±max_lag scan must survive autocorrelation-robust inference (DL-3)
+
+- Status: accepted
+- Context: The NOX-013 T1 probe screens whether a feature LEADS CREA by scanning the cross-correlation over ±max_lag and taking the peak lag. On autocorrelated series this systematically false-positives: an edge-of-window (lag = ±max_lag) spurious peak in serially-dependent noise reads as "leads the benchmark" when nothing does. This is the lead-time analogue of the rolling-peak multiple-comparisons trap that DL-2 (2026-08-22) addresses for rolling-r maxima.
+- Decision: A positive "leads CREA" verdict from a ±max_lag scan counts ONLY if the lead correlation at that peak lag itself survives autocorrelation-robust inference (`noxus.validation.robust.robust_corr` on the appropriately shifted series). The guard is fixed-alpha and makes a GO verdict HARDER (conservative direction); it reuses `robust_corr`/`lead_lag` unchanged and introduces no new estimator and no tuning-to-benchmark. Complements DL-2 (rolling-max claims → scan-maximum null).
+- Alternatives rejected: reporting the raw ±max_lag peak lag as a lead signal (p-hacks a maximum over lags); using a naïve significance bound on the peak without serial-dependence correction (undercounts autocorrelation, the very thing that produces the spurious edge peak).
+- Consequences: `noxus/nowcast/probe.py` applies the guard in its incremental-info screen; future lead-time claims reuse it. In NOX-013-T1 the real-data peaks were negative lags (features lag CREA), so the guard did not change the NO-GO verdict — but it prevents an autocorrelated-noise false GO in future runs.
+- Source: NOX-013 T1 (specs/activity-nowcast-signal); reviewer proposal DL-C, developer-approved 2026-08-27.
+
 ## 2026-08-27 — NOX-011 negative result: FIRMS active-fire is NOT a valid steel-activity thermometer for Tangshan
 
 - Status: accepted (first-class negative result)

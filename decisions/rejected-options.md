@@ -27,6 +27,20 @@ Entry format:
 
 ---
 
+## 2026-08-27 — A nowcast built on the continuous NO₂ residual alone (DL-A)
+
+- Rejected in favor of: closing NOX-013 as an honest null; no reduced-power nowcast was built (see architecture-decisions.md 2026-08-27 NOX-013 entry).
+- Reason: The NOX-013 T1 gate measured the continuous NO₂ residual against the CREA incumbent benchmark-blind at fixed defaults and found NO incremental information: `no2_corrected` r=−0.014 (p_perm=0.815) and it LAGS CREA by 8 weeks; the decomposition covariate `residual_activity` r=+0.063 (p_perm=0.290) also lags; both bootstrap CIs span zero. This is the expected consequence of NOX-009 (steel-local NO₂ change-variance share ≈0; 93–95% regional common-mode) — the continuous residual is dominated by regional signal, not the Tangshan steel local component, so it cannot lead a steel-activity benchmark.
+- Revisit when: a source-separation method demonstrably lifts the steel-local change-variance share materially above 0 (e.g. a validated deweathering/flux-divergence step, NOX-005/010), AND that separated residual then shows lead over CREA out-of-sample.
+- Source: NOX-013 T1 (specs/activity-nowcast-signal); evidence NOX-009 (change-variance), NOX-013 probe 2026-08-27.
+
+## 2026-08-27 — VIIRS/FIRMS active-fire as the nowcast physical thermal feature (DL-B)
+
+- Rejected in favor of: no thermal feature in the nowcast; the T1 probe treats any VIIRS thermal series as present-but-invalid unless its triangulation is significant (architecture-decisions.md 2026-08-27 NOX-013 + NOX-011 entries).
+- Reason: NOX-011 proved public VIIRS active-fire (FIRMS) over this cluster is dominated by seasonal agricultural crop-residue burning, not the year-round winter-curtailed blast furnaces (summer-peaked, low FRP ~1.4 MW, even <2km from plants); its triangulation against both NO₂ and CREA is non-significant. VNP14 cannot see the furnaces; VNF Nightfire (which could) is licence/pay-gated and out of the free-data scope. So the on-disk FIRMS thermal series is not a valid activity proxy and the nowcast must not select it — the probe gates feature validity on the triangulation significance verdict, not mere file presence, and never fabricates a thermal series.
+- Revisit when: a genuinely significant thermal series is supplied (a valid public high-temperature/industrial-tuned sensor, or a future free VNF equivalent) — the dormant GO-primary branch in `noxus/nowcast/probe.py` is retained for exactly that case.
+- Source: NOX-013 T1 (specs/activity-nowcast-signal); NOX-011 negative result (specs/viirs-thermal-benchmark) 2026-08-27.
+
 ## 2026-07-20 — Attributing the NO₂↔steel null to a NO₂-vs-benchmark frequency mismatch (critique #3)
 
 - Rejected in favor of: the existing weekly compositing that already matches the CREA weekly benchmark cadence; no finer-frequency rescue is available or warranted.

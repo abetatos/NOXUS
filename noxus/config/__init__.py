@@ -17,6 +17,7 @@ from noxus.config.run import (
     AcquisitionConfig,
     BenchmarkConfig,
     GriddingConfig,
+    NowcastConfig,
     SignalConfig,
     ValidationConfig,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "BenchmarkConfig",
     "AcquisitionConfig",
     "GriddingConfig",
+    "NowcastConfig",
     "SignalConfig",
     "ValidationConfig",
     "ACTIVE_FACILITY_STATUSES",

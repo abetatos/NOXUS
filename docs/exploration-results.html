@@ -63,7 +63,8 @@
     <a href="#variance">9 · Change-variance decomposition</a> ·
     <a href="#regime2023">10 · 2023 regime peak, resolved</a> ·
     <a href="#viirs">11 · VIIRS thermal triangulation</a> ·
-    <a href="#takeaways">12 · Takeaways</a></p>
+    <a href="#nowcast">12 · Nowcast feasibility null</a> ·
+    <a href="#takeaways">13 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -462,7 +463,58 @@
   against a populated raw store. Full rationale in
   <code>decisions/architecture-decisions.md</code> (2026-08-27 entry).</p>
 
-  <h2 id="takeaways">12 · Takeaways &amp; next probes</h2>
+  <h2 id="nowcast">12 · The activity nowcast has no edge over CREA — a fourth convergent null (NOX-013)</h2>
+  <p>NOX-013 asked the direct investment question: can a public-data NO₂ nowcast beat, or usefully add to, the
+  CREA blast-furnace operating-rate incumbent? The spec gated the whole build behind a <strong>T1 feasibility
+  spike</strong> (REQ-015): before constructing any downstream feature/baseline/surprise machinery, run a coarse,
+  <strong>benchmark-blind</strong> probe that (a) checks whether a valid physical proxy exists and (b) measures
+  whether the available NO₂ features carry any <em>incremental</em> information over CREA — with a three-way
+  verdict (GO-primary / GO-degraded / NO-GO). The spike was run once, on the real on-disk artefacts, at
+  <strong>frozen defaults</strong> (freq=W, seed=20260712, n_boot=n_perm=5000, max_lag=8, min_overlap=26,
+  α=0.05) — nothing tuned to the benchmark.</p>
+
+  <div class="callout warn">
+    <h3>Verdict: NO-GO / honest null — no NO₂ feature leads or adds information over CREA</h3>
+    <p>The physical proxy is present-but-invalid (the VIIRS/FIRMS thermal series from NOX-011 fails its
+    triangulation, §11), so the GO-primary branch never fires. Neither available NO₂ feature clears the bar
+    (weekly, benchmark-blind, Newey-West effective-N + block-permutation + moving-block bootstrap):</p>
+    <table>
+      <thead><tr><th>NO₂ feature</th><th>n</th><th>r at lag 0</th><th>p<sub>perm</sub></th><th>boot 95% CI</th><th>peak lag</th><th>read</th></tr></thead>
+      <tbody>
+        <tr><td>no2_corrected (continuous residual, NOX-003.1 footprint)</td><td>364</td><td class="neg">−0.014</td><td>0.815</td><td>[−0.120, +0.081]</td><td>−8 wk</td><td>ns; CI spans 0; <strong>lags</strong> CREA</td></tr>
+        <tr><td>residual_activity (intensity-decomposition covariate, NOX-003.1)</td><td>379</td><td class="pos">+0.063</td><td>0.290</td><td>[−0.049, +0.157]</td><td>−2 wk</td><td>ns; CI spans 0; <strong>lags</strong> CREA</td></tr>
+      </tbody>
+    </table>
+    <p>Both permutation p-values are far from significance, both bootstrap CIs straddle zero, and both lead/lag
+    peaks fall at <em>negative</em> lag (the feature follows CREA rather than leading it). A positive-lag "leads
+    CREA" claim would additionally have had to survive autocorrelation-robust inference on the peak — a
+    conservative guard that biases the gate toward NO-GO. <strong>No NO₂ feature carries incremental information
+    over the CREA incumbent.</strong> Per ERR-002 the build stops at the gate and escalates; tasks T2–T14 were
+    intentionally not constructed. This is the spec-anticipated terminal state, not a pipeline failure.</p>
+  </div>
+
+  <h3>The fourth convergent honest-null in the arc</h3>
+  <p>NOX-013 closes the arc that §9–§11 opened, and it points the same way as its three predecessors:</p>
+  <ul>
+    <li><strong>NOX-009 (§9)</strong> — the steel-local <em>change-variance</em> share is ≈0; after the regional
+    common mode is removed there is almost no steel-specific variance in the changes to detect.</li>
+    <li><strong>NOX-011 (§11)</strong> — no valid public physical proxy exists (VNF Nightfire paywalled; FIRMS
+    active-fire is agricultural crop-residue burning, not the furnaces).</li>
+    <li><strong>NOX-012 (§10)</strong> — the continuous coupling is weak/near-null and the 2023 peak is a
+    scan-maximum artefact; what little coupling exists is continuous, not event-bound.</li>
+    <li><strong>NOX-013 (this section)</strong> — at fixed defaults, no NO₂ feature beats or leads CREA.</li>
+  </ul>
+  <p>Taken together: <strong>the public-data NO₂ nowcast has no demonstrable edge over the CREA incumbent.</strong>
+  This is a first-class negative result — the kind the project committed to reporting honestly (Morris &amp; Zhang
+  2019) — not a failed build. The T1 probe infrastructure (<code>noxus/nowcast/probe.py</code> + the frozen
+  <code>NowcastConfig</code>) stays in the tree as <strong>dormant scaffolding</strong>: the GO-primary branch
+  fires only if a genuinely significant thermal series is ever supplied, and it never fabricates one.</p>
+  <p style="color:var(--muted);font-size:14px"><strong>Scale caveat (always stated):</strong> Tangshan is
+  ~13% of national steel — this is a cluster signal; Hebei-provincial statistics are preferred where available.
+  Reproduce: <code>uv run python -c "from noxus.nowcast import probe; from noxus.config import NowcastConfig; probe(NowcastConfig())"</code>
+  → <code>data/derived/nowcast_probe.txt</code> (the source of every number above; fixed seed 20260712).</p>
+
+  <h2 id="takeaways">13 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>
@@ -491,6 +543,13 @@
     winter-curtailed furnaces — which VNP14 active-fire cannot see. VNF Nightfire, the product that could, is
     licence/pay-gated. So critique #1 stays <strong>unresolved by public VIIRS</strong> — an informative
     proxy-validity result, not a claim that NO₂ is weak.</li>
+    <li><strong>The public-data nowcast has no edge over CREA (NOX-013, §12).</strong> The T1 feasibility gate
+    returned NO-GO: at fixed defaults neither NO₂ feature beats or leads the CREA incumbent (no2_corrected
+    r=−0.014 p<sub>perm</sub>=0.815; residual_activity r=+0.063 p<sub>perm</sub>=0.290; both CIs span zero, both
+    lag CREA), and no valid physical proxy exists. Tasks T2–T14 were not built — the spec-anticipated terminal
+    state. This is the <strong>fourth convergent honest-null</strong> (with §9, §10, §11): the continuous NO₂
+    residual is not an investment-grade nowcast for this cluster. Remaining levers stay flux divergence (NOX-005)
+    or a multi-overpass sensor (GEMS).</li>
     <li><strong>Don't over-read −0.35</strong> — it's a whole-sample trend crossing, not intra-period
     inversion.</li>
     <li><strong>Economy link is below noise</strong> on partial data — revisit after the full fetch + the

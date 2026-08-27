@@ -317,7 +317,10 @@
         "reviewed_at": "2026-08-22",
         "report": "specs/spatial-scale-sensitivity/review.html",
         "note": "Approved, no blocking findings. Verified against actual code/artifacts: full REQ/NFR/AC traceability; two-axis sweep as specified (Axis 1 clip 0.25 vs 0.10 buffer; Axis 2 coarsen_cube block-mean over {native,0.10,0.15,0.25} deg, AGGREGATION ONLY -- no interpolation-to-finer path, ERR-002 raises when finer than native); robust machinery real and used (robust_corr effective-N 1st-order + Newey-West, moving-block bootstrap CI, block-permutation null; bh_fdr per lag_kind family; AT3 naive over-rejects AR(1) while robust holds near alpha, AT4 recovers planted signal); benchmark-blind (deseasonalize carries no benchmark arg); result faithfully supported (scale_sensitivity.csv = 128 rows, 0 robust, 34 fragile naive-only, all fdr_reject=False, min p_fdr=0.196, matches findings file + follow_up); docs (exploration-results, architecture-decisions, history, project-map) updated/accurate; reused modules untouched in 433b49c. 248 tests pass, ruff clean.",
-        "nits": ["N1 ERR-001 (missing-cube) has an actionable FileNotFoundError path but no dedicated unit test", "N2 extra figures under docs/figures/nox008/ beyond the spec's docs/figures/exploration/ outputs -- additive, in scope"]
+        "nits": [
+          "N1 ERR-001 (missing-cube) has an actionable FileNotFoundError path but no dedicated unit test",
+          "N2 extra figures under docs/figures/nox008/ beyond the spec's docs/figures/exploration/ outputs -- additive, in scope"
+        ]
       },
       "documentation_required": true,
       "documentation_status": "updated",
@@ -472,7 +475,10 @@
         "report": "specs/regime-2023-event-study/review.html",
         "scope": "Full: offline machinery (T1-T11, T13-T14) + T12 real-data run + docs. All gates cleared.",
         "note": "Arc: (1) 2026-08-08 offline machinery approved-with-nits -> F1/F2 (event-study table+4th figure; inert BH-FDR grid dims padding n_tests) + F3/F4 fixed honestly -> re-check CLEAN. (2) 2026-08-22 T12 real-data pass: the data gate was lifted locally (NOX-003.1 residual regenerated from the on-disk cube + full-series ERA5; it is a reproducible derived artifact, not external data). Running T12 surfaced 4 real-run bugs the offline fixtures missed (they inject pre-aligned series): B1 missing harmonic_order (crash on real harmonic variant); B2 index CLI lacked --deseason (ERR-001 message invalid); B3 (significant) _join did exact-date inner join -> Sunday residual vs Friday benchmark -> 47 dates -> 'series too short' (fixed by weekly resample reusing align_series/scale.py convention across all 4 correlation-join sites); B4 secular trend read from 's_trend' but writer emits 'trend_s_t' -> 2024-collapse intensity arm inert (fixed). Each fix has a fail-without/pass-with regression test. Reviewer verified: 256 tests pass, ruff clean, reused NOX-004/NOX-008 modules byte-for-byte unchanged (empty diff); B3 weekly-align faithful + no look-ahead + benchmark-blind + event-detection cadence unchanged; artifacts internally consistent with the summary; BH-FDR-vs-scan-max tension is COHERENT (two multiplicity lenses, scan-max governs); r=0.276-vs-exploratory-0.76 is the expected pre-registered-construction regression, nothing selected against CREA. (3) 2026-08-22 final docs re-check: docs-approved, every documented number matches the artifacts exactly.",
-        "reviewer_proposed_decisions": ["DL-1 curtailment calendar now applied at coarse-floor granularity (closes NOX-003/004 Q4/Q6a; live event-level survey pending) -- NEEDS developer approval", "DL-2 scan-maximum-null with artefact-as-first-class-outcome as standing methodology for rolling-window peak claims -- NEEDS developer approval"]
+        "reviewer_proposed_decisions": [
+          "DL-1 curtailment calendar now applied at coarse-floor granularity (closes NOX-003/004 Q4/Q6a; live event-level survey pending) -- NEEDS developer approval",
+          "DL-2 scan-maximum-null with artefact-as-first-class-outcome as standing methodology for rolling-window peak claims -- NEEDS developer approval"
+        ]
       },
       "documentation_required": true,
       "documentation_status": "updated",
@@ -496,7 +502,7 @@
       "slug": "activity-nowcast-signal",
       "description": "Developer-directed reframing (2026-07-12): the project's product is an INVESTMENT-GRADE signal, not a correlation study. Convert the physical activity measurement into a weekly, latency-aware NOWCAST of Tangshan steel activity expressed as a SURPRISE: deviation of the satellite-implied activity from an expectation baseline (own seasonal/trend model + last published official print), emitted as a causal z-score tradable at the next session after overpass + processing latency. FEATURE INPUT IS CONTINGENT ON THE ROADMAP: NOX-009 measured the steel-local share of NO2 change-variance at ~0 (93-95% regional common-mode), so the continuous NO2 residual alone is NOT a viable nowcast feature; the candidate features are (a) VIIRS thermal-anomaly series over the facility footprints (NOX-011) as primary physical activity proxy, (b) NO2 event/catalyst markers (NOX-004/NOX-012) for discrete curtailment starts/stops, and (c) NO2 continuous residual only as a contextual covariate. TRIANGULATION AS QC (from the 2026-07-12 discussion): cross-check the nowcast against hard-to-falsify quantities measured OUTSIDE China -- exporter-side iron-ore shipments (Pilbara Ports monthly tonnage to China, Vale shipments), Capesize/Baltic freight, coking-coal exports -- used as signal quality control and as the discrepancy-vs-official-statistics diagnostic (latent-factor / residual-analysis framing: periods where official prints diverge from the independent-signal consensus are flagged with uncertainty, NOT labelled 'fake'). INCUMBENT TEST: the benchmark to beat is the weekly Mysteel/WIND blast-furnace operating-rate survey (the CREA series) -- the nowcast must show INCREMENTAL information (earlier or orthogonal), else no edge exists. DISCIPLINE: strict no-look-ahead (causal baselines, publication-lag-aware alignment of official prints), anti-p-hacking (expectation model fit without reference to market returns), public/free data only, honest null acceptable. Scale caveat explicit: Tangshan ~13% of national steel; provincial (Hebei) statistics preferred where available. Derived series gitignored; small stats + figures committable.",
       "sdd": true,
-      "status": "spec_ready",
+      "status": "done",
       "depends_on": [
         "NOX-011",
         "NOX-012"
@@ -511,12 +517,27 @@
         "tests/**"
       ],
       "approval": {
-        "human_approved": false
+        "human_approved": true,
+        "approved_by": "developer",
+        "approved_at": "2026-08-27",
+        "note": "Developer approved verbally (\"Aprovado, adelante\") despite the honest-null risk flagged (NOX-009 ~0 steel-local share, NOX-011 no valid physical proxy, NOX-012 weak/artefact coupling). Proceed on the graceful-degradation path: VIIRS feature dropped (NOX-011 negative), lean on NO2 event markers + continuous residual covariate; formally confirm incremental-info-vs-CREA or an honest-null."
       },
       "spec_ready_at": "2026-08-22",
       "status_note": "SPEC_READY 2026-08-22: full SDD spec authored (requirements REQ-001..015/NFR-001..007/EDGE/ERR/AC-001..008, design with reuse map + data-flow, tasks T1..T14, assumptions x9, acceptance-tests AT1..AT8 + guards). 0 blocking open questions (5 non-blocking with safe defaults). T1 = feasibility spike (three-way go/no-go: GO-primary VIIRS / GO-degraded events+covariate / NO-GO honest-null). Acceptance bar = INCREMENTAL information over the CREA incumbent (earlier or orthogonal), honest-null first-class. Four non-negotiable guards specified as acceptance gates: no-look-ahead (causal, publication-lag-aware), anti-p-hacking (expectation model never sees market returns), incremental-info-vs-CREA, honest-null. DEPENDENCY RISK surfaced (Q1 + high-risk assumption A1): primary feature VIIRS depends on NOX-011 which is BLOCKED (data-gated on FIRMS MAP_KEY + EOG VNF credentials) -> spec provides graceful-degradation path. Feature is an independent physical proxy (VIIRS) or discrete event markers, NOT the continuous NO2 residual (consequence of NOX-009 ~0 steel-local change-variance; reinforced by NOX-012 continuous-not-event-bound finding). New additive noxus/nowcast/ package (features/baseline/surprise/triangulation/incremental/report/probe) + NowcastConfig + CLI nowcast[--probe]/triangulate-nowcast. Reuses NOX-008 robust significance + preprocess.align_series (avoids the NOX-012 B3 join bug) + signal/thermal.py + catalyst/** + intensity/index byte-for-byte. Reviewer will apply the deep-review escalation ladder (quantitative edge-over-incumbent claim). Awaiting human approval (only the developer moves to human_approved).",
       "origin": "Developer direction 2026-07-12: project reframed toward investment-grade signals; triangulation (shipments/freight) retained as QC, not as the goal.",
-      "created": "2026-07-12"
+      "created": "2026-07-12",
+      "human_approved_at": "2026-08-27",
+      "in_progress_at": "2026-08-27",
+      "done_at": "2026-08-27",
+      "verdict": "NO-GO / honest null (T1 feasibility gate). No available NO2 feature carries incremental information over the CREA incumbent: no2_corrected r=-0.014 (p_perm=0.815, lead_lag -8, lags CREA); residual_activity r=+0.063 (p_perm=0.290, lead_lag -2, lags); both bootstrap CIs span zero. VIIRS thermal present-but-invalid (triangulation non-significant). Fourth convergent null (NOX-009 share~0, NOX-011 no physical proxy, NOX-012 weak/artefact, NOX-013-T1 no edge). Public-data nowcast has no demonstrable edge over CREA. T2-T14 intentionally not built (spec-anticipated terminal state of a NO-GO gate). T1 infra kept as dormant scaffolding.",
+      "review": {
+        "result": "approved",
+        "reviewed_at": "2026-08-27",
+        "review_path": "specs/activity-nowcast-signal/review.html",
+        "documentation_required": true,
+        "documentation_status": "updated",
+        "notes": "T1 honest-null closeout APPROVED; no blocking findings. Traceability (REQ-015/AT8), anti-p-hacking (AT3, benchmark-blind, frozen NowcastConfig), reused modules unchanged byte-for-byte (robust.py/leadlag.py/preprocess.py git-clean, AT-REG-1), weekly-resample-then-align (avoids NOX-012 B3 join bug), no-VIIRS-fabrication (validity gated on triangulation significance). 280 tests pass, ruff clean. Docs re-checked CLEAR: exploration-results §12, history, project-map, data-access no-op, decision-log DL-A/DL-B (rejected-options) + NOX-013 closeout + DL-3 (architecture-decisions). Non-blocking (do not gate done): N1 nowcast --probe CLI action string not wired (downstream, moot under terminal NO-GO); N2 tasks.json trailing newline."
+      }
     },
     {
       "id": "NOX-014",

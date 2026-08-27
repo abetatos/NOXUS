@@ -580,3 +580,66 @@ class RegimeStudyConfig:
         if self.freq.upper() in ("M", "ME", "MS"):
             return int(self.window_months)
         return int(round(self.window_months * 52.0 / 12.0))
+
+
+@dataclass(frozen=True)
+class NowcastConfig:
+    """Configuration for the investment-grade activity nowcast (NOX-013).
+
+    Frozen so the fixed defaults cannot be tuned against outcomes (anti-p-hacking, NFR-002). This
+    is the *minimal* config the T1 feasibility spike (``noxus.nowcast.probe``) needs; T2 extends it
+    (expectation-baseline, surprise, triangulation knobs) without restructuring these fields.
+
+    Feature priority encodes the roadmap: the VIIRS physical proxy (NOX-011) is UNAVAILABLE (VNF
+    paywalled; FIRMS active-fire empirically invalid for this cluster, finding 2026-08-27), so the
+    main path is the NO2 event markers (NOX-004/012) + the NO2 intensity residual covariate
+    (NOX-003.1). The VIIRS entry stays first only as a dormant branch that fires solely if a
+    *valid* thermal series is ever supplied; the probe never fabricates one.
+    """
+
+    # --- Feature roadmap (VIIRS dormant/unavailable → events → NO2 residual covariate) --------
+    feature_priority: tuple[str, ...] = ("viirs", "events", "no2_residual")
+
+    # --- Cadence + causal-emission knobs (fixed defaults) -------------------------------------
+    freq: str = "W"  # weekly primary (matches the CREA benchmark + NO2 cube)
+    latency_days: int = 2  # overpass + processing latency → tradable next session (REQ-005)
+    min_history: int = 26  # warm-up periods before a z-score / correlation is trusted (EDGE-006)
+
+    # --- Incremental-information quick pass (reused NOX-008 robust inference; no tuning) -------
+    seed: int = 20260712  # fixed RNG seed (NFR-001) — shared with the thermal triangulation
+    n_boot: int = 5000  # moving-block bootstrap draws
+    n_perm: int = 5000  # block-permutation null draws
+    max_lag: int = 8  # +/- lead/lag window (periods) for lead_lag
+    min_coverage: float = 0.25  # coverage screen inherited by align_series (NOX-003)
+    min_overlap: int = 26  # refuse an incremental-info verdict below this many common weeks
+    sig_alpha: float = 0.05  # robust-significance / BH-FDR level (REQ-011)
+
+    # --- Triangulation sources (QC only; resolved + snapshotted at T7, placeholder here) ------
+    triangulation_sources: tuple[str, ...] = (
+        "iron_ore_shipments",
+        "capesize_freight",
+        "coking_coal_exports",
+    )
+
+    # --- Inputs (read-only, real on-disk artefacts) ------------------------------------------
+    benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
+    # NO2 intensity residual of record (the background-corrected attributed footprint level).
+    no2_residual_path: Path = Path("data/derived/no2/steel_footprint_signal.parquet")
+    no2_residual_column: str = "no2_corrected"
+    # NO2 intensity decomposition residual covariate (NOX-003.1).
+    intensity_decomp_path: Path = Path("data/derived/no2/steel_intensity_decomposition.parquet")
+    intensity_residual_column: str = "residual_activity"
+    # NO2 event/catalyst markers (NOX-004/012) — presence signals event-feature availability.
+    events_results_path: Path = Path("data/derived/catalyst_results.json")
+    # VIIRS thermal proxy: the series file may exist but is empirically INVALID; the triangulation
+    # CSV's significance verdict is the validity gate for the dormant GO-primary branch.
+    thermal_series_path: Path = Path("data/derived/viirs_thermal_series.parquet")
+    thermal_triangulation_path: Path = Path("data/derived/viirs_triangulation.csv")
+
+    # --- Outputs ------------------------------------------------------------------------------
+    out_dir: Path = Path("data/derived")
+    probe_report_name: str = "nowcast_probe.txt"
+
+    def probe_report_path(self) -> Path:
+        """Absolute-relative path of the committable T1 go/no-go verdict report."""
+        return self.out_dir / self.probe_report_name

@@ -19,12 +19,13 @@ Rules for this file:
 
 ```text
 noxus/                 # Python package
-  config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/Validation/ScaleSweep/VarianceDecompConfig (VarianceDecompConfig = NOX-009) + Viirs­Acquisition/ThermalTriangulationConfig (NOX-011) + RegimeStudyConfig + holiday/heating-season constants (NOX-012)
+  config/              # region.py: Tangshan AOI derived from steel facilities + buffer; run.py: Benchmark/Acquisition/Gridding/Signal/Validation/ScaleSweep/VarianceDecompConfig (VarianceDecompConfig = NOX-009) + Viirs­Acquisition/ThermalTriangulationConfig (NOX-011) + RegimeStudyConfig + holiday/heating-season constants (NOX-012) + NowcastConfig (frozen; NOX-013 T1 probe)
   data/                # benchmark.py + tropomi.py (openEO acquisition) + verify_no2.py + gridding.py (compositing + clip/coarsen scale ops, NOX-008) + era5.py (CDS ingest) + viirs.py (thermal acquisition + budget gate + probe, NOX-011; default source=FIRMS primary — VNF dropped/licence-gated post-2026-08-22 pivot, source="vnf" raises VnfUnavailableError) + verify_viirs.py — implemented
   attribution/         # source.py: footprint sampling + regional-background subtraction — implemented
   signal/              # index.py (meteo regress-out + deseason + relative index) + intensity.py (NOX-003.1) + prophet_deseason.py (daily Prophet trend/yearly/weekly + harmonic fallback, NOX-006) + variance.py (benchmark-blind change-variance partition regional/meteo/steel-local/noise + implied change ceiling, NOX-009) + thermal.py (facility-radius join + benchmark-blind weekly/daily VIIRS thermal-activity series, NOX-011) — implemented
   validation/          # preprocess.py + leadlag.py + report.py: align/sign/r·p + lead-lag; robust.py (autocorrelation-robust effective-N/bootstrap/permutation + BH-FDR, NOX-008; + block_bootstrap_statistic for arbitrary-statistic CIs, NOX-009) + scale.py (extent×resolution sweep) — implemented
   catalyst/            # events.py + groundtruth.py + market.py + study.py + report.py: NO2 event-marker → production match + market event-study (NOX-004); calendar.py (public curtailment-calendar assembly + T1 feasibility probe, coarse-floor) + regime.py (rolling-regime study reusing robust_corr + regime-conditioned event study reusing NOX-004 primitives + leave-one-event-out jackknife + 2024-collapse dual diagnostic + rolling scan-maximum null under block-permutation + BH-FDR grid, NOX-012) — implemented
+  nowcast/             # PARTIAL / GATED (NOX-013): probe.py (benchmark-blind T1 feasibility spike — physical-proxy availability + incremental-info-over-CREA + three-way GO-primary/GO-degraded/NO-GO verdict, reuses robust_corr/lead_lag/align_series unchanged) + NowcastConfig. Build STOPPED at the T1 NO-GO gate (honest null: no NO2 feature beats/leads CREA, no valid physical proxy); T2–T14 (features/baseline/surprise/report/CLI) intentionally NOT built. Dormant GO-primary branch fires only if a genuinely significant thermal series is ever supplied — never fabricates one
   cli/                 # command-line entry point; all subcommands implemented (see CLI table)
 analysis/              # reproducible run scripts → docs/figures/ (e.g. preliminary_signal.py, deep_exploration.py, scale_sensitivity.py, variance_decomposition.py [NOX-009 budget + ceiling figures], viirs_triangulation.py [NOX-011 NO2↔VIIRS + CREA↔VIIRS feature-vs-target diagnosis, reuses NOX-008 robust significance])
 docs/                  # design notes, preprint motivation, data-access.md, preliminary-results.html (+ figures/)
@@ -34,7 +35,7 @@ decisions/             # SDD decision logs + onboarding answers
 scripts/               # SDD validation / run helpers (bash)
 data/curtailment/      # committed public Tangshan/Hebei curtailment calendar: tangshan_hebei_curtailment.csv (21 coarse-floor structural events, each sourced) + SOURCES.md (T1 verdict + provenance, NOX-012); raw scrapes _raw/ gitignored
 data/raw/              # (gitignored) EO downloads: tropomi/ (NO2 overpasses+manifest), era5/ (.nc snapshots), benchmark/, gem/, viirs/ (FIRMS per-night detections+manifest, NOX-011)
-data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_operating_rate) — committed; NOX-011 committable outputs: viirs_thermal_series.parquet, viirs_triangulation.csv, verification/viirs/ (co-location figures)
+data/derived/          # derived parquet series (e.g. benchmark_tangshan_bf_operating_rate) — committed; NOX-011 committable outputs: viirs_thermal_series.parquet, viirs_triangulation.csv, verification/viirs/ (co-location figures); NOX-013 committable verdict report: nowcast_probe.txt (T1 NO-GO / honest null)
 ```
 
 ## CLI commands
