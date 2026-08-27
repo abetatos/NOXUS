@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Flux-divergence point-source attribution (NOX-005)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-005</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>A new <code>noxus/fluxdiv/</code> package implements the Beirle flux-divergence method as an
+        <strong>additive, selectable</strong> attribution stage that never replaces the existing
+        relative-index pipeline. A new raw-L2 acquisition module (<code>noxus/data/tropomi_l2.py</code>)
+        provides the native-footprint swath the method needs. The pipeline is:</p>
+        <ol>
+          <li><strong>Raw L2 fetch</strong> (REQ-001): pull <code>S5P_*_L2__NO2___</code> swath granules
+          over the AOI from the free CDSE OData/S3 route (OFFL + RPRO), QA-screened, resumable via a
+          manifest. Distinct from the gridded openEO product (NOX-002a).</li>
+          <li><strong>Oversampling</strong> (REQ-002): accumulate many overpasses onto a fine regular
+          grid, using the L2 footprints + averaging kernel, to build a dense mean-column field per
+          analysis period.</li>
+          <li><strong>Flux</strong> (REQ-003): <code>F = V<sub>NO2</sub> · u</code>, with a
+          boundary-layer-representative effective wind from the existing ERA5 store, sampled at the
+          overpass time.</li>
+          <li><strong>Divergence</strong> (REQ-004): <code>∇·F</code> cancels the smoothly advected
+          regional background and isolates the local source term.</li>
+          <li><strong>Chemical-loss correction</strong> (REQ-005): add the effective sink
+          <code>V<sub>NO2</sub>/τ</code> so <code>E = ∇·F + V<sub>NO2</sub>/τ</code> approximates the
+          emission rate; τ and the plume-height/effective-wind choice are reported with sensitivity
+          (REQ-006, EDGE-004/005).</li>
+          <li><strong>Facility attribution</strong> (REQ-008): aggregate <code>E</code> over the
+          committed steel-facility footprints → a Tangshan steel NO<sub>x</sub> source series.</li>
+          <li><strong>CREA comparison</strong> (REQ-009): only <em>after</em> the blind field is built,
+          reuse the NOX-008 robust modules + weekly-resample-then-align to test correlation/lead.</li>
+        </ol>
+        <p>The whole build is <strong>gated by a T1 feasibility spike</strong> (REQ-015) that decides, on
+        a bounded data subset and benchmark-blind, whether a coherent localised source term is
+        recoverable at all — a three-way GO / GO-degraded / NO-GO verdict — before the rest is
+        implemented.</p>
+        <p class="callout"><strong>Feasibility + cost caveat.</strong> The method is known to resolve
+        poorly in high-background/complex-wind NE China (EDGE-001), so a NO-GO is realistic; and fine
+        oversampling + divergence over a multi-year raw swath is compute/storage-heavy (see
+        <em>Compute and storage profile</em>). Both are surfaced here so the developer decides at
+        approval; T1 makes the call cheaply before the full pipeline exists.</p>
+      </section>
+
+      <section id="reuse-map">
+        <h2>Reuse map (reuse, do not reimplement — NFR-003)</h2>
+        <table>
+          <thead>
+            <tr><th>Need</th><th>Reused artefact</th><th>How</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Transport wind field</td><td><code>noxus/data/era5.py</code> (NOX-003/010), <code>ingest-era5</code></td><td><code>u10</code>/<code>v10</code>/<code>blh</code> over the AOI/era, sampled at overpass time for the flux. No new meteo path.</td></tr>
+            <tr><td>AOI + facility footprints</td><td><code>noxus/config/region.py</code>, <code>data/derived/tangshan_steel_facilities.csv</code> (GEM tracker)</td><td>AOI window for the fetch; footprints as the attribution targets (REQ-008).</td></tr>
+            <tr><td>Regional-background subtraction</td><td><code>noxus/attribution/source.py</code></td><td>Reused where the facility aggregation needs a background reference, consistent with the existing footprint sampling.</td></tr>
+            <tr><td>Raw fetch / auth patterns</td><td><code>noxus/data/tropomi.py</code> (openEO, NOX-002a), <code>docs/data-access.md</code> CDSE token flow</td><td>Reuse the CDSE token/manifest/resumable conventions; the new module targets OData/S3 raw L2 instead of openEO gridded.</td></tr>
+            <tr><td>Autocorrelation-robust <em>r</em> + CI + null</td><td><code>noxus/validation/robust.py</code> — <code>robust_corr</code>, <code>block_permutation_p</code>, <code>block_length</code>, <code>bh_fdr</code></td><td>All CREA comparisons (REQ-009) use these byte-for-byte. No new stats.</td></tr>
+            <tr><td>Lead/lag vs CREA</td><td><code>noxus/validation/leadlag.py</code> — <code>lead_lag</code></td><td>Does the attributed source lead CREA?</td></tr>
+            <tr><td>Weekly resample-then-align</td><td><code>noxus/validation/preprocess.py</code> — <code>align_series</code></td><td>Canonical alignment; avoids the NOX-012 B3 exact-date-join bug (NFR-004).</td></tr>
+            <tr><td>Config + CLI patterns</td><td><code>noxus/config/run.py</code> dataclasses, <code>noxus/cli/main.py</code> subcommand style</td><td>New frozen <code>FluxDivergenceConfig</code> + new subcommands mirroring existing ones.</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Genuinely new</strong> (not reusable): the raw-L2 swath fetch
+        (<code>tropomi_l2.py</code>), the fine oversampling operator (<code>oversample.py</code>), and
+        the flux + divergence + chemical-loss operator (<code>flux.py</code>, <code>divergence.py</code>).</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+          <svg width="720" height="320" viewBox="0 0 720 320" aria-label="Flux-divergence data flow">
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+              </marker>
+            </defs>
+            <!-- inputs -->
+            <rect x="8" y="24" width="150" height="38" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+            <text x="83" y="40" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">CDSE raw L2 __NO2___</text>
+            <text x="83" y="53" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#2563eb">swath (free, new)</text>
+            <rect x="8" y="70" width="150" height="34" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+            <text x="83" y="92" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#854d0e">ERA5 wind (existing)</text>
+            <rect x="8" y="112" width="150" height="34" rx="6" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
+            <text x="83" y="134" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#374151">facility footprints</text>
+            <!-- oversample -->
+            <line x1="158" y1="43" x2="200" y2="60" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="202" y="44" width="118" height="34" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="261" y="66" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">oversample TVCD</text>
+            <!-- flux -->
+            <line x1="158" y1="87" x2="200" y2="95" stroke="#6b7280" stroke-width="1.5"/>
+            <line x1="320" y1="61" x2="352" y2="80" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="202" y="88" width="118" height="34" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="261" y="110" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">flux F = V·u</text>
+            <line x1="320" y1="105" x2="352" y2="92" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <!-- divergence + loss -->
+            <rect x="354" y="72" width="130" height="46" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="419" y="90" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">∇·F  +  V/τ</text>
+            <text x="419" y="105" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">source term E (blind)</text>
+            <!-- attribution -->
+            <line x1="158" y1="129" x2="352" y2="129" stroke="#6b7280" stroke-width="1.5"/>
+            <line x1="484" y1="95" x2="516" y2="120" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <line x1="352" y1="129" x2="516" y2="129" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="518" y="104" width="150" height="44" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+            <text x="593" y="122" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">facility attribution</text>
+            <text x="593" y="137" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c3aed">steel source series</text>
+            <!-- outputs -->
+            <line x1="593" y1="148" x2="593" y2="176" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <rect x="470" y="178" width="200" height="34" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+            <text x="570" y="200" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#854d0e">CREA compare (post-hoc, robust)</text>
+            <rect x="470" y="220" width="200" height="34" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
+            <text x="570" y="242" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">source map + series + honest null</text>
+            <line x1="570" y1="212" x2="570" y2="220" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <!-- gate note -->
+            <rect x="8" y="200" width="430" height="40" rx="6" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+            <text x="20" y="218" font-family="sans-serif" font-size="10" fill="#9a3412">T1 GATE (bounded subset, benchmark-blind): does a source hotspot co-locate</text>
+            <text x="20" y="232" font-family="sans-serif" font-size="10" fill="#9a3412">with plants above noise? → GO / GO-degraded / NO-GO before the full build.</text>
+            <text x="8" y="280" font-family="sans-serif" font-size="10" fill="#9ca3af">Purple = new operators; the source term E is built with NO reference to CREA (blind). CREA enters only in the post-hoc compare.</text>
+            <text x="8" y="296" font-family="sans-serif" font-size="10" fill="#9ca3af">Raw swath + fine fields are gitignored (large EO); only small maps/series/tables are committable.</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="project-map-references">
+        <h2>Project map references</h2>
+        <p>Touches: a new <code>noxus/fluxdiv/</code> package (peer of <code>attribution/</code>,
+        <code>signal/</code>, <code>validation/</code>); a new <code>noxus/data/tropomi_l2.py</code>
+        raw-L2 fetch module; <code>noxus/config/run.py</code> (new <code>FluxDivergenceConfig</code>);
+        <code>noxus/cli/main.py</code> (new subcommands); a new <code>analysis/</code> driver;
+        <code>data/raw/tropomi_l2/</code> (gitignored swath) and <code>data/derived/fluxdiv/</code>
+        (gitignored fine fields + committable summaries). Reuses <code>data/era5.py</code>,
+        <code>attribution/source.py</code>, <code>config/region.py</code>,
+        <code>validation/robust.py</code> + <code>leadlag.py</code> + <code>preprocess.py</code>
+        unchanged. The project map is refreshed as a closing task.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <p>Recorded as <code>scope</code> globs in <code>tasks.json</code> for the spec-drift hook.</p>
+        <table>
+          <thead>
+            <tr><th>File</th><th>Change</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>noxus/fluxdiv/__init__.py</code></td><td>new</td><td>Package init.</td></tr>
+            <tr><td><code>noxus/data/tropomi_l2.py</code></td><td>new</td><td>Raw L2 <code>__NO2___</code> swath fetch via CDSE OData/S3, resumable manifest (REQ-001, NFR-001).</td></tr>
+            <tr><td><code>noxus/fluxdiv/oversample.py</code></td><td>new</td><td>Fine-grid oversampling of L2 TVCD + averaging kernel + QA/coverage screen (REQ-002, EDGE-002/007).</td></tr>
+            <tr><td><code>noxus/fluxdiv/flux.py</code></td><td>new</td><td>Flux <code>F = V·u</code> with effective/plume-level wind from ERA5 (REQ-003/006, EDGE-003/004).</td></tr>
+            <tr><td><code>noxus/fluxdiv/divergence.py</code></td><td>new</td><td>Divergence operator <code>∇·F</code> + chemical-loss sink <code>V/τ</code> (REQ-004/005, EDGE-005).</td></tr>
+            <tr><td><code>noxus/fluxdiv/source.py</code></td><td>new</td><td>Facility attribution of the source-term field → steel source series (REQ-008); reuses <code>attribution/source.py</code> background.</td></tr>
+            <tr><td><code>noxus/fluxdiv/validate.py</code></td><td>new</td><td>Post-hoc CREA compare reusing robust modules + resample-then-align (REQ-009, NFR-004).</td></tr>
+            <tr><td><code>noxus/fluxdiv/report.py</code></td><td>new</td><td>Source map + series + honest null + scale caveat + compute profile (REQ-010/011/014).</td></tr>
+            <tr><td><code>noxus/fluxdiv/probe.py</code></td><td>new</td><td>T1 feasibility spike + three-way GO/GO-degraded/NO-GO verdict (REQ-015).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add <code>FluxDivergenceConfig</code></td><td>Frozen dataclass: resolution, τ (+range), wind level, wind/coverage/QA thresholds, freq, seed, subset window, compute-budget knobs.</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>add subcommands</td><td><code>fetch-l2</code>, <code>flux-divergence</code> (+ <code>--probe</code>), mirroring existing commands.</td></tr>
+            <tr><td><code>analysis/flux_divergence.py</code></td><td>new</td><td>Reproducible driver → committable stats + figures.</td></tr>
+            <tr><td><code>tests/fluxdiv/**</code></td><td>new</td><td>Unit + guard tests (operator correctness, blind guard, attribution, robust compare, T1 verdict, public-only).</td></tr>
+            <tr><td><code>.gitignore</code></td><td>add raw/derived fluxdiv paths</td><td><code>data/raw/tropomi_l2/</code>, <code>data/derived/fluxdiv/</code> fine fields gitignored (REQ-013).</td></tr>
+            <tr><td><code>docs/data-access.md</code></td><td>doc (closing task)</td><td>Raw-L2 CDSE OData/S3 path vs gridded openEO path; credential names only.</td></tr>
+          </tbody>
+        </table>
+        <p>Proposed <code>scope</code> for <code>tasks.json</code>:
+        <code>["noxus/fluxdiv/**", "noxus/data/tropomi_l2.py", "noxus/config/run.py",
+        "noxus/cli/main.py", "analysis/**", "tests/fluxdiv/**", "tests/cli/**", ".gitignore"]</code>.</p>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files not to change</h2>
+        <table>
+          <thead>
+            <tr><th>File or directory</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>noxus/validation/robust.py</code>, <code>leadlag.py</code>, <code>preprocess.py</code></td><td>Reused byte-for-byte (NFR-004); statistical/alignment core must stay stable.</td></tr>
+            <tr><td><code>noxus/data/tropomi.py</code> (openEO), <code>data/era5.py</code></td><td>Existing acquisition consumed as-is; the raw-L2 path is a new peer module, not an edit.</td></tr>
+            <tr><td><code>noxus/attribution/source.py</code></td><td>Regional-background subtraction reused, not modified.</td></tr>
+            <tr><td><code>noxus/signal/**</code>, <code>catalyst/**</code></td><td>Relative-index pipeline untouched; this stage is additive/selectable (NFR-007).</td></tr>
+            <tr><td><code>.env</code>, credentials</td><td>Protected; referenced by name only, never read/logged.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="interfaces-and-contracts">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <ul class="tab-bar">
+            <li><button class="tab-btn" type="button">API / Functions</button></li>
+            <li><button class="tab-btn" type="button">Schema</button></li>
+            <li><button class="tab-btn" type="button">CLI</button></li>
+          </ul>
+          <div class="tab-panel">
+<pre><code># noxus/data/tropomi_l2.py  (NEW raw-L2 acquisition; FREE CDSE OData/S3 only)
+def fetch_l2(cfg: FluxDivergenceConfig, start, end) -&gt; ManifestResult:
+    """Search + download S5P_*_L2__NO2___ swath granules over the AOI from the CDSE OData
+    catalogue (Bearer token) or the S3 eodata endpoint; QA-screen (qa_value &gt;= 0.75);
+    resumable via a manifest under data/raw/tropomi_l2/. Refuses paid sources (ERR-005)."""
+
+# noxus/fluxdiv/oversample.py
+def oversample(granules, cfg) -&gt; xr.DataArray:
+    """Accumulate overpasses onto a fine regular grid (cfg.resolution) using L2 footprints +
+    averaging kernel; return a per-period mean TVCD field. Insufficient coverage -&gt; NaN (EDGE-002)."""
+
+# noxus/fluxdiv/flux.py
+def flux_field(tvcd: xr.DataArray, wind, cfg) -&gt; xr.Dataset:
+    """F = V_NO2 * u using an effective/plume-level wind (cfg.wind_level) from ERA5 at overpass
+    time. Calm days below cfg.wind_min are flagged/excluded (EDGE-003/004)."""
+
+# noxus/fluxdiv/divergence.py  (BLIND: no CREA/market argument anywhere in this path)
+def source_term(flux: xr.Dataset, tvcd: xr.DataArray, cfg) -&gt; xr.DataArray:
+    """E = div(F) + V_NO2 / tau  (chemical-loss corrected). tau + wind_level swept for
+    sensitivity (EDGE-004/005). Returns the emission-rate field, benchmark-blind (REQ-007)."""
+
+# noxus/fluxdiv/source.py
+def attribute_to_facilities(E: xr.DataArray, facilities, cfg) -&gt; pd.Series:
+    """Aggregate E over the committed steel-facility footprints -&gt; weekly Tangshan steel NOx
+    source series; reuse attribution/source.py regional-background subtraction (REQ-008)."""
+
+# noxus/fluxdiv/validate.py  (POST-HOC; REUSES robust_corr / lead_lag / bh_fdr / align_series)
+def compare_to_crea(source: pd.Series, crea: pd.Series, cfg) -&gt; CompareResult:
+    """Weekly-resample-then-align (align_series), then robust_corr + lead_lag + bh_fdr.
+    Never fit; runs only after the blind source series exists (REQ-009, NFR-004)."""
+
+# noxus/fluxdiv/probe.py  (T1 GATE)
+def probe(cfg: FluxDivergenceConfig) -&gt; ProbeVerdict:
+    """On a bounded subset, benchmark-blind: is a source hotspot co-located with the plants and
+    above field noise? Verdict in {GO, GO-degraded, NO-GO} with evidence. Stop-and-record."""</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># Steel source series (gitignored parquet), one row per analysis period:
+#   period            (index, weekly, Sunday-anchored per project convention)
+#   source_nox        float   attributed steel NOx source (emission-rate units)
+#   n_overpasses      int     valid oversampled overpasses in the period
+#   coverage_frac     float   valid-pixel fraction over the footprints
+#   wind_level        str     effective/plume wind choice used
+#   tau_hours         float   lifetime used (central value)
+#   flag              str     'ok' | 'low_coverage' | 'calm_wind' | 'ill_conditioned'
+# Provenance sidecar: resolution, tau range, wind level(s), QA/coverage/wind thresholds, seed,
+#   subset window, product/processor versions, Tangshan ~13% scale caveat.
+
+# Committable outputs (small): source_term_map.png (over facility footprints),
+#   flux_divergence_source_series.csv, crea_comparison.csv (robust r/p, BH-FDR, lead/lag),
+#   fluxdiv_probe.txt (T1 GO/GO-degraded/NO-GO verdict + evidence + compute profile).</code></pre>
+          </div>
+          <div class="tab-panel">
+<pre><code># Raw L2 swath fetch (free CDSE OData/S3; resumable) -&gt; data/raw/tropomi_l2/ (gitignored)
+uv run noxus fetch-l2 [--start --end --buffer --qa]
+# T1 feasibility spike — three-way go/no-go (run FIRST; gates the build; bounded subset)
+uv run noxus flux-divergence --probe [--start --end]
+# Full flux-divergence attribution (config-driven, additive; runs only on GO/GO-degraded)
+uv run noxus flux-divergence [--resolution KM --tau-hours H --wind-level LVL --freq W]
+# (reuses existing: ingest-era5, ingest-benchmark)</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="data-model-changes">
+        <h2>Data model changes</h2>
+        <p>No changes to existing stores. New: a gitignored raw-L2 swath store
+        (<code>data/raw/tropomi_l2/</code> + manifest); gitignored fine oversampled/divergence fields
+        (<code>data/derived/fluxdiv/</code>); a gitignored steel source parquet + provenance sidecar
+        (schema above); small committable summaries/figures. No migrations.</p>
+      </section>
+
+      <section id="compute-and-storage-profile">
+        <h2>Compute and storage profile (NFR-008, REQ-014)</h2>
+        <p>Surfaced so the developer can make an informed resource decision at approval. Orders of
+        magnitude, to be confirmed/refined at T1 on the bounded subset:</p>
+        <ul>
+          <li><strong>Raw swath storage.</strong> Full-granule S5P L2 <code>__NO2___</code> is ~0.4–0.6 GB
+          per overpass. NOX-002a avoided ~2.2 TB by server-side subsetting; the raw-L2 path
+          <em>keeps native footprints over the AOI window</em>, so per-overpass kept size is far smaller
+          than a full granule but larger than the gridded product — plan for a
+          <strong>few tens of GB</strong> over the TROPOMI era for the AOI, all gitignored.</li>
+          <li><strong>Oversampling + divergence compute.</strong> Fine-grid accumulation over ~3,700+
+          overpasses × a fine AOI grid is the heavy step; the divergence operator itself is cheap. This
+          is <strong>server-class-comfortable</strong> for the full multi-year record; a bounded subset
+          (a few weeks / reduced extent) is <strong>laptop-feasible</strong> and is what T1 and the unit
+          tests use.</li>
+          <li><strong>Mitigation.</strong> <code>cfg</code> exposes a subset window and extent so every
+          early task runs cheaply; the full record is never a prerequisite for the T1 gate. The report
+          states the measured profile from T1 so the full-run decision is evidence-based.</li>
+        </ul>
+      </section>
+
+      <section id="external-dependencies-and-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>The raw-L2 acquisition path is a security-relevant external integration (new download route,
+        credentialled), so this section is filled and <strong>verified at T1</strong> before the full
+        fetch is built. No new heavy runtime dependency is planned beyond the existing
+        httpx/xarray/numpy/scipy stack (and the optional <code>geo</code> extra's netCDF readers for L2).</p>
+        <table>
+          <thead>
+            <tr><th>External system / dependency</th><th>Docs checked (source, date)</th><th>Version constraints</th><th>Deprecated APIs avoided</th><th>Compatibility notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CDSE OData catalogue (raw L2 <code>__NO2___</code>)</td><td><code>docs/data-access.md</code> + CDSE OData/Token docs (to re-verify at T1)</td><td><code>S5P_*_L2__NO2___</code>, OFFL + RPRO; PAL/v2 product where available</td><td>Password-grant token flow already used by NOX-002a; avoid deprecated legacy S5P hub</td><td><strong>FREE.</strong> Bearer token vs S3 <code>eodata</code>; per-variable read path (kernel, geolocation) verified at T1 (Q1).</td></tr>
+            <tr><td>CDSE S3 <code>eodata</code> endpoint</td><td>CDSE S3 docs (to verify at T1)</td><td>S3 key/secret (<code>CDSE_*</code>)</td><td>n/a</td><td>Free high-throughput alternative for parallel pulls; optional.</td></tr>
+            <tr><td>ERA5 winds (CDS)</td><td>Existing NOX-003/010 ingest (validated)</td><td>n/a (existing store)</td><td>n/a</td><td>Reused as-is; hourly <code>u10</code>/<code>v10</code>/<code>blh</code> sampled at overpass time.</td></tr>
+            <tr><td>CREA / Mysteel / WIND benchmark</td><td>Existing NOX-001 ingestion (validated 2026-06-13)</td><td>n/a (CSV snapshot)</td><td>n/a</td><td>Post-hoc benchmark only, never fit to (REQ-009).</td></tr>
+          </tbody>
+        </table>
+        <p>T1 records the verified product/version/read-path and confirms the free route works before the
+        full multi-year fetch is committed. No paid/licence-gated source is permitted (NFR-001, ERR-005).</p>
+      </section>
+
+      <section id="security-and-permissions">
+        <h2>Security and permissions</h2>
+        <p>Credentials (<code>CDSE_*</code> for OData/S3) are referenced by environment-variable name
+        only, never read or logged; download URLs are scrubbed of secrets in logs (reuse the NOX-002a
+        convention). Raw swath + fine fields stay gitignored (reproducibility + volume). This introduces
+        a <strong>new external download integration</strong> — a data-access category the deep-review
+        policy treats with care — so the reviewer verifies the free-only routing and credential hygiene;
+        see <em>Risks</em>. No auth/authz, payments, or migration changes.</p>
+      </section>
+
+      <section id="documentation-targets">
+        <h2>Documentation targets</h2>
+        <p><code>.claude/context/project-map.md</code> (new <code>noxus/fluxdiv/</code> package +
+        <code>tropomi_l2.py</code> + CLI + data dirs), <code>docs/data-access.md</code> (raw-L2 CDSE
+        OData/S3 path vs gridded openEO; credential names), <code>README.md</code> (flux-divergence
+        attribution framing), a results note in <code>docs/</code> (T1 verdict and, if built, the
+        attribution result / honest null), <code>history.html</code>, and <code>decisions/</code> (the
+        DL-A revisit outcome). The reviewer confirms the final list.</p>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <ul>
+          <li><strong>Operator correctness</strong> (AT2): on a synthetic field with a known point
+          source and a uniform advecting wind, assert <code>oversample → flux → div + V/τ</code>
+          recovers a localised positive source at the planted location and ≈0 in the advected background.</li>
+          <li><strong>Benchmark-blind guard</strong> (AT3/NFR-002): introspect the source-field builder
+          signatures to assert no CREA/market argument; assert operator defaults are fixed constants, not
+          derived from any outcome series. A test that attempts to pass CREA is rejected (ERR-006).</li>
+          <li><strong>Facility attribution</strong> (AT4): planted source over a footprint → non-zero
+          series; source away from all footprints → ≈0 attribution.</li>
+          <li><strong>Robust CREA compare</strong> (AT5): planted-lead synthetic → robust test detects
+          it and survives BH-FDR; planted-null → BH-FDR rejects nothing; alignment uses
+          resample-then-align (assert not an exact-date join).</li>
+          <li><strong>Honest null</strong> (AT6): a background-only field → report states no coherent/
+          lifting source; no re-tuning of resolution/τ/wind to manufacture significance.</li>
+          <li><strong>T1 verdict</strong> (AT7): synthetic coherent-source → GO; noisy/partial →
+          GO-degraded; background-only → NO-GO (stops the build, ERR-002).</li>
+          <li><strong>Public-only</strong> (AT-ERR-3): requesting a paid source is refused (ERR-005);
+          the fetch targets only the CDSE free route.</li>
+          <li><strong>Edge/error</strong>: missing L2 store (ERR-001), missing/misaligned ERA5
+          (ERR-003), invalid config (ERR-004), coverage/calm-wind flags (EDGE-002/003).</li>
+          <li><strong>Reuse regression</strong> (AT-REG-1): reused modules unchanged (diff-empty);
+          existing CLI commands and the relative-index pipeline still behave.</li>
+        </ul>
+        <p>Tests use small synthetic fields + a bounded fixture, never a full multi-year download. Test
+        command: <code>uv run pytest</code>; lint <code>uv run ruff check .</code>. New tests in
+        <code>tests/fluxdiv/</code>.</p>
+      </section>
+
+      <section id="ui-verification-plan">
+        <h2>UI verification plan</h2>
+        <p><code>None</code> — no browser UI.</p>
+      </section>
+
+      <section id="risks-and-trade-offs">
+        <h2>Risks and trade-offs</h2>
+        <ul>
+          <li><strong>Expected-hardness (the dominant risk).</strong> Flux-divergence resolves poorly in
+          high-background/complex-wind NE China; the divergence may be dominated by advected background
+          with no localised source rising above noise over Tangshan (EDGE-001). An honest null is a
+          <em>likely</em> outcome and is first-class (REQ-010). The delivered value is a disciplined,
+          benchmark-blind answer to "can the best public point-source method separate Tangshan at all?"
+          — a null closes the DL-A revisit condition decisively.</li>
+          <li><strong>Compute/storage cost.</strong> Fine oversampling + divergence over a multi-year raw
+          swath is server-class for the full record (see Compute profile). Mitigated by the bounded-subset
+          T1 gate and subset config; the full run is an evidence-based decision after T1. Rejected
+          alternative: committing to the full multi-year download before T1.</li>
+          <li><strong>Raw-L2 access is a new integration.</strong> The CDSE OData/S3 raw-L2 route is new
+          (NOX-002a used gridded openEO); the exact per-variable read path (averaging kernel, geolocation)
+          is verified at T1. Risk: product/read-path surprises. Mitigated by verifying on the bounded
+          subset first and reusing the proven CDSE token flow.</li>
+          <li><strong>Deep-review flags.</strong> Two apply, surfaced now so they are not a surprise at
+          review (<code>reference/deep-review-policy.md</code>): (a) a <em>new external download
+          integration</em> (data-access category) — the reviewer verifies free-only routing + credential
+          hygiene; (b) a <em>quantitative claim</em> that the attribution lifts the steel-local share
+          above 0 and/or leads CREA (the DL-A condition) — the reviewer applies the escalation ladder to
+          the benchmark-blind and robust-inference guards specifically.</li>
+          <li><strong>Plume-height / τ modelling choices.</strong> The 10 m wind and a single τ are
+          approximations; presenting them as exact would overstate precision. Mitigated by reporting
+          sensitivity across wind level and a τ range (REQ-006, EDGE-004/005). Rejected alternative:
+          a single tuned τ/wind chosen to maximise the CREA correlation (forbidden, NFR-002).</li>
+          <li><strong>Scale.</strong> Tangshan ≈13% of national steel; the attribution is a cluster
+          signal. Hebei-provincial statistics preferred (NFR-005). Rejected alternative: presenting it as
+          a national NO<sub>x</sub>/steel estimate.</li>
+        </ul>
+      </section>
+
+      <section id="rollback-plan">
+        <h2>Rollback plan</h2>
+        <p>The feature is additive: a new <code>noxus/fluxdiv/</code> package, a new
+        <code>noxus/data/tropomi_l2.py</code> module, new CLI subcommands, a new config dataclass, new
+        gitignored data dirs. Rollback = remove the package + module + subcommand registration +
+        <code>FluxDivergenceConfig</code>, and revert the <code>.gitignore</code> additions. No existing
+        module is modified beyond additive registration, so reverting cannot regress the relative-index
+        pipeline. Gitignored raw/derived fields can be deleted freely; committed summaries can be removed
+        without affecting other stages.</p>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

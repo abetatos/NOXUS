@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Questions — Flux-divergence point-source attribution</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open Questions — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>Flux-divergence point-source attribution</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Source document</th> <td><code>tasks.json / NOX-005 (unblocked-to-spec 2026-08-27)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-005</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-08-27</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records unresolved questions found while converting the NOX-005 task into a spec. The spec is
+        authored to be <strong>zero-blocking</strong> — each question has a safe default so the task can
+        reach <code>spec_ready</code>. The two decision-shaping questions the developer should focus on
+        are Q1 (the raw-L2 free access path) and Q2 (the expected-hardness / compute go/no-go).</p>
+      </section>
+
+      <hr>
+
+      <section id="question-status-summary">
+        <h2>Question status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Type</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">5</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking questions present:</strong></p>
+        <pre><code>None. The task can reach spec_ready. Q1 (raw-L2 free access) and Q2
+(expected-hardness + compute go/no-go) are the developer's key decision inputs;
+both have safe defaults (verify at T1; let the T1 gate decide on a bounded subset).</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="open-questions">
+        <h2>Open questions</h2>
+
+        <div class="card" id="q1">
+          <div class="card-header">
+            <span class="req-id">Q1</span>
+            <span class="card-title">Exact free raw-L2 <code>__NO2___</code> swath access path (OData vs S3; read path)</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>What is the exact <strong>free/public</strong> route to the raw L2 <code>S5P_*_L2__NO2___</code> swath (native footprints, averaging kernel, geolocation) needed for fine oversampling — CDSE OData catalogue (Bearer token) or the S3 <code>eodata</code> endpoint — and does the per-variable read path match what NOX-002a's gridded openEO product exposed? NOX-002a delivered only the gridded product, so this raw path is new.</dd>
+              <dt>Why it matters</dt>                    <dd>The whole method depends on native-footprint L2; getting a paid/licence-gated path would violate the core public-free principle (the NOX-011 VNF lesson).</dd>
+              <dt>Blocking</dt>                          <dd>No — verified at T1 before the full fetch.</dd>
+              <dt>Default assumption if not answered</dt><dd>Use the CDSE OData catalogue with the reused NOX-002a token flow (S3 <code>eodata</code> as a throughput alternative); T1 verifies the read path (kernel/geolocation) and records product/processor versions into provenance (assumption A1). Refuse any paid source (ERR-005).</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-001), <code>design.html</code> (external deps, tropomi_l2.py), <code>tasks.html</code> (T1, T2)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-001, NFR-001, ERR-005</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q2">
+          <div class="card-header">
+            <span class="req-id">Q2</span>
+            <span class="card-title">Proceed given the known method-hardness and the heavy compute cost?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>Flux-divergence is known to resolve poorly in high-background/complex-wind NE China (task definition), so a NO-GO honest null is realistic; and fine oversampling + divergence over a multi-year raw swath is compute/storage-heavy (a few tens of GB raw; server-class full run). Does the developer want to invest in the full build now, or run only the bounded-subset T1 gate first and decide on evidence?</dd>
+              <dt>Why it matters</dt>                    <dd>Balances the decisive value of even a null (closes DL-A) against the effort/cost of a method with a real chance of not resolving here.</dd>
+              <dt>Blocking</dt>                          <dd>No — the spec is coherent either way; this is a go/no-go judgement for the developer.</dd>
+              <dt>Default assumption if not answered</dt><dd>Proceed, but let the <strong>T1 feasibility gate decide on evidence</strong> on a bounded subset (laptop-feasible): GO/GO-degraded only if a coherent localised source term co-locates with the plants above noise; else NO-GO honest null and stop (ERR-002). No full-record download or full build before a GO (assumptions A7, and the compute profile, NFR-008).</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (honest feasibility caveat, REQ-014/015), <code>design.html</code> (compute profile, risks), <code>tasks.html</code> (T1)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-010, REQ-014, REQ-015, NFR-008, ERR-002</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q3">
+          <div class="card-header">
+            <span class="req-id">Q3</span>
+            <span class="card-title">Effective wind level: 10 m vs boundary-layer mean</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>Should the transport wind default to ERA5 <code>u10</code>/<code>v10</code> or a boundary-layer-mean wind (using <code>blh</code>, closer to the Beirle recommendation)? Which is the pre-registered default?</dd>
+              <dt>Why it matters</dt>                    <dd>The wind level sets the flux magnitude and can affect whether the source term is separable; but it must be fixed pre-outcome (anti-p-hacking).</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>Default to ERA5 10 m with a config option for a boundary-layer-mean wind, and report sensitivity across both (assumption A2, EDGE-004); the default is fixed before any CREA statistic.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-003, REQ-006), <code>design.html</code> (flux.py)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-003, REQ-006, EDGE-004</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q4">
+          <div class="card-header">
+            <span class="req-id">Q4</span>
+            <span class="card-title">Lifetime τ central value + NO<sub>2</sub>:NO<sub>x</sub> ratio</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>What literature τ (and seasonal treatment) and NO<sub>2</sub>:NO<sub>x</sub> ratio should the chemical-loss correction use as its fixed central value?</dd>
+              <dt>Why it matters</dt>                    <dd>τ scales the sink term; it must be a fixed literature value, not tuned to CREA.</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>A fixed literature central τ (order a few hours, seasonally aware) + documented ratio, reported across a sensitivity range (assumption A3, EDGE-005).</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-005), <code>design.html</code> (divergence.py)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-005, EDGE-005</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="q5">
+          <div class="card-header">
+            <span class="req-id">Q5</span>
+            <span class="card-title">Is the DL-A revisit condition (lift + lead) the right NOX-005 bar?</span>
+            <span class="badge badge-warning">Non-blocking</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>                          <dd>Should NOX-005's acceptance bar be the DL-A revisit condition (lift the steel-local share materially above 0 <em>and</em> show a robust CREA relationship/lead), with any market-return mapping left to the NOX-013/014 lineage — or should market evaluation be pulled in here?</dd>
+              <dt>Why it matters</dt>                    <dd>Defines the task boundary and what "success" means for the source-separation method.</dd>
+              <dt>Blocking</dt>                          <dd>No.</dd>
+              <dt>Default assumption if not answered</dt><dd>DL-A revisit condition is the NOX-005 bar (assumption A4); market mapping/backtest stays out of scope.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-009, REQ-010), <code>design.html</code> (risks)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-009, REQ-010, REQ-015</dd>
+              <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Resolved by</dt>                       <dd>Pending</dd>
+              <dt>Resolved at</dt>                       <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="resolved-questions">
+        <h2>Resolved questions</h2>
+        <p>Move questions here once the developer answers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="deferred-questions">
+        <h2>Deferred questions</h2>
+        <p>Move non-blocking questions here if the developer explicitly defers them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>No question is blocking; the task may be marked <code>spec_ready</code>. Surface the 5 non-blocking questions — especially Q1 (raw-L2 free access) and Q2 (hardness + compute go/no-go) — to the developer at approval time.</li>
+            <li>Q1 and Q2 are verified/decided at the T1 gate on a bounded subset; do not commit to a full raw-swath download or the full build before a GO verdict.</li>
+            <li>Do not answer product/method questions silently; defaults are explicit and reversible, and all operator defaults are fixed pre-outcome (anti-p-hacking).</li>
+            <li>When the developer answers, update this file and reflect the decision across the spec.</li>
+            <li>Before <code>human_approved</code>, verify no blocking question is pending.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

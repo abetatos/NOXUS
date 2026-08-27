@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Flux-divergence point-source attribution</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>         <td><code>Flux-divergence point-source attribution</code></td></tr>
+          <tr><th>Feature slug</th>    <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Source document</th> <td><code>tasks.json / NOX-005 (unblocked-to-spec 2026-08-27)</code></td></tr>
+          <tr><th>Task ID</th>         <td><code>NOX-005</code></td></tr>
+          <tr><th>Created</th>         <td><code>2026-08-27</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Records assumptions made while converting the NOX-005 task into an SDD spec. Assumptions are
+        explicit and reviewable; the developer accepts, corrects, or removes them before implementation.</p>
+      </section>
+
+      <hr>
+
+      <section id="assumption-status-summary">
+        <h2>Assumption status summary</h2>
+        <table>
+          <thead>
+            <tr><th>Risk level</th><th style="text-align:right">Count</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Low</td>    <td style="text-align:right">4</td></tr>
+            <tr><td>Medium</td> <td style="text-align:right">4</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Blocking assumptions present:</strong></p>
+        <pre><code>None. All assumptions are Low/Medium and do not block reaching spec_ready.
+The two decision-shaping items — the known method-hardness and the compute cost —
+are surfaced as the honest feasibility caveat and are resolved by the T1 gate on
+evidence, not by an assumption.</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+
+        <div class="card risk-medium" id="a1">
+          <div class="card-header">
+            <span class="req-id">A1</span>
+            <span class="card-title">Raw L2 <code>__NO2___</code> swath is available free via CDSE OData/S3</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The native-footprint L2 <code>S5P_*_L2__NO2___</code> product needed for fine oversampling is retrievable from the <strong>free</strong> CDSE OData catalogue (Bearer token) or S3 <code>eodata</code> endpoint, with the averaging kernel + geolocation readable per granule, reusing the NOX-002a CDSE credentials.</dd>
+              <dt>Reason</dt>                <dd><code>docs/data-access.md</code> already documents the CDSE OData route and <code>S5P_*_L2__NO2___</code> products; NOX-002a proved the CDSE token flow. openEO (NOX-002a) delivered only the gridded product, so raw L2 is genuinely new but on the same free platform.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the raw-L2 read path differs materially (kernel/geolocation access, product naming), the fetch module needs adjustment; verified cheaply at T1 before the full fetch.</dd>
+              <dt>Blocks implementation</dt> <dd>No — verified at T1 (Q1).</dd>
+              <dt>Related requirements</dt>  <dd>REQ-001, NFR-001</dd>
+              <dt>Related design sections</dt><dd>External dependencies and freshness; Interfaces (tropomi_l2.py)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a2">
+          <div class="card-header">
+            <span class="req-id">A2</span>
+            <span class="card-title">Effective wind = ERA5 10 m (with a boundary-layer-mean option)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The transport wind defaults to the existing ERA5 <code>u10</code>/<code>v10</code>, with a configurable boundary-layer-mean option (using <code>blh</code>); the default is fixed pre-outcome and its effect reported as a sensitivity (REQ-006), not tuned.</dd>
+              <dt>Reason</dt>                <dd>ERA5 is already ingested (NOX-003/010); a boundary-layer-representative wind is the Beirle recommendation, and 10 m is the available, reproducible default.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>Wrong wind level biases the flux; mitigated by reporting sensitivity across levels (EDGE-004) and by the T1 co-location check.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-003, REQ-006, EDGE-004</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Interfaces (flux.py)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a3">
+          <div class="card-header">
+            <span class="req-id">A3</span>
+            <span class="card-title">Lifetime τ = a fixed literature central value + sensitivity range</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The chemical-loss term uses a fixed literature NO<sub>x</sub> lifetime τ (order a few hours, seasonally aware) with a documented NO<sub>2</sub>:NO<sub>x</sub> ratio, reported across a sensitivity range (EDGE-005), not a single value tuned to CREA.</dd>
+              <dt>Reason</dt>                <dd>Beirle et al. use an effective-lifetime loss term; a fixed literature value keeps the build benchmark-blind and reproducible.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>τ scales the loss correction; mitigated by the sensitivity sweep and by the fact that the divergence term (not the sink) carries the localisation.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-005, EDGE-005, NFR-002</dd>
+              <dt>Related design sections</dt><dd>Interfaces (divergence.py)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-medium" id="a4">
+          <div class="card-header">
+            <span class="req-id">A4</span>
+            <span class="card-title">Acceptance bar = the DL-A revisit condition (lift + lead), not market alpha</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>NOX-005 succeeds if the attributed source <em>lifts the steel-local signal materially above 0</em> and shows a robust relationship to / lead over CREA (the DL-A revisit condition, <code>decisions/rejected-options.md</code>). Any market-return mapping/backtest is out of scope (that is the NOX-013/014 lineage).</dd>
+              <dt>Reason</dt>                <dd>The task is framed as the source-separation method that revisits DL-A; the bar is separation + CREA relationship, not trading.</dd>
+              <dt>Risk level</dt>            <dd>Medium</dd>
+              <dt>Impact if wrong</dt>       <dd>If the developer wants a market backtest in NOX-005, scope expands; kept out to preserve small tasks.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-009, REQ-010, REQ-015</dd>
+              <dt>Related design sections</dt><dd>Technical summary; Risks (DL-A)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a5">
+          <div class="card-header">
+            <span class="req-id">A5</span>
+            <span class="card-title">New package layout <code>noxus/fluxdiv/</code> + <code>data/tropomi_l2.py</code></span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The attribution lives in a new <code>noxus/fluxdiv/</code> package (peer of <code>attribution/</code>) and a new <code>noxus/data/tropomi_l2.py</code> fetch module, additive and selectable, never editing the relative-index pipeline.</dd>
+              <dt>Reason</dt>                <dd>Consistent with the existing package structure (project map) and the additive-stage convention (NOX-011/013).</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>Naming is cosmetic and reversible; the boundaries are what matter.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>NFR-007, REQ-012</dd>
+              <dt>Related design sections</dt><dd>Files to change; Project map references</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a6">
+          <div class="card-header">
+            <span class="req-id">A6</span>
+            <span class="card-title">Weekly, Sunday-anchored analysis frequency (project convention)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>The source series is weekly and Sunday-anchored, matching the existing cube/series convention; CREA is resampled to weekly before alignment (reusing the NOX-008/003 convention that fixed the NOX-012 B3 join bug).</dd>
+              <dt>Reason</dt>                <dd>Consistency with existing series; avoids the known exact-date-join pitfall.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>Minimal; frequency is configurable.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-008, REQ-009, NFR-004</dd>
+              <dt>Related design sections</dt><dd>Reuse map; Interfaces (schema)</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a7">
+          <div class="card-header">
+            <span class="req-id">A7</span>
+            <span class="card-title">Bounded-subset default for T1 + tests (no full download to reach spec_ready or T1)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>T1 and all unit tests run on a bounded data subset (a short date range / reduced extent) or a synthetic fixture; the full multi-year raw-swath download is never a prerequisite for T1 and is an evidence-based decision after the GO verdict.</dd>
+              <dt>Reason</dt>                <dd>Keeps the gate and tests laptop-feasible and cheap; the compute profile is measured at T1 (NFR-008).</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a larger subset is needed to judge coherence, T1 widens slightly; still far below the full record.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>REQ-014, REQ-015, NFR-008</dd>
+              <dt>Related design sections</dt><dd>Compute and storage profile; Test design</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-low" id="a8">
+          <div class="card-header">
+            <span class="req-id">A8</span>
+            <span class="card-title">No new heavy runtime dependency (L2 read via the existing/geo stack)</span>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Assumption</dt>            <dd>L2 granule reading + oversampling + divergence use the existing xarray/numpy/scipy/httpx stack (and the optional <code>geo</code> extra's netCDF readers), with no new heavy dependency.</dd>
+              <dt>Reason</dt>                <dd>Reuse + reproducibility; keeps <code>uv.lock</code> stable. Any new dep needs developer approval per project policy.</dd>
+              <dt>Risk level</dt>            <dd>Low</dd>
+              <dt>Impact if wrong</dt>       <dd>If a dedicated oversampling library is justified, it is proposed to the developer, not added silently.</dd>
+              <dt>Blocks implementation</dt> <dd>No</dd>
+              <dt>Related requirements</dt>  <dd>NFR-003</dd>
+              <dt>Related design sections</dt><dd>External dependencies and freshness</dd>
+              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
+              <dt>Developer decision</dt>    <dd>Pending</dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="accepted-assumptions">
+        <h2>Accepted / resolved assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts or resolves them.</p>
+      </section>
+
+      <hr>
+
+      <section id="rejected-or-replaced-assumptions">
+        <h2>Rejected or replaced assumptions</h2>
+        <p>Move assumptions here when the developer rejects or replaces them.</p>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>No assumption blocks implementation; all are Low/Medium. Surface A1 (raw-L2 free access) and A2/A3 (wind/τ) to the developer at approval.</li>
+            <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
+            <li>The build is benchmark-blind: never fit resolution/τ/wind to CREA (NFR-002). If any assumption pushes toward tuning against the benchmark, stop and ask.</li>
+            <li>Keep the raw-L2 path free/public only (NFR-001); never introduce a paid source.</li>
+            <li>If implementation requires a new assumption, stop and update this file first.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

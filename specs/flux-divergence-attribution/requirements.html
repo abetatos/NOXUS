@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Flux-divergence point-source attribution (NOX-005)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-005</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-draft">spec_draft</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Attribute a <strong>Tangshan steel-cluster NO<sub>x</sub> emission signal</strong> directly,
+        using the <strong>NO<sub>2</sub> flux-divergence</strong> method (Beirle et al.,
+        <em>Science</em> 2019; 2021; 2023). The flux is the tropospheric NO<sub>2</sub> vertical column
+        density (TVCD) transported by the horizontal wind, <code>F = V<sub>NO2</sub> · u</code>; the
+        horizontal <strong>divergence</strong> <code>∇·F</code> isolates the <em>local source term</em>
+        by cancelling the smoothly advected regional background, with a <strong>chemical-loss
+        correction</strong> (an effective NO<sub>x</sub> decay term set by the lifetime τ) and
+        <strong>plume-height / effective-wind</strong> handling. The output is a benchmark-blind,
+        facility-attributed steel source series, tested against the CREA physical-output benchmark only
+        <em>after</em> it is built.</p>
+
+        <p>This is the <strong>only remaining method in the roadmap that directly attacks the project's
+        root cause</strong>. Four convergent honest-nulls precede it:</p>
+        <ul>
+          <li><strong>NOX-009</strong> measured <strong>93–95% of NO<sub>2</sub> change-variance as
+          regional common-mode</strong> and the Tangshan steel-local share at ≈0; the current
+          relative-index / deweathering pipeline therefore cannot separate the steel-local signal.</li>
+          <li><strong>NOX-011</strong> (VIIRS thermal), <strong>NOX-012</strong> (curtailment-calendar
+          regime study), and <strong>NOX-013</strong> (nowcast) each returned an honest null on the
+          steel-local separation.</li>
+        </ul>
+        <p>Flux-divergence is the explicit <strong>DL-A revisit condition</strong>: "a source-separation
+        method that demonstrably lifts the steel-local change-variance share materially above 0"
+        (<code>decisions/rejected-options.md</code>, 2026-08-27). A null here would be
+        <strong>decisive</strong>: even the best public point-source method cannot separate Tangshan from
+        the North China Plain background. The task's own definition warns the method
+        <strong>"resolves poorly in high-background / complex-wind regions like industrial NE China —
+        expected to be hard at Tangshan."</strong> An honest null is therefore an anticipated,
+        first-class outcome, and the build is gated behind a feasibility spike (T1) that decides on
+        evidence whether a coherent local source term is recoverable at all.</p>
+
+        <p class="callout"><strong>Honest feasibility caveat (developer decision input).</strong> Two
+        facts frame this task before approval. (1) The method is <em>known to be hard</em> in exactly
+        this regime (high background, complex NE-China winds), so a NO-GO at T1 is a realistic outcome.
+        (2) Fine-grid oversampling + a divergence operator over a multi-year raw L2 swath record is
+        <strong>compute- and storage-heavy</strong> (see NFR-008 and the design's compute profile). The
+        developer should weigh both before approving implementation; the T1 gate exists precisely to
+        make the go/no-go call cheaply, on a bounded data subset, before the full pipeline is built.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for design, tasks, and tests.</p>
+
+        <div class="req-row">
+          <span class="req-id">REQ-001</span>
+          <span>The system shall acquire <strong>raw Sentinel-5P/TROPOMI L2 <code>__NO2___</code> swath
+          granules</strong> over the Tangshan AOI from a <strong>free, public source</strong> — the
+          Copernicus Data Space Ecosystem (CDSE) OData catalogue (<code>S5P_*_L2__NO2___</code>, OFFL +
+          RPRO for a version-consistent record), with the S3 <code>eodata</code> endpoint as a
+          high-throughput alternative — because the existing openEO product (NOX-002a) is
+          <em>gridded</em> and lacks the native footprints needed for fine oversampling. The fetch shall
+          be resumable/idempotent via a manifest.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-002</span>
+          <span>The system shall <strong>oversample</strong> the L2 TVCD (with its averaging kernel and
+          QA screening, <code>qa_value ≥ 0.75</code> default) onto a fine regular grid over the AOI, at
+          a pre-registered target resolution, accumulating multiple overpasses per analysis period to
+          build a dense mean-column field.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-003</span>
+          <span>The system shall compute the horizontal <strong>NO<sub>2</sub> flux field</strong>
+          <code>F = V<sub>NO2</sub> · u</code> by combining the oversampled TVCD with a
+          <strong>boundary-layer-representative (effective) horizontal wind</strong> derived from ERA5
+          (reusing the existing ERA5 ingest: <code>u10</code>/<code>v10</code>, and <code>blh</code>
+          where a boundary-layer-mean wind is used), sampled at the swath overpass time.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-004</span>
+          <span>The system shall compute the horizontal <strong>divergence</strong> <code>∇·F</code> of
+          the flux field, isolating the local emission source term by cancelling the smoothly advected
+          regional background.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-005</span>
+          <span>The system shall apply a <strong>chemical-loss correction</strong>: an effective
+          NO<sub>x</sub> sink term <code>V<sub>NO2</sub> / τ</code> (with a configurable, literature-based
+          lifetime τ and its NO<sub>2</sub>:NO<sub>x</sub> ratio), so that the recovered source term
+          <code>E = ∇·F + V<sub>NO2</sub>/τ</code> approximates the emission rate rather than the raw
+          divergence.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-006</span>
+          <span>The system shall treat <strong>plume-height / effective-wind</strong> as an explicit,
+          configurable modelling choice (wind level or boundary-layer-mean, with a documented default),
+          and shall report the source term's <strong>sensitivity</strong> to that choice rather than
+          silently fixing it (EDGE-004).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-007</span>
+          <span>The system shall compute the divergence and source-term field
+          <strong>benchmark-blind</strong>: no step that builds the field may read, be fit to, or be
+          tuned against the CREA benchmark or any market series. All operator parameters (resolution, τ,
+          wind level, QA/coverage thresholds) shall be fixed as pre-registered defaults before any
+          benchmark statistic is viewed.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-008</span>
+          <span>The system shall <strong>attribute the source-term field to the steel facilities</strong>:
+          integrate/aggregate the recovered emission field over the committed Tangshan steel-facility
+          footprints (GEM Global Iron &amp; Steel Tracker; <code>data/derived/tangshan_steel_facilities.csv</code>),
+          reusing the existing regional-background subtraction where applicable, to produce a
+          <strong>Tangshan steel NO<sub>x</sub> source time series</strong> at the configured analysis
+          frequency (weekly default).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-009</span>
+          <span>After the source series is built, the system shall run the
+          <strong>correlation/lead test against CREA</strong> reusing the NOX-008 autocorrelation-robust
+          machinery <em>byte-for-byte</em> (<code>robust_corr</code>, <code>block_permutation_p</code>,
+          <code>bh_fdr</code>, <code>block_length</code>; <code>lead_lag</code>) and the
+          <strong>weekly-resample-then-align</strong> convention (<code>align_series</code>), never an
+          exact-date join (the NOX-012 B3 bug). This comparison happens only after the blind field is
+          built; it is never fit to.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-010</span>
+          <span>The system shall report an <strong>honest null</strong> as a first-class outcome: if no
+          coherent local source term is recoverable, or the attributed steel source does not lift the
+          steel-local signal materially above the regional background, or it shows no significant
+          relationship to CREA, the report shall state that plainly — "even the best public point-source
+          method cannot separate Tangshan from the North China Plain background" — without re-tuning any
+          parameter to manufacture a positive result.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-011</span>
+          <span>Every output shall state the <strong>scale caveat</strong>: Tangshan is ~13% of national
+          steel, the attribution is a cluster signal (not a national estimate), and Hebei-provincial
+          statistics are preferred as a physical cross-check where available.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-012</span>
+          <span>The system shall expose the raw-L2 fetch, the flux-divergence attribution, and its
+          diagnostics via the existing <code>noxus</code> CLI pattern (config-driven, resumable where a
+          fetch is involved), following the conventions of the existing subcommands, as
+          <strong>new additive commands</strong> that do not alter the existing relative-index pipeline.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-013</span>
+          <span>The system shall write raw swath granules and derived high-resolution fields to
+          <strong>gitignored</strong> derived/raw paths (large EO downloads, per project convention), and
+          shall emit small <strong>committable</strong> summary statistics and figures (the source-term
+          map over the facilities, the attributed source series, the CREA comparison table, the T1
+          verdict).</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-014</span>
+          <span>The system shall <strong>surface the compute and storage profile</strong>: report the
+          expected raw-swath volume, oversampling/divergence cost, and whether the full multi-year run is
+          laptop-feasible or server-class (rough order of magnitude), and shall support running on a
+          <strong>bounded data subset</strong> (a short date range / reduced extent) so the T1 gate and
+          early tasks execute cheaply before any full-record commitment.</span>
+        </div>
+        <div class="req-row">
+          <span class="req-id">REQ-015</span>
+          <span>Before the full attribution pipeline is built, the system shall run a
+          <strong>feasibility spike (T1)</strong> — a coarse, <strong>benchmark-blind</strong>
+          go/no-go — on a bounded data subset, assessing whether the divergence field produces a
+          <em>coherent, physically-plausible, spatially-localised</em> source term over the steel cluster
+          <strong>at all</strong> (does a divergence/source hotspot co-locate with known plants; is the
+          source signal above the field noise), and shall record a <strong>three-way verdict</strong>
+          before any downstream task runs: <em>GO</em> (coherent source field → build full attribution),
+          <em>GO-degraded</em> (partial/noisy but usable → build with caveats), or <em>NO-GO</em> (no
+          coherent local source recoverable → honest null; stop, escalate to the developer).</span>
+        </div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-001</span>
+          <span><strong>Public/free data only.</strong> Every input (raw L2 swath, ERA5 wind, facility
+          footprints, benchmark) shall be public/free; the raw-L2 path shall be the free CDSE
+          OData/S3 route. No paid or licence-gated data source shall be introduced (the NOX-011 VNF
+          lesson). Credentials shall be referenced by environment-variable name only, never read or
+          logged.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-002</span>
+          <span><strong>Anti-p-hacking.</strong> The divergence/source field is computed benchmark-blind
+          (REQ-007). All operator parameters shall be fixed as defaults before any CREA statistic is
+          viewed; no parameter (resolution, τ, wind level, thresholds) may be selected to maximise the
+          reported correlation. The honest null (REQ-010) is first-class.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-003</span>
+          <span><strong>Reuse, do not reimplement.</strong> The build shall reuse existing artefacts:
+          the ERA5 ingest (NOX-003/010, <code>noxus/data/era5.py</code>), the AOI + facility footprints
+          (<code>noxus/config/region.py</code>, the facilities CSV), the regional-background subtraction
+          (<code>noxus/attribution/source.py</code>), the openEO acquisition patterns (NOX-002a), and
+          the NOX-008 statistics + alignment modules. Only the raw-L2 fetch, oversampling, and divergence
+          operator are genuinely new.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-004</span>
+          <span><strong>Autocorrelation-robust significance.</strong> Any correlation of the attributed
+          source series vs CREA shall reuse <code>noxus/validation/robust.py</code>
+          (<code>robust_corr</code>, <code>block_permutation_p</code>, <code>bh_fdr</code>,
+          <code>block_length</code>) and <code>leadlag.py</code> (<code>lead_lag</code>) byte-for-byte,
+          using the weekly-resample-then-align convention (<code>align_series</code>), never an exact-date
+          join.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-005</span>
+          <span><strong>Scale caveat explicit.</strong> Every output states Tangshan ≈13% of national
+          steel and prefers Hebei-provincial statistics where available (REQ-011).</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-006</span>
+          <span><strong>Determinism.</strong> Any bootstrap/permutation inference shall use a fixed seed;
+          the seed and all fixed operator defaults (resolution, τ, wind level, thresholds, QA) shall be
+          recorded in the output provenance.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-007</span>
+          <span><strong>Additive, non-breaking.</strong> The flux-divergence attribution shall be a new
+          additive stage (package + config + CLI command(s)); it shall not alter the behaviour of the
+          existing relative-index pipeline, CLI commands, or reused modules.</span>
+        </div>
+        <div class="req-row nfr">
+          <span class="req-id nfr">NFR-008</span>
+          <span><strong>Compute/storage profile documented.</strong> The design shall state the expected
+          raw-swath storage, oversampling/divergence compute cost (order of magnitude), and the
+          laptop-vs-server recommendation, so the developer can make an informed resource decision at
+          approval (REQ-014). The full record shall never be a prerequisite for the T1 gate.</span>
+        </div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-001</span>
+          <span><strong>High-background / complex-wind regime (the expected-hard case).</strong> When the
+          divergence is dominated by advected regional background and no localised source term rises
+          above the field noise over the facilities, the system shall report it (T1 → GO-degraded or
+          NO-GO) and shall <em>not</em> fabricate a source hotspot.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-002</span>
+          <span><strong>Coverage / cloud gaps.</strong> Periods with insufficient valid oversampled
+          coverage (too few clear high-QA overpasses) yield NaN/marked source values, never interpolated
+          or fabricated fields.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-003</span>
+          <span><strong>Calm-wind / stagnation days.</strong> When the wind speed is below a configured
+          threshold the flux ≈ 0 and the divergence is ill-conditioned; such overpasses are
+          down-weighted or excluded per the threshold and flagged, not silently included.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-004</span>
+          <span><strong>Wind-level / plume-height mismatch.</strong> The 10 m wind may not represent the
+          plume-transport level; the system reports the source term's sensitivity across the configured
+          wind-level choices rather than presenting a single value as exact (REQ-006).</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-005</span>
+          <span><strong>Lifetime τ uncertainty.</strong> τ varies with season and NO<sub>x</sub> regime;
+          the loss correction is reported across a τ sensitivity range, not a single tuned value
+          (REQ-005, NFR-002).</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-006</span>
+          <span><strong>Series too short for robust inference.</strong> After alignment, if the source
+          series is too short for autocorrelation-robust inference, the system reports insufficient
+          power rather than a spuriously significant result.</span>
+        </div>
+        <div class="req-row edge">
+          <span class="req-id edge">EDGE-007</span>
+          <span><strong>Grid too fine for the data density.</strong> Over-fine oversampling injects
+          noise; the target resolution is a fixed pre-registered default (NFR-002), never tuned to
+          maximise the CREA correlation.</span>
+        </div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err">
+          <span class="req-id err">ERR-001</span>
+          <span>If the raw L2 swath store is absent, the system shall raise a clear error naming the
+          missing input and the fetch command that produces it, and shall not emit an attribution.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-002</span>
+          <span>If the T1 feasibility spike returns <em>NO-GO</em> (no coherent local source term
+          recoverable on the bounded subset at the fixed defaults), the system shall stop the build and
+          record the honest-null verdict; downstream tasks shall not run.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-003</span>
+          <span>If the ERA5 wind store is missing or cannot be aligned to the swath overpass times, the
+          system shall raise a clear error (naming <code>ingest-era5</code>) and shall not silently fill
+          or assume a wind field.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-004</span>
+          <span>If configuration is invalid (e.g. non-positive τ, non-positive wind threshold, resolution
+          finer than the data supports, unknown wind level, analysis frequency finer than the swath
+          cadence supports), the system shall raise a validation error before any computation.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-005</span>
+          <span>If a paid or licence-gated data source is requested for any input, the system shall
+          refuse it (public/free only, NFR-001), directing the user to the free CDSE route.</span>
+        </div>
+        <div class="req-row err">
+          <span class="req-id err">ERR-006</span>
+          <span>If the benchmark-blind guard detects that the source-field builder was passed CREA (or
+          market) values, the system shall fail loudly (test-time), never shipping a benchmark-fit
+          field.</span>
+        </div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-001</span>
+          <span>The raw-L2 fetch acquires <code>S5P_*_L2__NO2___</code> swath granules over the AOI from
+          the free CDSE OData/S3 route, resumable via a manifest, into a gitignored store, with
+          provenance recording product/processor version. (REQ-001, REQ-012, REQ-013, NFR-001)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-002</span>
+          <span>Oversampling → flux → divergence → chemical-loss correction produce a source-term field
+          with provenance recording resolution, τ (+ range), wind level, QA/coverage thresholds, and
+          seed. (REQ-002..006, NFR-006)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-003</span>
+          <span>A benchmark-blind guard test proves the source-field builder takes no CREA/market
+          argument and reads no benchmark values. (REQ-007, NFR-002, ERR-006)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-004</span>
+          <span>Facility attribution over the committed footprints yields a Tangshan steel NO<sub>x</sub>
+          source time series at the configured frequency. (REQ-008)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-005</span>
+          <span>The CREA comparison uses the NOX-008 robust modules byte-for-byte and the
+          weekly-resample-then-align convention (not an exact-date join), reporting robust r/p, BH-FDR,
+          and lead/lag. (REQ-009, NFR-004)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-006</span>
+          <span>When no coherent/lifting source is found, the report states an honest null and no
+          parameter is re-tuned to manufacture an edge. (REQ-010, NFR-002)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-007</span>
+          <span>The T1 spike records a three-way verdict (GO / GO-degraded / NO-GO) with its evidence
+          (facility co-location + signal-vs-noise) on a bounded subset before any downstream task runs; a
+          NO-GO stops the build. (REQ-015, ERR-002)</span>
+        </div>
+        <div class="req-row ac">
+          <span class="req-id ac">AC-008</span>
+          <span>The compute/storage profile is estimated and surfaced, a bounded-subset run is supported,
+          and the scale caveat (Tangshan ≈13%, Hebei preferred) appears in every output. (REQ-011,
+          REQ-014, NFR-005, NFR-008)</span>
+        </div>
+      </section>
+
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> — this feature has no browser UI. Outputs are CLI, gitignored raw/derived
+        fields, small committable stat tables, and static figures.</p>
+      </section>
+
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code> — no screenshots or mockups are inputs. Figures produced by this feature
+        (source-term map over the facility footprints, attributed source series, CREA-comparison plot)
+        are outputs, specified in <code>design.html</code>.</p>
+      </section>
+
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <ul>
+          <li><strong>CDSE raw L2 <code>__NO2___</code> swath</strong> — free, via the OData catalogue
+          (<code>catalogue.dataspace.copernicus.eu/odata/v1</code>) with a Bearer token, or the S3
+          <code>eodata.dataspace.copernicus.eu</code> endpoint; credentials by <code>CDSE_*</code> name
+          only. This is the <strong>new</strong> acquisition path (NOX-002a delivered only the gridded
+          openEO product). Exact per-variable read path (averaging kernel, geolocation) is verified at
+          T1 — see <code>open-questions.html</code> Q1.</li>
+          <li><strong>ERA5 winds</strong> (<code>u10</code>/<code>v10</code>, <code>blh</code>) — already
+          ingested (NOX-003/010, <code>noxus ingest-era5</code>, Copernicus CDS); the transport field for
+          the flux.</li>
+          <li><strong>Steel-facility footprints</strong> — committed
+          (<code>data/derived/tangshan_steel_facilities.csv</code>, GEM Global Iron &amp; Steel Tracker);
+          the attribution targets.</li>
+          <li><strong>CREA / Mysteel / WIND BF operating rate</strong> — already ingested (NOX-001); the
+          post-hoc benchmark, never fit to.</li>
+        </ul>
+        <p>Verification evidence (sources, dates, versions) belongs in the design's
+        <em>External dependencies and freshness</em> section, filled at/after T1.</p>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <p>Expected to affect: <code>.claude/context/project-map.md</code> (new
+        <code>noxus/fluxdiv/</code> package + raw-L2 fetch module + CLI command(s)),
+        <code>docs/data-access.md</code> (the raw-L2 CDSE OData/S3 path vs the gridded openEO path),
+        <code>README.md</code> (flux-divergence attribution framing), a results note in
+        <code>docs/</code> (the T1 verdict and, if built, the attribution result / honest null),
+        <code>history.html</code>, and <code>decisions/</code> (the DL-A revisit outcome). The reviewer
+        makes the final documentation decision.</p>
+      </section>
+
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entries (proposed at review time, developer decides):</p>
+        <ul>
+          <li>Whether flux-divergence <strong>satisfies or fails the DL-A revisit condition</strong>
+          (does it lift the steel-local share materially above 0 and lead CREA?). A null closes DL-A
+          decisively.</li>
+          <li>Adoption of a <strong>raw-L2 CDSE OData/S3 acquisition path</strong> as the project's
+          second, fine-resolution data route alongside the gridded openEO path (NOX-002a).</li>
+          <li>Recording the <strong>expected-hardness / compute-cost</strong> trade-off as an explicit,
+          evidence-based go/no-go decided at the T1 gate.</li>
+        </ul>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001</span></td><td>AT1, AT-REG-1</td><td>Raw-L2 CDSE fetch (free), resumable manifest.</td></tr>
+            <tr><td><span class="req-id">REQ-002</span>, <span class="req-id">REQ-003</span>, <span class="req-id">REQ-004</span>, <span class="req-id">REQ-005</span>, <span class="req-id">REQ-006</span></td><td>AT2</td><td>Oversample → flux → divergence → loss on synthetic field.</td></tr>
+            <tr><td><span class="req-id">REQ-007</span></td><td>AT3 (blind guard)</td><td>Builder takes no CREA/market arg.</td></tr>
+            <tr><td><span class="req-id">REQ-008</span></td><td>AT4</td><td>Facility attribution → source series.</td></tr>
+            <tr><td><span class="req-id">REQ-009</span></td><td>AT5</td><td>CREA compare: robust modules + resample-then-align.</td></tr>
+            <tr><td><span class="req-id">REQ-010</span></td><td>AT6</td><td>Honest-null report.</td></tr>
+            <tr><td><span class="req-id">REQ-011</span>, <span class="req-id">REQ-014</span></td><td>AT8</td><td>Scale caveat + compute profile + bounded subset.</td></tr>
+            <tr><td><span class="req-id">REQ-012</span>, <span class="req-id">REQ-013</span></td><td>AT1, AT-REG-1</td><td>CLI + gitignore + committable summaries.</td></tr>
+            <tr><td><span class="req-id">REQ-015</span></td><td>AT7</td><td>T1 three-way go/no-go verdict.</td></tr>
+            <tr><td><span class="req-id">NFR-001</span>, <span class="req-id">ERR-005</span></td><td>AT-ERR-3</td><td>Public/free only; refuse paid source.</td></tr>
+            <tr><td><span class="req-id">NFR-002</span></td><td>AT3, AT6</td><td>Blind build; no re-tuning.</td></tr>
+            <tr><td><span class="req-id">NFR-003</span>, <span class="req-id">NFR-004</span>, <span class="req-id">NFR-007</span></td><td>AT-REG-1</td><td>Reused modules unchanged (byte-for-byte).</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

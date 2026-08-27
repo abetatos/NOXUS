@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Flux-divergence point-source attribution (NOX-005)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Implementation tasks — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>      <td><code>NOX-005</code></td></tr>
+          <tr><th>Feature slug</th> <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <p>Implement in order. Each task is small and independently verifiable. Mark complete by adding
+        <code>class="done"</code> to its <code>&lt;li class="task-item"&gt;</code>. Global status lives in
+        <code>tasks.json</code>. Do not start until the task is <code>human_approved</code>.</p>
+        <p><strong>T1 is a feasibility spike that GATES the build.</strong> Mirroring the
+        VIIRS/calendar/nowcast (NOX-011/012/013) T1 pattern, its benchmark-blind, three-way verdict
+        (GO / GO-degraded / NO-GO) on a bounded data subset decides whether the rest proceeds. Because
+        flux-divergence is known to resolve poorly in high-background/complex-wind NE China, a
+        <em>NO-GO honest null</em> is a realistic terminal outcome. Stop and record the verdict before
+        T2.</p>
+
+        <ol class="task-timeline">
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T1</span>
+              <strong>Feasibility spike — GATES THE BUILD (REQ-015, AC-007, AT7).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/probe.py</code>: <code>probe(cfg)</code>
+            runs the minimal <em>oversample → flux → divergence + V/τ</em> chain on a <strong>bounded
+            data subset</strong> (a short date range / reduced extent, laptop-feasible) and assesses,
+            <strong>benchmark-blind</strong>, whether a coherent, physically-plausible, spatially-localised
+            source term appears over the steel cluster <em>at all</em>: (a) does a divergence/source
+            hotspot <em>co-locate</em> with the committed facility footprints, and (b) is the source
+            signal <em>above the field noise</em>? Emit the three-way verdict — <em>GO</em> (coherent
+            source → build full attribution), <em>GO-degraded</em> (partial/noisy but usable → build
+            with caveats), or <em>NO-GO</em> (no coherent local source → honest null; stop, escalate to
+            the developer, ERR-002). Record the verdict, its evidence, and the <strong>measured compute/
+            storage profile</strong> to <code>data/derived/fluxdiv/fluxdiv_probe.txt</code>.
+            <strong>Stop and record</strong> before T2. Requires a small raw-L2 fixture (a few overpasses)
+            — fetched via T2's module on the bounded window, or a committed synthetic fixture for the
+            unit test.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T2</span>
+              <strong>Config + raw-L2 fetch (REQ-001, REQ-012, NFR-001, AC-001).</strong></div>
+            <div class="task-item-body">Add frozen <code>FluxDivergenceConfig</code> to
+            <code>noxus/config/run.py</code> (resolution, τ + range, wind level, wind/coverage/QA
+            thresholds, freq, seed, subset window, compute-budget knobs; validation per ERR-004). New
+            <code>noxus/data/tropomi_l2.py</code>: <code>fetch_l2(cfg, start, end)</code> searches +
+            downloads <code>S5P_*_L2__NO2___</code> swath granules over the AOI from the <strong>free CDSE
+            OData catalogue</strong> (Bearer token; S3 <code>eodata</code> optional), QA-screened,
+            resumable via a manifest under <code>data/raw/tropomi_l2/</code> (gitignored). Refuses paid
+            sources (ERR-005). Reuse the NOX-002a CDSE token/manifest conventions. Tests: manifest
+            resume, public-only routing, missing-store error (ERR-001), config validation.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T3</span>
+              <strong>Oversampling (REQ-002, EDGE-002/007, AC-002).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/oversample.py</code>:
+            <code>oversample(granules, cfg)</code> accumulates overpasses onto a fine regular grid using
+            the L2 footprints + averaging kernel, at the pre-registered resolution; insufficient coverage
+            → NaN (never interpolated). Tests on a synthetic swath: dense field reconstruction, coverage
+            flag, no fabrication.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T4</span>
+              <strong>Flux field (REQ-003/006, EDGE-003/004, AC-002).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/flux.py</code>:
+            <code>flux_field(tvcd, wind, cfg)</code> = <code>V·u</code> using an effective/plume-level
+            wind from the existing ERA5 store sampled at overpass time; calm days below
+            <code>cfg.wind_min</code> flagged/excluded; wind-level choice recorded. Missing/misaligned
+            ERA5 → ERR-003. Tests: uniform-wind advection, calm-wind flag, wind-level sensitivity.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T5</span>
+              <strong>Divergence + chemical-loss + BLIND guard (REQ-004/005/007, EDGE-005, AC-002/003, AT3).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/divergence.py</code>:
+            <code>source_term(flux, tvcd, cfg)</code> = <code>∇·F + V/τ</code>, with τ + wind-level swept
+            for sensitivity; returns the emission-rate field. <strong>Benchmark-blind</strong>: no
+            CREA/market argument anywhere in this path. Write the AT3 guard test (introspect signatures;
+            assert no CREA/market arg; a test passing CREA is rejected, ERR-006) and the operator-
+            correctness test (planted point source recovered; advected background ≈0).</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T6</span>
+              <strong>Facility attribution → source series (REQ-008, AC-004, AT4).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/source.py</code>:
+            <code>attribute_to_facilities(E, facilities, cfg)</code> aggregates the emission field over
+            the committed steel-facility footprints (reusing <code>attribution/source.py</code> regional-
+            background subtraction) → a weekly Tangshan steel NO<sub>x</sub> source series with coverage/
+            flag columns (schema in design). Tests: source over a footprint → non-zero; source away from
+            all footprints → ≈0.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T7</span>
+              <strong>Post-hoc CREA compare (REQ-009, NFR-004, AC-005, AT5).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/validate.py</code>:
+            <code>compare_to_crea(source, crea, cfg)</code> uses the <strong>weekly-resample-then-align</strong>
+            convention (<code>align_series</code>, not an exact-date join — the NOX-012 B3 bug) then
+            reuses <code>robust_corr</code>, <code>lead_lag</code>, <code>bh_fdr</code>, <code>block_length</code>
+            byte-for-byte. Runs only after the blind source series exists. Planted-lead + planted-null
+            tests; assert resample-then-align (not exact-date join).</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T8</span>
+              <strong>Report incl. honest null + scale + compute profile (REQ-010/011/013/014, NFR-005/008, AC-006/008, AT6).</strong></div>
+            <div class="task-item-body">New <code>noxus/fluxdiv/report.py</code>: source-term map over
+            the footprints, attributed source series, CREA-comparison table, and an explicit
+            <strong>honest-null</strong> verdict when no coherent/lifting source is found ("even the best
+            public point-source method cannot separate Tangshan from the NCP background") — with no
+            re-tuning. Every output states the Tangshan ≈13% / Hebei-preferred scale caveat and the
+            measured compute/storage profile. Committable small stats + figures; raw/fine fields
+            gitignored.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T9</span>
+              <strong>CLI wiring (REQ-012, AC-001, AT1).</strong></div>
+            <div class="task-item-body">Add <code>noxus fetch-l2</code>,
+            <code>noxus flux-divergence</code> (with <code>--probe</code> for T1) to
+            <code>noxus/cli/main.py</code>, mirroring existing subcommands (config-driven, provenance-
+            recording, bounded-subset flags). CLI smoke tests.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T10</span>
+              <strong>Reproducible driver + figures (REQ-013).</strong></div>
+            <div class="task-item-body">New <code>analysis/flux_divergence.py</code>: bounded-subset
+            end-to-end run → <code>docs/figures/</code> (source-term map, attributed series, CREA
+            comparison) + committable summary. An honest null is rendered faithfully if that is the
+            result.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T11</span>
+              <strong>Public-only + reuse-regression sweep (NFR-001/003/007, ERR-005, AT-ERR-3, AT-REG-1).</strong></div>
+            <div class="task-item-body">Assert the fetch refuses paid sources and targets only the CDSE
+            free route; assert reused modules (<code>robust.py</code>, <code>leadlag.py</code>,
+            <code>preprocess.py</code>, <code>attribution/source.py</code>, <code>data/era5.py</code>,
+            <code>data/tropomi.py</code>) are unchanged (diff-empty) and existing CLI commands + the
+            relative-index pipeline still behave.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T12</span>
+              <strong>Run validation (all AC).</strong></div>
+            <div class="task-item-body"><code>uv run pytest</code> + <code>uv run ruff check .</code>.
+            Confirm the T1 verdict, the benchmark-blind guard, operator correctness, attribution, robust
+            CREA compare, honest-null, and public-only tests all pass.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T13</span>
+              <strong>Update affected documentation.</strong></div>
+            <div class="task-item-body">Update <code>docs/data-access.md</code> (raw-L2 CDSE OData/S3
+            path vs gridded openEO; credential names), <code>README.md</code> (flux-divergence framing),
+            a results note (T1 verdict / attribution result / honest null), and <code>history.html</code>.
+            Reviewer confirms.</div></li>
+
+          <li class="task-item">
+            <div class="task-item-header"><span class="req-id t">T14</span>
+              <strong>Update the project map + propose decision-log entries.</strong></div>
+            <div class="task-item-body">Refresh <code>.claude/context/project-map.md</code> for the new
+            <code>noxus/fluxdiv/</code> package, <code>tropomi_l2.py</code>, CLI command(s), and data
+            dirs. Draft (propose only) decision-log entries: whether flux-divergence satisfies/fails the
+            <strong>DL-A revisit condition</strong> (lift steel-local share above 0 + lead CREA); adoption
+            of the raw-L2 CDSE OData/S3 acquisition route; the evidence-based compute/hardness go/no-go at
+            T1. Developer decides.</div></li>
+        </ol>
+      </section>
+
+      <section id="validation-checklist">
+        <h2>Validation checklist</h2>
+        <p>The reviewer verifies each item before marking the task <code>done</code>.</p>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> T1 spike ran on a bounded subset; three-way verdict (GO / GO-degraded / NO-GO) + compute profile recorded before the build.</li>
+          <li><input type="checkbox" disabled> Raw-L2 fetch uses the free CDSE OData/S3 route only; paid sources refused (ERR-005).</li>
+          <li><input type="checkbox" disabled> Benchmark-blind guard passes — source builder takes no CREA/market arg (AT3).</li>
+          <li><input type="checkbox" disabled> Operator correctness: planted point source recovered; advected background ≈0 (AT2).</li>
+          <li><input type="checkbox" disabled> CREA compare uses NOX-008 robust modules + resample-then-align, not exact-date join (AT5).</li>
+          <li><input type="checkbox" disabled> Honest null reported as first-class if no coherent/lifting source (AT6).</li>
+          <li><input type="checkbox" disabled> Scale caveat (Tangshan ≈13%, Hebei preferred) + compute profile in every output (AT8).</li>
+          <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI + relative-index pipeline unaffected (AT-REG-1).</li>
+          <li><input type="checkbox" disabled> Requirements covered by tests; tests + lint pass.</li>
+          <li><input type="checkbox" disabled> No protected files (<code>.env</code>, credentials) modified; secrets by name only.</li>
+          <li><input type="checkbox" disabled> Documentation decision recorded; DL-A revisit outcome proposed.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

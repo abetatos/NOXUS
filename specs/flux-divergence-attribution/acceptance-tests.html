@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance Tests — Flux-divergence point-source attribution</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance Tests — Flux-divergence point-source attribution</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Feature</th>          <td><code>Flux-divergence point-source attribution</code></td></tr>
+          <tr><th>Feature slug</th>     <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Source document</th>  <td><code>tasks.json / NOX-005</code></td></tr>
+          <tr><th>Task ID</th>          <td><code>NOX-005</code></td></tr>
+          <tr><th>Created</th>          <td><code>2026-08-27</code></td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+      <section id="purpose">
+        <h2>Purpose</h2>
+        <p>Acceptance-level scenarios for the flux-divergence attribution. They describe observable
+        behaviour that must hold for the feature to be accepted. Four gates are load-bearing and
+        non-negotiable: the <strong>T1 feasibility gate</strong> (AT7), the <strong>benchmark-blind
+        guard</strong> (AT3), the <strong>autocorrelation-robust CREA compare</strong> (AT5), and the
+        <strong>honest-null</strong> outcome (AT6). Tests run on small synthetic fields / a bounded
+        fixture — never a full multi-year download.</p>
+      </section>
+
+      <hr>
+
+      <section id="test-strategy">
+        <h2>Test strategy</h2>
+        <p>Verify user-facing CLI behaviour, operator correctness (planted point source vs advected
+        background), the four gates, edge/error handling, public-only routing, and that reused modules
+        and existing commands (including the relative-index pipeline) are unaffected.</p>
+        <h3 id="testing-style">Testing style configured for this project</h3>
+        <pre><code>pytest unit + guard tests; synthetic swath/field fixtures with a planted
+point source; introspection-based guard for benchmark-blindness; diff-empty
+checks for reuse; bounded fixture for the T1 spike.</code></pre>
+        <h3 id="test-command">Test command</h3>
+        <pre><code>uv run pytest        # all tests
+uv run ruff check .  # lint</code></pre>
+        <h3 id="test-locations">Related test files or directories</h3>
+        <pre><code>tests/fluxdiv/   (new)
+tests/cli/       (CLI smoke for fetch-l2 + flux-divergence)</code></pre>
+      </section>
+
+      <hr>
+
+      <section id="requirements-coverage-matrix">
+        <h2>Requirements coverage matrix</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Acceptance test(s)</th><th>Covered</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="req-id">REQ-001</span></td><td>AT1, AT-ERR-3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-002..006</span></td><td>AT2</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-007</span></td><td>AT3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-008</span></td><td>AT4</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-009</span></td><td>AT5</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-010</span></td><td>AT6</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-011/014</span></td><td>AT8</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-012/013</span></td><td>AT1, AT-REG-1</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">REQ-015</span></td><td>AT7</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-001</span></td><td>AT-ERR-3</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-002</span></td><td>AT3, AT6</td><td class="ok">Yes</td></tr>
+            <tr><td><span class="req-id">NFR-003/004/007</span></td><td>AT-REG-1</td><td class="ok">Yes</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <hr>
+
+      <section id="acceptance-tests">
+        <h2>Acceptance tests</h2>
+
+        <div class="card" id="at1">
+          <div class="card-header">
+            <span class="req-id">AT1</span>
+            <span class="card-title">Raw-L2 fetch from the free CDSE route (resumable)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-001, REQ-012, REQ-013, NFR-001</dd>
+              <dt>Scenario</dt>              <dd>Acquire raw L2 <code>__NO2___</code> swath over the AOI on a bounded window.</dd>
+              <dt>Preconditions</dt>         <dd><code>CDSE_*</code> credentials present (by env name); a short date range.</dd>
+              <dt>Action</dt>                <dd>Run <code>uv run noxus fetch-l2 --start ... --end ...</code>.</dd>
+              <dt>Expected result</dt>       <dd><code>S5P_*_L2__NO2___</code> granules land under gitignored <code>data/raw/tropomi_l2/</code> with a resumable manifest; provenance records product/processor version; re-running resumes without re-downloading.</dd>
+              <dt>Negative expectations</dt> <dd>No full-granule global download; no paid endpoint; no secret in logs.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_fetch_l2.py</code>, <code>tests/cli/test_fluxdiv_cli.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at2">
+          <div class="card-header">
+            <span class="req-id">AT2</span>
+            <span class="card-title">Operator correctness — planted source recovered, background ≈0</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-002, REQ-003, REQ-004, REQ-005, REQ-006</dd>
+              <dt>Scenario</dt>              <dd>A synthetic TVCD field with a known point source under a uniform advecting wind.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic swath + a constant wind field.</dd>
+              <dt>Action</dt>                <dd>Run <code>oversample → flux_field → source_term</code> (<code>∇·F + V/τ</code>).</dd>
+              <dt>Expected result</dt>       <dd>A localised positive source term at the planted location; the smoothly advected background integrates to ≈0; τ and wind-level sweeps produce the reported sensitivity, not a single hidden value.</dd>
+              <dt>Negative expectations</dt> <dd>No source hotspot where none was planted; over-fine resolution does not fabricate structure.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_operators.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at3">
+          <div class="card-header">
+            <span class="req-id">AT3</span>
+            <span class="card-title">Benchmark-blind guard — source builder never sees CREA/market</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-007, NFR-002, AC-003, ERR-006</dd>
+              <dt>Scenario</dt>              <dd>The divergence/source-field path must be built without reference to the benchmark.</dd>
+              <dt>Preconditions</dt>         <dd>The <code>source_term</code> / attribution functions exist.</dd>
+              <dt>Action</dt>                <dd>Introspect signatures; assert no CREA/market parameter anywhere in the build path; assert operator defaults (resolution, τ, wind level, thresholds) are fixed constants, not derived from any outcome series.</dd>
+              <dt>Expected result</dt>       <dd>Signature/introspection assertions pass; a test that attempts to pass CREA into the builder is rejected by design (ERR-006).</dd>
+              <dt>Negative expectations</dt> <dd>No parameter selected to maximise the reported CREA correlation; CREA enters only in the post-hoc compare.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_blind_guard.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at4">
+          <div class="card-header">
+            <span class="req-id">AT4</span>
+            <span class="card-title">Facility attribution → steel source series</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-008, AC-004</dd>
+              <dt>Scenario</dt>              <dd>The emission field is aggregated over the committed facility footprints.</dd>
+              <dt>Preconditions</dt>         <dd>A source-term field + the facilities CSV.</dd>
+              <dt>Action</dt>                <dd>Run <code>attribute_to_facilities</code>.</dd>
+              <dt>Expected result</dt>       <dd>A source over a footprint yields a non-zero series value; a source away from all footprints yields ≈0; the series carries coverage/flag columns per the schema.</dd>
+              <dt>Negative expectations</dt> <dd>No attribution of clearly off-footprint emission to the cluster.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_attribution.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at5">
+          <div class="card-header">
+            <span class="req-id">AT5</span>
+            <span class="card-title">Robust CREA compare (resample-then-align + BH-FDR + lead/lag)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-009, NFR-004, AC-005</dd>
+              <dt>Scenario</dt>              <dd>Does the attributed source relate to / lead CREA under autocorrelation-robust inference?</dd>
+              <dt>Preconditions</dt>         <dd>A source series + CREA, aligned via the weekly-resample-then-align convention.</dd>
+              <dt>Action</dt>                <dd>Run <code>compare_to_crea</code>: <code>robust_corr</code> + <code>lead_lag</code> + <code>bh_fdr</code>. Test on a planted-lead synthetic and a planted-null synthetic.</dd>
+              <dt>Expected result</dt>       <dd>Planted-lead: robust test detects the lead and survives BH-FDR. Planted-null: BH-FDR rejects nothing. Alignment uses resample-then-align, not an exact-date join.</dd>
+              <dt>Negative expectations</dt> <dd>No exact-date join (the NOX-012 B3 bug); no naive-only significance reported as robust.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_validate.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at6">
+          <div class="card-header">
+            <span class="req-id">AT6</span>
+            <span class="card-title">Honest null is a first-class outcome</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-010, NFR-002, AC-006</dd>
+              <dt>Scenario</dt>              <dd>A background-only field with no coherent local source (the expected-hard case).</dd>
+              <dt>Preconditions</dt>         <dd>A synthetic advected-background-only field.</dd>
+              <dt>Action</dt>                <dd>Run the attribution + report.</dd>
+              <dt>Expected result</dt>       <dd>The report states clearly that no coherent/lifting source is recoverable ("even the best public point-source method cannot separate Tangshan from the NCP background"); no parameter (resolution/τ/wind) is re-tuned to manufacture significance.</dd>
+              <dt>Negative expectations</dt> <dd>No parameter search against CREA; no dropping of inconvenient periods.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_report.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at7">
+          <div class="card-header">
+            <span class="req-id">AT7</span>
+            <span class="card-title">T1 feasibility spike emits a three-way verdict (GO / GO-degraded / NO-GO)</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-015, AC-007, ERR-002</dd>
+              <dt>Scenario</dt>              <dd>Benchmark-blind coherence of the source field over the cluster is assessed on a bounded subset before the build.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic scenarios: a coherent co-located source (→ GO); a partial/noisy source (→ GO-degraded); a background-only field (→ NO-GO).</dd>
+              <dt>Action</dt>                <dd>Run <code>uv run noxus flux-divergence --probe</code>.</dd>
+              <dt>Expected result</dt>       <dd>The correct three-way verdict is emitted with evidence (facility co-location + signal-vs-noise) and the measured compute/storage profile, written to <code>data/derived/fluxdiv/fluxdiv_probe.txt</code>; NO-GO stops the build (ERR-002).</dd>
+              <dt>Negative expectations</dt> <dd>The build does not proceed past T1 on a NO-GO; the probe never reports GO from a background-only field.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_probe.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at8">
+          <div class="card-header">
+            <span class="req-id">AT8</span>
+            <span class="card-title">Scale caveat + compute profile + bounded subset</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>REQ-011, REQ-014, NFR-005, NFR-008, AC-008</dd>
+              <dt>Scenario</dt>              <dd>Outputs must state the scale caveat and the measured compute/storage profile, and a bounded-subset run must be supported.</dd>
+              <dt>Preconditions</dt>         <dd>A bounded-subset config.</dd>
+              <dt>Action</dt>                <dd>Run the attribution/report on the subset.</dd>
+              <dt>Expected result</dt>       <dd>Every output states Tangshan ≈13% / Hebei-preferred; the report includes the measured raw-swath volume + oversampling/divergence cost + laptop-vs-server note; the subset run completes without needing the full record.</dd>
+              <dt>Negative expectations</dt> <dd>No claim of a national estimate; the full record is never a prerequisite for the subset/T1 run.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_report.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="edge-case-tests">
+        <h2>Edge case tests</h2>
+
+        <div class="card" id="at-edge-1">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-1</span>
+            <span class="card-title">Coverage / calm-wind flags — no fabrication</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-002, EDGE-003</dd>
+              <dt>Scenario</dt>              <dd>Periods with too few high-QA overpasses, and overpasses below the calm-wind threshold.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic swath with gaps + a low-wind day.</dd>
+              <dt>Action</dt>                <dd>Run oversample + flux.</dd>
+              <dt>Expected result</dt>       <dd>Low-coverage periods → NaN/marked; calm-wind overpasses → flagged/excluded; nothing interpolated or fabricated.</dd>
+              <dt>Negative expectations</dt> <dd>No forward/backward fill; no ill-conditioned divergence silently included.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_operators.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-2">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-2</span>
+            <span class="card-title">τ / wind-level sensitivity reported, not tuned</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-004, EDGE-005, REQ-006</dd>
+              <dt>Scenario</dt>              <dd>The source term depends on τ and the wind level.</dd>
+              <dt>Preconditions</dt>         <dd>A synthetic field + a τ range + two wind levels.</dd>
+              <dt>Action</dt>                <dd>Run the source term across the sweep.</dd>
+              <dt>Expected result</dt>       <dd>A sensitivity table is produced across τ and wind level; the central default is fixed pre-outcome; no value is selected to maximise the CREA correlation.</dd>
+              <dt>Negative expectations</dt> <dd>No single hidden τ/wind chosen post-hoc against the benchmark.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_operators.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card" id="at-edge-3">
+          <div class="card-header">
+            <span class="req-id edge">AT-EDGE-3</span>
+            <span class="card-title">Series too short for robust inference → insufficient power</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>EDGE-006</dd>
+              <dt>Scenario</dt>              <dd>A short source series after alignment.</dd>
+              <dt>Preconditions</dt>         <dd>A synthetic short series.</dd>
+              <dt>Action</dt>                <dd>Run <code>compare_to_crea</code>.</dd>
+              <dt>Expected result</dt>       <dd>The report states insufficient power rather than a spuriously significant result.</dd>
+              <dt>Negative expectations</dt> <dd>No over-claimed significance on too few points.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_validate.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="error-case-tests">
+        <h2>Error case tests</h2>
+
+        <div class="card risk-high" id="at-err-1">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-1</span>
+            <span class="card-title">Missing raw-L2 store — clear error</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-001</dd>
+              <dt>Scenario</dt>              <dd>No raw L2 swath store present.</dd>
+              <dt>Preconditions</dt>         <dd>Empty <code>data/raw/tropomi_l2/</code>.</dd>
+              <dt>Action</dt>                <dd>Run the attribution.</dd>
+              <dt>Expected result</dt>       <dd>A clear error names the missing input and the <code>fetch-l2</code> command; no attribution emitted.</dd>
+              <dt>Negative expectations</dt> <dd>No silent empty output.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_fetch_l2.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-2">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-2</span>
+            <span class="card-title">Missing/misaligned ERA5 wind, or invalid config — fail before compute</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>ERR-003, ERR-004</dd>
+              <dt>Scenario</dt>              <dd>ERA5 store missing or not alignable to overpass times; or a non-positive τ / non-positive wind threshold / unknown wind level / too-fine frequency.</dd>
+              <dt>Preconditions</dt>         <dd>No ERA5 store; and an invalid <code>FluxDivergenceConfig</code>.</dd>
+              <dt>Action</dt>                <dd>Build the flux / construct the config.</dd>
+              <dt>Expected result</dt>       <dd>A clear error (naming <code>ingest-era5</code>) for the missing wind; a validation error before any computation for the invalid config.</dd>
+              <dt>Negative expectations</dt> <dd>No silent wind fill; no partial output written.</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_flux.py</code>, <code>tests/fluxdiv/test_config.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="card risk-high" id="at-err-3">
+          <div class="card-header">
+            <span class="req-id err">AT-ERR-3</span>
+            <span class="card-title">Public-only — paid source refused</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Related requirements</dt>  <dd>NFR-001, ERR-005, REQ-001</dd>
+              <dt>Scenario</dt>              <dd>A paid or licence-gated data source is requested for an input.</dd>
+              <dt>Preconditions</dt>         <dd>A config/flag pointing at a non-free source.</dd>
+              <dt>Action</dt>                <dd>Run <code>fetch-l2</code>.</dd>
+              <dt>Expected result</dt>       <dd>The request is refused with a message directing to the free CDSE OData/S3 route; the fetch targets only the free path.</dd>
+              <dt>Negative expectations</dt> <dd>No paid/licence-gated download path is reachable (the NOX-011 VNF lesson).</dd>
+              <dt>Suggested test location</dt><dd><code>tests/fluxdiv/test_fetch_l2.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="non-regression-tests">
+        <h2>Non-regression tests</h2>
+
+        <div class="card" id="at-reg-1">
+          <div class="card-header">
+            <span class="req-id">AT-REG-1</span>
+            <span class="card-title">Reused modules unchanged; existing CLI + relative-index pipeline unaffected</span>
+            <span class="badge badge-draft">Draft</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Existing behavior protected</dt> <dd>NOX-008 robust stats, lead-lag, resample-align, the ERA5 + openEO acquisition, the attribution background subtraction, and all existing CLI commands + the relative-index pipeline.</dd>
+              <dt>Related requirements</dt>         <dd>NFR-003, NFR-004, NFR-007</dd>
+              <dt>Scenario</dt>                     <dd>Flux-divergence is additive and selectable.</dd>
+              <dt>Preconditions</dt>                <dd>Full test suite.</dd>
+              <dt>Action</dt>                       <dd>Run <code>uv run pytest</code> + a diff check on reused modules.</dd>
+              <dt>Expected result</dt>              <dd><code>robust.py</code>, <code>leadlag.py</code>, <code>preprocess.py</code>, <code>attribution/source.py</code>, <code>data/era5.py</code>, <code>data/tropomi.py</code> are byte-for-byte unchanged; all pre-existing tests still pass; existing commands behave identically.</dd>
+              <dt>Negative expectations</dt>        <dd>No change to existing command behaviour or outputs; the relative-index pipeline is not altered.</dd>
+              <dt>Suggested test location</dt>      <dd>existing suites + <code>tests/fluxdiv/test_reuse_integrity.py</code></dd>
+            </dl>
+          </div>
+        </div>
+
+      </section>
+
+      <hr>
+
+      <section id="manual-acceptance-checklist">
+        <h2>Manual acceptance checklist</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" disabled> All requirements have at least one acceptance test.</li>
+          <li><input type="checkbox" disabled> T1 three-way go/no-go gate is covered (AT7).</li>
+          <li><input type="checkbox" disabled> Benchmark-blind guard is covered (AT3).</li>
+          <li><input type="checkbox" disabled> Operator correctness (planted source vs background) is covered (AT2).</li>
+          <li><input type="checkbox" disabled> Robust CREA compare with resample-then-align is covered (AT5).</li>
+          <li><input type="checkbox" disabled> Honest-null outcome is covered (AT6).</li>
+          <li><input type="checkbox" disabled> Public-only routing / paid-source refusal is covered (AT-ERR-3).</li>
+          <li><input type="checkbox" disabled> Scale caveat + compute profile + bounded subset is covered (AT8).</li>
+          <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI + relative-index pipeline unaffected (AT-REG-1).</li>
+          <li><input type="checkbox" disabled> Tests feasible without a full multi-year download; no hidden assumptions.</li>
+          <li><input type="checkbox" disabled> Any unresolved behavior is listed in <code>open-questions.html</code>.</li>
+        </ul>
+      </section>
+
+      <hr>
+
+      <section id="notes-for-claude-code">
+        <h2>Notes for Claude Code</h2>
+        <div class="claude-note">
+          <h4>Rules Claude Code must follow</h4>
+          <ol>
+            <li>Acceptance tests map back to <code>requirements.html</code>.</li>
+            <li>Do not invent behaviour absent from the NOX-005 task or approved assumptions.</li>
+            <li>The four gates (AT7 T1 go/no-go, AT3 benchmark-blind, AT5 robust compare, AT6 honest-null) are non-negotiable acceptance gates.</li>
+            <li>Tests must run on synthetic fields / a bounded fixture — never a full multi-year download.</li>
+            <li>The reviewer verifies implemented tests cover this document and applies the deep-review escalation ladder to the benchmark-blind + robust-inference guards and to the new external download integration.</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>
