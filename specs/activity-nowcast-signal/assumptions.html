@@ -48,12 +48,14 @@
           <tbody>
             <tr><td>Low</td>    <td style="text-align:right">5</td></tr>
             <tr><td>Medium</td> <td style="text-align:right">3</td></tr>
-            <tr><td>High</td>   <td style="text-align:right">1</td></tr>
+            <tr><td>High</td>   <td style="text-align:right">0 (A1 resolved 2026-08-27)</td></tr>
           </tbody>
         </table>
         <p><strong>Blocking assumptions present:</strong></p>
-        <pre><code>None block the BUILD. A1 blocks only the PRIMARY-FEATURE scientific verdict
-(VIIRS), which is expected and handled by the graceful-degradation path + the T1 gate.</code></pre>
+        <pre><code>None. A1 is RESOLVED (2026-08-27): the VIIRS physical proxy is UNAVAILABLE
+(VNF paywalled; FIRMS active-fire invalid for this cluster). The NO2-feature path
+is now the MAIN path, not a fallback. The remaining assumptions are Low/Medium and
+do not block the build.</code></pre>
       </section>
 
       <hr>
@@ -61,26 +63,8 @@
       <section id="assumptions">
         <h2>Assumptions</h2>
 
-        <div class="card risk-high" id="a1">
-          <div class="card-header">
-            <span class="req-id">A1</span>
-            <span class="card-title">VIIRS primary feature is contingent (NOX-011 blocked)</span>
-            <span class="badge badge-pending">Pending</span>
-          </div>
-          <div class="card-body">
-            <dl class="card-fields">
-              <dt>Assumption</dt>            <dd>The VIIRS thermal series (NOX-011) may be absent at build time (blocked on EOG VNF credentials + FIRMS <code>MAP_KEY</code>). The build and all tests proceed on the graceful-degradation path (event markers / NO<sub>2</sub> covariate); the primary-feature scientific verdict is produced only if/when the VIIRS series exists.</dd>
-              <dt>Reason</dt>                <dd>NOX-011 is data-gated; the developer must supply credentials and run the live fetch. The nowcast machinery should not be blocked on that.</dd>
-              <dt>Risk level</dt>            <dd>High</dd>
-              <dt>Impact if wrong</dt>       <dd>If VIIRS were available, the primary run would exercise the intended feature; if it stays blocked, the delivered verdict is degraded-path only until a later live run.</dd>
-              <dt>Blocks implementation</dt> <dd>No (build). Yes (primary-feature scientific verdict only).</dd>
-              <dt>Related requirements</dt>  <dd>REQ-007, REQ-008, EDGE-001, ERR-002</dd>
-              <dt>Related design sections</dt><dd>Reuse map; Risks and trade-offs; External dependencies and freshness</dd>
-              <dt>Review status</dt>         <dd><span class="badge badge-pending">Pending</span></dd>
-              <dt>Developer decision</dt>    <dd>Pending</dd>
-            </dl>
-          </div>
-        </div>
+        <p><em>A1 (VIIRS primary-feature dependency) has been <strong>resolved</strong> by the
+        2026-08-27 finding — see <a href="#accepted-assumptions">Accepted / resolved assumptions</a>.</em></p>
 
         <div class="card risk-medium" id="a2">
           <div class="card-header">
@@ -234,8 +218,34 @@
       <hr>
 
       <section id="accepted-assumptions">
-        <h2>Accepted assumptions</h2>
-        <p>Move assumptions here after the developer explicitly accepts them.</p>
+        <h2>Accepted / resolved assumptions</h2>
+        <p>Move assumptions here after the developer explicitly accepts or resolves them.</p>
+
+        <div class="card risk-high" id="a1-resolved">
+          <div class="card-header">
+            <span class="req-id">A1</span>
+            <span class="card-title">VIIRS primary feature — RESOLVED as unavailable</span>
+            <span class="badge badge-ok">Resolved</span>
+          </div>
+          <div class="card-body">
+            <p>Resolved by developer-approved finding on 2026-08-27 (NOX-011 real run;
+            <code>decisions/architecture-decisions.md</code> negative-result entry).</p>
+            <p><strong>Original assumption:</strong> the VIIRS thermal series (NOX-011) might merely be
+            blocked on credentials, and the build would proceed on a graceful-degradation fallback while
+            the primary-feature verdict awaited a live VIIRS run.</p>
+            <p><strong>Resolution:</strong> the VIIRS physical proxy is <strong>unavailable</strong>, not
+            merely blocked. VNF (VIIRS Nightfire — the industrial-radiant-heat sensor) is licence/pay-gated
+            since 2025 and no longer public. The free FIRMS active-fire alternative was run over
+            2019–2026 (90,895 detections) and is an honest null for this cluster (NO<sub>2</sub>↔VIIRS
+            r=−0.05 ns; CREA↔VIIRS r=−0.05 ns): detections over the AOI — even &lt;2 km from the plants —
+            are dominated by Hebei crop-residue burning (spring/summer/autumn, low FRP ~1.4 MW, ~0 in
+            winter) and are blind to the year-round, winter-curtailed blast furnaces. There is therefore
+            <strong>no valid physical proxy</strong>. Consequence: the NO<sub>2</sub>-feature path (events
+            main + residual covariate) is the <strong>main path</strong>, carrying an explicit
+            reduced-power caveat; the T1 gate's realistic verdicts are GO-degraded or NO-GO; an honest
+            null is a likely, acceptable outcome. Does not block the build.</p>
+          </div>
+        </div>
       </section>
 
       <hr>
@@ -252,9 +262,9 @@
         <div class="claude-note">
           <h4>Rules Claude Code must follow</h4>
           <ol>
-            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>. A1 blocks only the primary-feature verdict, not the build; the degraded path proceeds.</li>
+            <li>Do not implement while any assumption has <strong>Blocks implementation: Yes</strong> and <strong>Review status: Pending</strong>. A1 is resolved (VIIRS unavailable) and does not block the build.</li>
             <li>Do not treat assumptions as approved unless the developer explicitly accepts them.</li>
-            <li>The VIIRS dependency (A1) must not be papered over: the build ships degraded and the primary verdict waits for the live VIIRS series.</li>
+            <li>The VIIRS proxy is unavailable (A1 resolved 2026-08-27): the build runs the NO<sub>2</sub>-feature main path with a reduced-power caveat; do not reintroduce a VIIRS dependency or fabricate a thermal series.</li>
             <li>If implementation requires a new assumption, stop and update this file first.</li>
             <li>If assumptions contradict requirements, design, or developer instructions, stop and ask.</li>
           </ol>

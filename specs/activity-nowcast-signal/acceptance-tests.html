@@ -164,17 +164,17 @@ tests/cli/       (CLI smoke for the new subcommands)</code></pre>
         <div class="card" id="at5">
           <div class="card-header">
             <span class="req-id">AT5</span>
-            <span class="card-title">Graceful degradation when VIIRS is unavailable</span>
+            <span class="card-title">NO<sub>2</sub>-feature main path runs (VIIRS unavailable, the default)</span>
             <span class="badge badge-draft">Draft</span>
           </div>
           <div class="card-body">
             <dl class="card-fields">
               <dt>Related requirements</dt>  <dd>REQ-007, REQ-008, AC-005, EDGE-001</dd>
-              <dt>Scenario</dt>              <dd>The VIIRS thermal series is absent (NOX-011 blocked); events/covariate are present.</dd>
-              <dt>Preconditions</dt>         <dd>No <code>viirs_thermal_series.parquet</code>; NO<sub>2</sub> events/residual present.</dd>
+              <dt>Scenario</dt>              <dd>The VIIRS thermal proxy is unavailable (VNF paywalled; FIRMS invalid, 2026-08-27); NO<sub>2</sub> events/covariate are present.</dd>
+              <dt>Preconditions</dt>         <dd>No valid <code>viirs_thermal_series.parquet</code>; NO<sub>2</sub> events/residual present.</dd>
               <dt>Action</dt>                <dd>Run the nowcast with feature priority <code>auto</code>.</dd>
-              <dt>Expected result</dt>       <dd><code>feature_source</code> is the fallback (events or no2_residual), <code>degraded=True</code>, and the reason is recorded; the run completes without crashing.</dd>
-              <dt>Negative expectations</dt> <dd>No fabricated VIIRS series; no silent substitution without the degraded flag.</dd>
+              <dt>Expected result</dt>       <dd><code>feature_source</code> is <code>events</code> (or <code>no2_residual</code>), <code>reduced_power=True</code>, and the reason is recorded; the run completes without crashing.</dd>
+              <dt>Negative expectations</dt> <dd>No fabricated VIIRS series; no silent selection without the reduced-power flag; the build never depends on a VIIRS series.</dd>
               <dt>Suggested test location</dt><dd><code>tests/nowcast/test_features.py</code></dd>
             </dl>
           </div>
@@ -221,17 +221,17 @@ tests/cli/       (CLI smoke for the new subcommands)</code></pre>
         <div class="card" id="at8">
           <div class="card-header">
             <span class="req-id">AT8</span>
-            <span class="card-title">T1 feasibility spike emits a three-way go/no-go verdict</span>
+            <span class="card-title">T1 feasibility spike emits a go/no-go verdict (GO-degraded / NO-GO)</span>
             <span class="badge badge-draft">Draft</span>
           </div>
           <div class="card-body">
             <dl class="card-fields">
               <dt>Related requirements</dt>  <dd>REQ-015, AC-008</dd>
-              <dt>Scenario</dt>              <dd>Feature availability and any-incremental-info are assessed before the build.</dd>
-              <dt>Preconditions</dt>         <dd>Synthetic availability scenarios (VIIRS present+informative / VIIRS absent but events informative / nothing informative).</dd>
+              <dt>Scenario</dt>              <dd>Feature availability and any-incremental-info are assessed before the build; the VIIRS proxy is unavailable.</dd>
+              <dt>Preconditions</dt>         <dd>Synthetic scenarios: NO<sub>2</sub> events informative (&rarr; GO-degraded); nothing informative (&rarr; NO-GO); plus a dormant-branch scenario where a valid thermal series is explicitly supplied (&rarr; GO-primary) to prove the branch exists but is not depended on.</dd>
               <dt>Action</dt>                <dd>Run <code>uv run noxus nowcast --probe</code>.</dd>
-              <dt>Expected result</dt>       <dd>Verdict is <em>GO-primary</em> / <em>GO-degraded</em> / <em>NO-GO</em> respectively, with evidence written to <code>data/derived/nowcast_probe.txt</code>; NO-GO stops the build (ERR-002).</dd>
-              <dt>Negative expectations</dt> <dd>The build does not proceed past T1 on a NO-GO.</dd>
+              <dt>Expected result</dt>       <dd>Verdict is <em>GO-degraded</em> / <em>NO-GO</em> for the realistic scenarios (and <em>GO-primary</em> only when a valid thermal series is supplied), with evidence written to <code>data/derived/nowcast_probe.txt</code>; NO-GO stops the build (ERR-002).</dd>
+              <dt>Negative expectations</dt> <dd>The build does not proceed past T1 on a NO-GO; the probe never reports GO-primary from FIRMS/absent VIIRS.</dd>
               <dt>Suggested test location</dt><dd><code>tests/nowcast/test_probe.py</code></dd>
             </dl>
           </div>
@@ -247,16 +247,16 @@ tests/cli/       (CLI smoke for the new subcommands)</code></pre>
         <div class="card" id="at-edge-1">
           <div class="card-header">
             <span class="req-id edge">AT-EDGE-1</span>
-            <span class="card-title">VIIRS store absent — no crash, degraded label</span>
+            <span class="card-title">VIIRS store absent (default) — no crash, reduced-power label</span>
             <span class="badge badge-draft">Draft</span>
           </div>
           <div class="card-body">
             <dl class="card-fields">
               <dt>Related requirements</dt>  <dd>EDGE-001, REQ-008</dd>
-              <dt>Scenario</dt>              <dd>VIIRS thermal parquet missing.</dd>
+              <dt>Scenario</dt>              <dd>VIIRS thermal parquet missing (the expected default).</dd>
               <dt>Preconditions</dt>         <dd>Only events/NO<sub>2</sub> residual available.</dd>
               <dt>Action</dt>                <dd>Run the nowcast.</dd>
-              <dt>Expected result</dt>       <dd>Degraded run completes; fallback source recorded.</dd>
+              <dt>Expected result</dt>       <dd>Main-path run completes; feature used + <code>reduced_power=True</code> recorded.</dd>
               <dt>Negative expectations</dt> <dd>No exception; no VIIRS fabrication.</dd>
               <dt>Suggested test location</dt><dd><code>tests/nowcast/test_features.py</code></dd>
             </dl>
@@ -405,7 +405,7 @@ tests/cli/       (CLI smoke for the new subcommands)</code></pre>
           <li><input type="checkbox" disabled> Anti-p-hacking guard is covered (AT3).</li>
           <li><input type="checkbox" disabled> Incremental-information vs CREA is covered (AT4).</li>
           <li><input type="checkbox" disabled> Honest-null outcome is covered (AT7).</li>
-          <li><input type="checkbox" disabled> Graceful degradation with VIIRS absent is covered (AT5).</li>
+          <li><input type="checkbox" disabled> NO<sub>2</sub>-feature main path with VIIRS absent + reduced-power label is covered (AT5).</li>
           <li><input type="checkbox" disabled> Triangulation discrepancy-with-uncertainty is covered (AT6).</li>
           <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI unaffected (AT-REG-1).</li>
           <li><input type="checkbox" disabled> Tests feasible with the current setup; no hidden assumptions.</li>

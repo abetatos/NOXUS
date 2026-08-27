@@ -34,10 +34,13 @@
         latency-aware <em>surprise</em> nowcast and its QC/incremental-information diagnostics. The
         pipeline is:</p>
         <ol>
-          <li><strong>Feature selection</strong> (roadmap-contingent, REQ-007/008): pick the highest
-          available feature — VIIRS thermal activity (NOX-011) &rarr; NO<sub>2</sub> event markers
-          (NOX-004/012) &rarr; NO<sub>2</sub> intensity residual (NOX-003.1, covariate only). The
-          selected feature is a causal, coverage-screened weekly series.</li>
+          <li><strong>Feature selection</strong> (REQ-007/008): the intended primary physical proxy —
+          VIIRS thermal activity (NOX-011) — is <strong>unavailable</strong> (VNF paywalled; FIRMS
+          active-fire empirically invalid for this cluster, finding 2026-08-27), so the
+          <strong>main path</strong> is the NO<sub>2</sub> features: NO<sub>2</sub> event markers
+          (NOX-004/012) as the primary available feature &rarr; NO<sub>2</sub> intensity residual
+          (NOX-003.1, covariate). The selected feature is a causal, coverage-screened weekly series. A
+          dormant VIIRS branch remains only if a valid thermal series is ever supplied later.</li>
           <li><strong>Expectation baseline</strong> (REQ-002): a causal seasonal/trend model of the
           feature (harmonic-K1 / STL-trend style, fit only on the past) combined additively with the
           last official CREA print known at each period (publication-lag-aware, REQ-006).</li>
@@ -51,10 +54,16 @@
           does the nowcast lead CREA or add orthogonal content beyond CREA's own causal baseline, under
           NOX-008 robust inference + BH-FDR?</li>
         </ol>
-        <p>The build is <strong>gated by a T1 feasibility spike</strong> (REQ-015) that measures feature
-        availability (NOX-011 is blocked) and whether any feature yields incremental information at all,
-        emitting a three-way go/no-go verdict before the rest is implemented. An honest null is a valid
-        terminal outcome.</p>
+        <p>The build is <strong>gated by a T1 feasibility spike</strong> (REQ-015) that confirms the
+        physical proxy is unavailable and measures whether the NO<sub>2</sub> features carry any
+        incremental information over CREA at all, emitting a go/no-go verdict (realistically GO-degraded
+        or NO-GO) before the rest is implemented. An honest null is a valid — and, given NOX-009/011/012,
+        a likely — terminal outcome.</p>
+        <p class="callout"><strong>Edge caveat (2026-08-27).</strong> With no valid physical proxy, the
+        nowcast rests entirely on NO<sub>2</sub>-derived features whose steel-local change-variance share
+        is ~0 (NOX-009) and whose continuous CREA coupling is weak/artefactual (NOX-012). The design is
+        implementable and disciplined, but its expected edge over the CREA incumbent is materially
+        weaker than originally scoped; the developer should weigh this before approving implementation.</p>
       </section>
 
       <section id="reuse-map">
@@ -68,8 +77,8 @@
             <tr><td>Multiple-testing control</td><td><code>bh_fdr</code> (robust.py)</td><td>BH-FDR across the feature × horizon × config grid, as in NOX-008/012.</td></tr>
             <tr><td>Lead/lag (does the nowcast lead CREA?)</td><td><code>noxus/validation/leadlag.py</code> — <code>lead_lag</code></td><td>Cross-correlation of nowcast vs CREA to test "earlier".</td></tr>
             <tr><td>Weekly alignment / resample convention</td><td><code>noxus/validation/scale.py</code> resample + <code>preprocess.align_series</code></td><td>Reuse the NOX-008/003 canonical weekly-resample-then-align to avoid the NOX-012 B3 exact-date-join bug.</td></tr>
-            <tr><td>VIIRS thermal feature</td><td><code>noxus/signal/thermal.py</code> — <code>build_thermal_series</code>, <code>thermal_activity</code></td><td>Primary feature series (benchmark-blind). Consumed if the NOX-011 series exists.</td></tr>
-            <tr><td>Discrete event markers</td><td><code>noxus/catalyst/events.py</code> (<code>detect_events</code>, <code>causal_robust_z</code>), <code>groundtruth.py</code>, <code>noxus/catalyst/regime.py</code></td><td>Degraded-path feature: curtailment starts/stops; causal robust-z already implemented and no-look-ahead.</td></tr>
+            <tr><td>VIIRS thermal feature (dormant)</td><td><code>noxus/signal/thermal.py</code> — <code>build_thermal_series</code>, <code>thermal_activity</code></td><td>Intended primary feature, now <strong>unavailable</strong> (VNF paywalled; FIRMS invalid, 2026-08-27). Consumed only if a valid thermal series is ever supplied; the build does not depend on it.</td></tr>
+            <tr><td>Discrete event markers (main feature)</td><td><code>noxus/catalyst/events.py</code> (<code>detect_events</code>, <code>causal_robust_z</code>), <code>groundtruth.py</code>, <code>noxus/catalyst/regime.py</code></td><td>Main-path feature: curtailment starts/stops; causal robust-z already implemented and no-look-ahead.</td></tr>
             <tr><td>NO<sub>2</sub> intensity residual (covariate)</td><td><code>noxus/signal/intensity.py</code>, <code>noxus/signal/index.py</code> (<code>deseasonalize</code>, harmonic)</td><td>Contextual covariate only; harmonic-K1 also informs the expectation-baseline seasonal term.</td></tr>
             <tr><td>Config + CLI patterns</td><td><code>noxus/config/run.py</code> dataclasses, <code>noxus/cli/main.py</code> subcommand style</td><td>New frozen <code>NowcastConfig</code> + new subcommand(s), mirroring existing commands.</td></tr>
             <tr><td>Committed-CSV provenance pattern</td><td><code>data/curtailment/</code> + <code>SOURCES.md</code> (NOX-012)</td><td>Triangulation snapshots follow the same committed-CSV-with-SOURCES.md pattern.</td></tr>
@@ -87,8 +96,9 @@
               </marker>
             </defs>
             <!-- features -->
-            <rect x="10" y="20" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
-            <text x="85" y="42" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">VIIRS thermal (NOX-011)*</text>
+            <rect x="10" y="20" width="150" height="34" rx="6" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="85" y="38" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#6b7280">VIIRS thermal (NOX-011)*</text>
+            <text x="85" y="50" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#9ca3af">UNAVAILABLE</text>
             <rect x="10" y="64" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
             <text x="85" y="86" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">NO2 events (004/012)</text>
             <rect x="10" y="108" width="150" height="34" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
@@ -122,8 +132,8 @@
             <text x="474" y="207" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">shipments / freight / coking-coal (ex-China)</text>
             <line x1="574" y1="200" x2="626" y2="200" stroke="#6b7280" stroke-width="1.5"/>
             <line x1="626" y1="200" x2="626" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-            <text x="360" y="260" font-family="sans-serif" font-size="10" fill="#9ca3af">* VIIRS is primary but currently blocked (NOX-011); pipeline degrades to events / NO2 covariate. All baselines/standardisation causal.</text>
-            <text x="360" y="278" font-family="sans-serif" font-size="10" fill="#9ca3af">Build gated by the T1 three-way go/no-go spike before anything downstream is implemented.</text>
+            <text x="360" y="260" font-family="sans-serif" font-size="10" fill="#9ca3af">* VIIRS unavailable (VNF paywalled; FIRMS invalid, 2026-08-27); NO2 events (main) + NO2 covariate carry the signal. All baselines/standardisation causal.</text>
+            <text x="360" y="278" font-family="sans-serif" font-size="10" fill="#9ca3af">Build gated by the T1 go/no-go spike (GO-degraded or NO-GO) before anything downstream is implemented.</text>
           </svg>
         </div>
       </section>
@@ -149,13 +159,13 @@
           </thead>
           <tbody>
             <tr><td><code>noxus/nowcast/__init__.py</code></td><td>new</td><td>Package init.</td></tr>
-            <tr><td><code>noxus/nowcast/features.py</code></td><td>new</td><td>Roadmap-contingent feature selection + graceful degradation (REQ-007/008).</td></tr>
+            <tr><td><code>noxus/nowcast/features.py</code></td><td>new</td><td>NO<sub>2</sub>-feature selection (events main + residual covariate; VIIRS unavailable) + reduced-power labelling (REQ-007/008).</td></tr>
             <tr><td><code>noxus/nowcast/baseline.py</code></td><td>new</td><td>Causal expectation baseline (own seasonal/trend + last official print, pub-lag-aware) (REQ-002/006).</td></tr>
             <tr><td><code>noxus/nowcast/surprise.py</code></td><td>new</td><td>Surprise + causal z-score + latency-aware emission stamp (REQ-003/004/005).</td></tr>
             <tr><td><code>noxus/nowcast/triangulation.py</code></td><td>new</td><td>External-quantity QC + discrepancy flag (REQ-009/010).</td></tr>
             <tr><td><code>noxus/nowcast/incremental.py</code></td><td>new</td><td>Incremental-information vs CREA using reused robust inference (REQ-011).</td></tr>
             <tr><td><code>noxus/nowcast/report.py</code></td><td>new</td><td>Nowcast report incl. honest null + scale caveat (REQ-014, NFR-005).</td></tr>
-            <tr><td><code>noxus/nowcast/probe.py</code></td><td>new</td><td>T1 feasibility spike + three-way go/no-go verdict (REQ-015).</td></tr>
+            <tr><td><code>noxus/nowcast/probe.py</code></td><td>new</td><td>T1 feasibility spike + go/no-go verdict (GO-degraded / NO-GO; GO-primary dormant) (REQ-015).</td></tr>
             <tr><td><code>noxus/config/run.py</code></td><td>add <code>NowcastConfig</code></td><td>Frozen dataclass: feature priority, latency, freq, min-history, seed, fixed defaults, triangulation sources.</td></tr>
             <tr><td><code>noxus/cli/main.py</code></td><td>add subcommand(s)</td><td><code>nowcast</code> (+ <code>--probe</code>) and <code>triangulate-nowcast</code>, mirroring existing commands.</td></tr>
             <tr><td><code>analysis/activity_nowcast.py</code></td><td>new</td><td>Reproducible driver &rarr; committable stats + figures.</td></tr>
@@ -197,9 +207,11 @@
           <div class="tab-panel">
 <pre><code># noxus/nowcast/features.py
 def select_feature(cfg: NowcastConfig) -&gt; FeatureResult:
-    """Return the highest-priority AVAILABLE feature series (VIIRS -&gt; events -&gt; NO2 covariate).
-    FeatureResult carries: series (weekly, causal), source ('viirs'|'events'|'no2_residual'),
-    degraded: bool, reason: str. Never fabricates a VIIRS series when absent (REQ-007/008)."""
+    """Return the AVAILABLE NO2 feature series: events (main) -&gt; NO2 residual covariate.
+    The VIIRS branch is dormant (unavailable, 2026-08-27) and only used if a valid thermal
+    series is explicitly supplied. FeatureResult carries: series (weekly, causal),
+    source ('events'|'no2_residual'|'viirs'), reduced_power: bool, reason: str.
+    Never fabricates a VIIRS series when absent (REQ-007/008)."""
 
 # noxus/nowcast/baseline.py  (BENCHMARK model may READ the last published CREA print, but is
 # NEVER fit against CREA values, and takes NO market-returns argument — NFR-002)
@@ -231,12 +243,12 @@ def probe(cfg: NowcastConfig) -&gt; ProbeVerdict:
 <pre><code># Nowcast series (gitignored parquet), one row per analysis period:
 #   period            (index, weekly, Sunday-anchored per project convention)
 #   feature           float   selected activity feature value (causal)
-#   feature_source    str     'viirs' | 'events' | 'no2_residual'
+#   feature_source    str     'events' | 'no2_residual' | 'viirs' (dormant)
 #   baseline          float   causal expectation baseline
 #   surprise          float   feature - baseline
 #   z                 float   causal z-score (NaN during warm-up)
 #   emission_ts       datetime  tradable-at: next session after overpass + latency
-#   degraded          bool    True when running without the primary VIIRS feature
+#   reduced_power     bool    True on the NO2-feature main path (no physical proxy)
 #   warmup            bool    True until min-history reached
 # Provenance sidecar: feature_source, latency, freq, seed, fixed defaults, scale caveat.
 
@@ -246,7 +258,7 @@ def probe(cfg: NowcastConfig) -&gt; ProbeVerdict:
           <div class="tab-panel">
 <pre><code># Build/inspect the nowcast (config-driven, additive)
 uv run noxus nowcast [--feature auto|viirs|events|no2] [--latency-days N] [--freq W]
-# T1 feasibility spike — three-way go/no-go (run FIRST; gates the build)
+# T1 feasibility spike — go/no-go (GO-degraded / NO-GO; run FIRST; gates the build)
 uv run noxus nowcast --probe
 # Triangulation QC diagnostic
 uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
@@ -272,7 +284,7 @@ uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
           </thead>
           <tbody>
             <tr><td>CREA / Mysteel / WIND BF operating rate</td><td>Existing NOX-001 ingestion (validated 2026-06-13)</td><td>n/a (CSV snapshot)</td><td>n/a</td><td>Incumbent + official-print input; already public/free.</td></tr>
-            <tr><td>VIIRS VNF / FIRMS (NOX-011)</td><td>NOX-011 spec/data-access.md (2026-07-12)</td><td>VNF CSV / FIRMS VNP14</td><td>Keyless VNF path falsified (EOG SSO); FIRMS needs <code>MAP_KEY</code></td><td><strong>BLOCKED</strong> — credentials pending; graceful degradation required.</td></tr>
+            <tr><td>VIIRS VNF / FIRMS (NOX-011)</td><td>NOX-011 real run + decisions/architecture-decisions.md (2026-08-27)</td><td>VNF CSV (paywalled); FIRMS VNP14 (free)</td><td>VNF dropped from public access (2025); FIRMS <code>MAP_KEY</code> path run</td><td><strong>UNAVAILABLE</strong> — VNF pay-gated; FIRMS active-fire empirically invalid here (crop-burning-dominated, r=−0.05 ns vs NO<sub>2</sub> and CREA, misses year-round furnaces). Not a feature source.</td></tr>
             <tr><td>Iron-ore shipments (Pilbara Ports, Vale)</td><td>TO VERIFY at T1: exact free/public URL + license + cadence (monthly)</td><td>CSV/HTML snapshot</td><td>n/a</td><td>Open question Q3; default = committed CSV snapshot + SOURCES.md (NOX-012 pattern).</td></tr>
             <tr><td>Freight (Baltic/Capesize), coking-coal exports</td><td>TO VERIFY at T1: free source availability</td><td>CSV snapshot</td><td>n/a</td><td>QC only, not a gate on emission (ERR-005).</td></tr>
           </tbody>
@@ -315,8 +327,9 @@ uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
           seasonal component, assert baseline removes it causally and z uses only prior periods.</li>
           <li><strong>Latency + publication-lag</strong> (AT2/AT-EDGE-3): assert prints only inform
           periods on/after publication; conservative lag when unknown.</li>
-          <li><strong>Graceful degradation</strong> (AT5/AT-EDGE-1): with VIIRS absent, assert degraded
-          mode + fallback source recorded; no crash.</li>
+          <li><strong>NO<sub>2</sub>-feature main path</strong> (AT5/AT-EDGE-1): with VIIRS absent (the
+          default), assert the reduced-power main path runs, the feature used + reduced-power flag are
+          recorded, and no VIIRS series is fabricated; no crash.</li>
           <li><strong>Incremental-information</strong> (AT4): planted-lead synthetic where the nowcast
           leads CREA &rarr; robust test detects it; planted-null &rarr; BH-FDR rejects nothing.</li>
           <li><strong>Triangulation QC</strong> (AT6): constructed divergence flagged with uncertainty;
@@ -324,7 +337,8 @@ uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
           <li><strong>Honest null</strong> (AT7): null feature &rarr; report states no edge, no
           re-tuning.</li>
           <li><strong>T1 verdict</strong> (AT8): synthetic availability scenarios &rarr; correct
-          GO-primary / GO-degraded / NO-GO.</li>
+          GO-degraded / NO-GO (GO-primary only when a valid thermal series is explicitly supplied —
+          dormant branch).</li>
           <li><strong>Reuse regression</strong> (AT-REG-1): reused modules unchanged (diff-empty);
           existing CLI commands still behave.</li>
         </ul>
@@ -340,15 +354,19 @@ uv run noxus triangulate-nowcast [--sources shipments,freight,coking-coal]
       <section id="risks-and-trade-offs">
         <h2>Risks and trade-offs</h2>
         <ul>
-          <li><strong>VIIRS-feature dependency risk (primary risk).</strong> The intended primary
-          feature (NOX-011) is blocked on credentials the developer must supply. The nowcast can be
-          built and tested end-to-end on the degraded path, but its <em>scientific</em> verdict on the
-          primary feature is contingent on the VIIRS series existing. This is disclosed as assumption
-          A1 (blocking-for-primary-verdict, non-blocking-for-build) and drives the T1 gate.</li>
-          <li><strong>Low incremental-information risk.</strong> NOX-009 (~0 steel-local NO<sub>2</sub>
-          change-variance) and NOX-012 (continuous, decoupling coupling) make an honest null a
-          realistic outcome. The design treats null as first-class (REQ-014); the value is a
-          <em>disciplined, no-look-ahead</em> answer to "is there an edge?", not a guaranteed edge.</li>
+          <li><strong>No valid physical proxy (materialised risk, 2026-08-27).</strong> The intended
+          primary feature (VIIRS thermal, NOX-011) is <em>unavailable</em>: VNF is paywalled since 2025,
+          and FIRMS active-fire is empirically invalid for this cluster (crop-residue-burning-dominated,
+          r=−0.05 ns vs both NO<sub>2</sub> and CREA, blind to year-round winter-curtailed furnaces).
+          The nowcast therefore has no independent physical anchor and rests entirely on NO<sub>2</sub>
+          features. This is recorded as resolved assumption A1 (VIIRS-unavailable) and reframes the T1
+          gate to GO-degraded / NO-GO.</li>
+          <li><strong>Low incremental-information risk (now the dominant risk).</strong> With only
+          NO<sub>2</sub> features left, NOX-009 (~0 steel-local NO<sub>2</sub> change-variance) and
+          NOX-012 (weak, artefactual continuous coupling) make an honest null the <em>likely</em>
+          outcome, not merely a possible one. The design treats null as first-class (REQ-014); the
+          delivered value is a <em>disciplined, no-look-ahead</em> answer to "is there any edge?", which
+          may well be "no". The developer should weigh this before approving implementation.</li>
           <li><strong>Deep-review flag (methodological, not security).</strong> This task makes a
           quantitative claim of predictive edge over an incumbent. Per the deep-review policy
           (<code>reference/deep-review-policy.md</code>), the reviewer will apply the escalation ladder

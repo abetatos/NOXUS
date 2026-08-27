@@ -33,26 +33,29 @@
         <p>Implement in order. Each task is small and independently verifiable. Mark complete by adding
         <code>class="done"</code> to its <code>&lt;li class="task-item"&gt;</code>. Global status lives in
         <code>tasks.json</code>. Do not start until the task is <code>human_approved</code>.</p>
-        <p><strong>T1 is a feasibility spike that GATES the build.</strong> Its three-way go/no-go
-        verdict (mirroring the GEMS/VIIRS/calendar T1 pattern) decides whether — and on which feature —
-        the rest proceeds. Stop and record the verdict before T2.</p>
+        <p><strong>T1 is a feasibility spike that GATES the build.</strong> Its go/no-go verdict
+        (mirroring the GEMS/VIIRS/calendar T1 pattern) decides whether the rest proceeds. Because the
+        VIIRS physical proxy is now unavailable (finding 2026-08-27: VNF paywalled; FIRMS active-fire
+        invalid for this cluster), the realistic verdicts are <em>GO-degraded</em> (NO<sub>2</sub>
+        events + covariate carry some incremental info over CREA) or <em>NO-GO</em> (honest null). Stop
+        and record the verdict before T2.</p>
 
         <ol class="task-timeline">
           <li class="task-item">
             <div class="task-item-header"><span class="req-id t">T1</span>
               <strong>Feasibility spike — GATES THE BUILD (REQ-015, AT8).</strong></div>
             <div class="task-item-body">New <code>noxus/nowcast/probe.py</code>:
-            <code>probe(cfg)</code> assesses (a) <em>feature availability</em> — is the NOX-011 VIIRS
-            thermal series present on disk (it is currently blocked on credentials), are NO<sub>2</sub>
-            events (NOX-004/012) and the NO<sub>2</sub> intensity residual (NOX-003.1) available? — and
-            (b) whether <em>any</em> available feature shows incremental information over CREA at the
-            fixed defaults (quick reused-<code>robust_corr</code>/<code>lead_lag</code> pass, no tuning).
-            Emit a <strong>three-way verdict</strong>: <em>GO-primary</em> (VIIRS available AND shows
-            incremental info &rarr; build on VIIRS), <em>GO-degraded</em> (VIIRS absent but events/
-            covariate show some incremental info &rarr; build degraded, flag reduced power), or
+            <code>probe(cfg)</code> assesses (a) <em>feature availability</em> — the VIIRS proxy is
+            unavailable (VNF paywalled; FIRMS invalid, 2026-08-27), so confirm no valid thermal series is
+            present and check that NO<sub>2</sub> events (NOX-004/012) and the NO<sub>2</sub> intensity
+            residual (NOX-003.1) are available — and (b) whether the available NO<sub>2</sub> features
+            show any incremental information over CREA at the fixed defaults (quick reused-<code>robust_corr</code>/<code>lead_lag</code>
+            pass, no tuning). Emit the verdict: <em>GO-degraded</em> (events/covariate show some
+            incremental info &rarr; build the reduced-power nowcast, flag reduced power) or
             <em>NO-GO</em> (no feature yields any incremental info &rarr; honest null; stop, escalate to
-            developer — ERR-002). Write the verdict + evidence to <code>data/derived/nowcast_probe.txt</code>.
-            <strong>Stop and record</strong> before T2.</div></li>
+            developer — ERR-002). The <em>GO-primary</em> (VIIRS) branch is retained only as a dormant
+            code path should a valid thermal series ever be supplied. Write the verdict + evidence to
+            <code>data/derived/nowcast_probe.txt</code>. <strong>Stop and record</strong> before T2.</div></li>
 
           <li class="task-item">
             <div class="task-item-header"><span class="req-id t">T2</span>
@@ -60,9 +63,10 @@
             <div class="task-item-body">Add frozen <code>NowcastConfig</code> to
             <code>noxus/config/run.py</code> (feature priority, latency-days, freq, min-history, seed,
             fixed defaults, triangulation sources). New <code>noxus/nowcast/features.py</code>:
-            <code>select_feature(cfg)</code> returns the highest available feature with
-            <code>source</code>/<code>degraded</code>/<code>reason</code>; never fabricates a VIIRS series
-            when absent. Tests first (feature-priority + degradation).</div></li>
+            <code>select_feature(cfg)</code> selects the NO<sub>2</sub> main-path feature (events primary,
+            residual covariate) and returns <code>source</code>/<code>reduced_power</code>/<code>reason</code>;
+            the VIIRS branch is dormant (unavailable) and never fabricates a thermal series. Tests first
+            (feature selection + reduced-power labelling + no-VIIRS-fabrication).</div></li>
 
           <li class="task-item">
             <div class="task-item-header"><span class="req-id t">T3</span>
@@ -157,8 +161,11 @@
               <strong>Update the project map + propose decision-log entries.</strong></div>
             <div class="task-item-body">Refresh <code>.claude/context/project-map.md</code> for the new
             <code>noxus/nowcast/</code> package, CLI command(s), and data dir. Draft (propose only)
-            decision-log entries: product reframed to a surprise nowcast; feature = physical proxy/events
-            not the NO<sub>2</sub> residual; incremental-info-over-CREA as the acceptance bar.</div></li>
+            decision-log entries: product reframed to a surprise nowcast; the intended physical proxy
+            (VIIRS) is unavailable (VNF paywalled; FIRMS invalid, 2026-08-27) so the feature layer is
+            NO<sub>2</sub> events + residual covariate at reduced power; incremental-info-over-CREA as the
+            acceptance bar; honest-null a likely, acceptable outcome. (The NOX-011 negative-result entry
+            in <code>decisions/architecture-decisions.md</code> is the upstream record.)</div></li>
         </ol>
       </section>
 
@@ -166,11 +173,11 @@
         <h2>Validation checklist</h2>
         <p>The reviewer verifies each item before marking the task <code>done</code>.</p>
         <ul class="checklist">
-          <li><input type="checkbox" disabled> T1 spike ran; three-way go/no-go verdict recorded before the build.</li>
+          <li><input type="checkbox" disabled> T1 spike ran; go/no-go verdict (GO-degraded or NO-GO) recorded before the build.</li>
           <li><input type="checkbox" disabled> No-look-ahead guard passes (AT2).</li>
           <li><input type="checkbox" disabled> Anti-p-hacking guard passes — model takes no returns/CREA-fit arg (AT3).</li>
           <li><input type="checkbox" disabled> Incremental-information vs CREA computed with robust inference + BH-FDR (AT4).</li>
-          <li><input type="checkbox" disabled> Graceful degradation exercised with VIIRS absent (AT5).</li>
+          <li><input type="checkbox" disabled> NO<sub>2</sub>-feature main path runs with VIIRS absent; reduced-power label recorded (AT5).</li>
           <li><input type="checkbox" disabled> Triangulation QC flags divergence with uncertainty, never "fake" (AT6).</li>
           <li><input type="checkbox" disabled> Honest null is reported as first-class if no edge exists (AT7).</li>
           <li><input type="checkbox" disabled> Reused modules unchanged; existing CLI unaffected (AT-REG-1).</li>

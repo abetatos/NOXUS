@@ -34,8 +34,9 @@
         <h2>Purpose</h2>
         <p>Records unresolved questions found while converting the NOX-013 direction into a spec. The
         spec is authored to be <strong>zero-blocking</strong> — each question has a safe default so the
-        task can reach <code>spec_ready</code> — while <em>not</em> papering over the VIIRS-feature
-        dependency risk (Q1), which is surfaced explicitly.</p>
+        task can reach <code>spec_ready</code>. The former Q1 (VIIRS-feature dependency) is now
+        <strong>resolved</strong>: the physical proxy is unavailable (2026-08-27). Q1 is replaced by the
+        genuine remaining decision — whether to proceed given a materially weaker expected edge.</p>
       </section>
 
       <hr>
@@ -49,12 +50,13 @@
           <tbody>
             <tr><td><span class="badge badge-blocking">Blocking</span></td>     <td style="text-align:right">0</td></tr>
             <tr><td><span class="badge badge-warning">Non-blocking</span></td>  <td style="text-align:right">5</td></tr>
-            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">0</td></tr>
+            <tr><td><span class="badge badge-ok">Resolved</span></td>           <td style="text-align:right">1 (former VIIRS-dependency question)</td></tr>
           </tbody>
         </table>
         <p><strong>Blocking questions present:</strong></p>
-        <pre><code>None. The task can reach spec_ready. Q1 (VIIRS dependency) is non-blocking
-for the build via graceful degradation, but is the key risk and must be visible.</code></pre>
+        <pre><code>None. The task can reach spec_ready. The VIIRS proxy is resolved-unavailable
+(2026-08-27); Q1 is now the proceed-despite-weaker-edge decision (non-blocking,
+default: let the T1 gate decide on evidence).</code></pre>
       </section>
 
       <hr>
@@ -65,17 +67,17 @@ for the build via graceful degradation, but is the key risk and must be visible.
         <div class="card" id="q1">
           <div class="card-header">
             <span class="req-id">Q1</span>
-            <span class="card-title">Proceed on the degraded path now, or wait for VIIRS credentials?</span>
+            <span class="card-title">Proceed given no physical proxy and a materially weaker expected edge?</span>
             <span class="badge badge-warning">Non-blocking</span>
           </div>
           <div class="card-body">
             <dl class="card-fields">
-              <dt>Question</dt>                          <dd>NOX-011 (the primary VIIRS feature) is blocked on EOG VNF credentials + FIRMS <code>MAP_KEY</code>. Should NOX-013 be built and validated now on the graceful-degradation path (event markers / NO<sub>2</sub> covariate), with the primary-feature scientific verdict deferred to a later live VIIRS run — or should the build wait until credentials are supplied?</dd>
-              <dt>Why it matters</dt>                    <dd>Determines whether the delivered nowcast verdict covers the intended primary feature or only the degraded path. This is the central dependency risk of the task.</dd>
-              <dt>Blocking</dt>                          <dd>No (build). The primary-feature verdict is contingent regardless.</dd>
-              <dt>Default assumption if not answered</dt><dd>Build + validate now on the degraded path (assumption A1); the T1 gate emits GO-degraded if VIIRS is absent but events/covariate carry incremental info, or NO-GO otherwise. The VIIRS primary verdict re-runs once the NOX-011 live series exists.</dd>
-              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-007/008), <code>design.html</code> (reuse map, risks), <code>tasks.html</code> (T1, T2), <code>assumptions.html</code> (A1)</dd>
-              <dt>Related requirements</dt>              <dd>REQ-007, REQ-008, EDGE-001, ERR-002</dd>
+              <dt>Question</dt>                          <dd>The VIIRS physical proxy is now confirmed unavailable (VNF paywalled; FIRMS active-fire invalid for this cluster, 2026-08-27), so the nowcast rests entirely on NO<sub>2</sub> features whose steel-local change-variance is ~0 (NOX-009) and whose CREA coupling is weak/artefactual (NOX-012). Given that an honest null is a likely outcome, does the developer still want to build the reduced-power nowcast now, or defer NOX-013 until a valid physical proxy (e.g. a licensed VNF feed, a GEMS-based product, or another thermometer) becomes available?</dd>
+              <dt>Why it matters</dt>                    <dd>Determines whether to spend implementation effort on a signal with a low prior probability of an incremental edge; the honest-edge caveat is a first-class developer decision input.</dd>
+              <dt>Blocking</dt>                          <dd>No — the spec is coherent either way; this is a go/no-go judgement for the developer.</dd>
+              <dt>Default assumption if not answered</dt><dd>Proceed to implement, but let the <strong>T1 feasibility gate decide on evidence</strong>: GO-degraded only if the NO<sub>2</sub> features show any incremental information over CREA at the fixed defaults, else NO-GO honest-null and stop (ERR-002). No effort past T1 on a NO-GO.</dd>
+              <dt>Affected files / sections</dt>         <dd><code>requirements.html</code> (REQ-007/008, REQ-015, honest-edge caveat), <code>design.html</code> (risks, edge caveat), <code>tasks.html</code> (T1), <code>assumptions.html</code> (A1 resolved)</dd>
+              <dt>Related requirements</dt>              <dd>REQ-007, REQ-008, REQ-014, REQ-015, ERR-002</dd>
               <dt>Decision</dt>                          <dd><span class="badge badge-pending">Pending</span></dd>
               <dt>Resolved by</dt>                       <dd>Pending</dd>
               <dt>Resolved at</dt>                       <dd>Pending</dd>
@@ -173,7 +175,21 @@ for the build via graceful degradation, but is the key risk and must be visible.
 
       <section id="resolved-questions">
         <h2>Resolved questions</h2>
-        <p>Move questions here after the developer answers them.</p>
+        <div class="card" id="q0-resolved">
+          <div class="card-header">
+            <span class="req-id">Q0</span>
+            <span class="card-title">Is the VIIRS physical proxy available (blocked vs unavailable)?</span>
+            <span class="badge badge-ok">Resolved</span>
+          </div>
+          <div class="card-body">
+            <dl class="card-fields">
+              <dt>Question</dt>     <dd>Is the VIIRS thermal proxy merely credential-blocked (retrievable later) or genuinely unavailable for this cluster?</dd>
+              <dt>Decision</dt>     <dd><strong>Unavailable.</strong> VNF is paywalled since 2025 (dropped from public access); FIRMS active-fire, run over 2019–2026 (90,895 detections), is an honest null here (r=−0.05 ns vs both NO<sub>2</sub> and CREA) because AOI detections are crop-residue burning, not the year-round winter-curtailed furnaces. The nowcast proceeds on NO<sub>2</sub> features (main path) with a reduced-power caveat.</dd>
+              <dt>Resolved by</dt>  <dd>developer (finding approved)</dd>
+              <dt>Resolved at</dt>  <dd>2026-08-27</dd>
+            </dl>
+          </div>
+        </div>
       </section>
 
       <hr>
@@ -191,7 +207,7 @@ for the build via graceful degradation, but is the key risk and must be visible.
           <h4>Rules Claude Code must follow</h4>
           <ol>
             <li>No question is blocking; the task may be marked <code>spec_ready</code>. Mention the 5 non-blocking questions to the developer at approval time.</li>
-            <li>Q1 (VIIRS dependency) is the key risk — do not treat the degraded-path verdict as the primary-feature verdict.</li>
+            <li>Q1 is now the proceed-despite-weaker-edge go/no-go — surface the honest-edge caveat clearly; the VIIRS proxy is resolved-unavailable (Q0) and must not be reintroduced as a dependency.</li>
             <li>Do not answer product/architecture questions silently; defaults are explicit and reversible.</li>
             <li>When the developer answers, update this file and reflect the decision across the spec.</li>
             <li>Before <code>human_approved</code>, verify no blocking question is pending.</li>

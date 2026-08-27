@@ -46,11 +46,18 @@
           regional common-mode; meteo ~0.3–0.5%). The nowcast feature must therefore come from an
           independent physical proxy or from discrete event markers, with the NO<sub>2</sub> residual
           used only as a contextual covariate.</li>
-          <li><strong>The primary physical feature is contingent and currently blocked.</strong> The
-          VIIRS thermal-anomaly series over the steel facility footprints (NOX-011) is the intended
-          primary activity proxy, but NOX-011 is data-gated (EOG VNF credentials + FIRMS
-          <code>MAP_KEY</code> the developer must supply). The spec must treat VIIRS as contingent and
-          provide a graceful-degradation path.</li>
+          <li><strong>The intended primary physical feature is now unavailable (finding 2026-08-27).</strong>
+          The VIIRS thermal-anomaly series over the steel facility footprints (NOX-011) was the intended
+          primary activity proxy, but the NOX-011 real run closed it off: VNF (VIIRS Nightfire — the
+          sensor that measures industrial radiant heat) is licence/pay-gated since 2025 (no longer
+          public), and the free FIRMS active-fire alternative (90,895 detections over 2019–2026) is an
+          honest null for this cluster (NO<sub>2</sub>↔VIIRS r=−0.05 ns, CREA↔VIIRS r=−0.05 ns). The
+          root cause is physical: FIRMS detections over the AOI — even &lt;2 km from the plants — peak in
+          spring/summer/autumn (Hebei agricultural crop-residue burning) with low FRP (~1.4 MW) and are
+          ~0 in winter, whereas blast furnaces run year-round and are winter-curtailed. FIRMS active-fire
+          therefore does not see the furnaces and is invalid as a steel-activity thermometer here. The
+          nowcast has <strong>no valid physical proxy</strong>; the former graceful-degradation path
+          (event markers + NO<sub>2</sub> covariate) is now the <strong>main path</strong>.</li>
           <li><strong>The coupling is continuous, not event-bound, and decoupling over time.</strong>
           NOX-012 concluded (2026-08-22) that the 2023 rolling-<em>r</em> peak is a scan-maximum
           artefact and that the coupling is continuous with a 2024 intensity-decoupling. This bears
@@ -63,6 +70,15 @@
         operating-rate survey (the CREA series): the nowcast must show <strong>incremental
         information</strong> (earlier or orthogonal) over the incumbent, else no edge exists.
         An honest null is an acceptable, first-class outcome.</p>
+        <p class="callout"><strong>Honest edge caveat (developer decision input, 2026-08-27).</strong>
+        With the physical proxy removed, the nowcast now rests entirely on NO<sub>2</sub>-derived
+        features (discrete event markers + the continuous residual covariate). Both are known to be
+        weak here: NOX-009 measured the steel-local share of NO<sub>2</sub> change-variance at ~0
+        (93–95% regional common-mode), and NOX-012 found the continuous coupling weak and the 2023 peak
+        artefactual. The nowcast's edge over the CREA incumbent is therefore <strong>materially
+        weaker</strong> than originally scoped, and an <strong>honest null (no incremental information)
+        is a likely and acceptable outcome</strong>. The developer should weigh this before approving
+        implementation; the T1 feasibility gate exists precisely to make that call on evidence.</p>
       </section>
 
       <section id="functional-requirements">
@@ -107,18 +123,22 @@
         </div>
         <div class="req-row">
           <span class="req-id">REQ-007</span>
-          <span>The system shall select the nowcast feature according to a roadmap-contingent priority:
-          (a) VIIRS thermal-anomaly activity (NOX-011) as the primary physical proxy; (b) NO<sub>2</sub>
-          event/catalyst markers (NOX-004/NOX-012) for discrete curtailment starts/stops; (c) the
-          NO<sub>2</sub> continuous residual (NOX-003.1) only as a contextual covariate, never as the
-          sole feature.</span>
+          <span>The system shall build the nowcast on the available NO<sub>2</sub>-derived features:
+          (b) NO<sub>2</sub> event/catalyst markers (NOX-004/NOX-012) for discrete curtailment
+          starts/stops as the primary available feature, and (c) the NO<sub>2</sub> continuous residual
+          (NOX-003.1) as a contextual covariate. The former primary physical proxy — (a) VIIRS
+          thermal-anomaly activity (NOX-011) — is <strong>unavailable</strong> (VNF paywalled; FIRMS
+          active-fire empirically invalid for this cluster, finding 2026-08-27) and shall be treated as
+          not selectable; if a valid VIIRS/thermal series is ever supplied later it may re-enter as an
+          optional feature, but the build shall not depend on it.</span>
         </div>
         <div class="req-row">
           <span class="req-id">REQ-008</span>
-          <span>If the VIIRS feature is unavailable (NOX-011 blocked or its thermal series absent), the
-          system shall <strong>gracefully degrade</strong> to the available features (event markers
-          and/or NO<sub>2</sub> covariate), clearly label the run as degraded, and record which feature
-          was used.</span>
+          <span>The system shall run the NO<sub>2</sub>-feature path as the <strong>main path</strong>
+          (no physical proxy available), clearly label every run with the feature used and a
+          <strong>reduced-power caveat</strong> (NOX-009 ~0 steel-local change-variance; NOX-012 weak
+          coupling), and record which feature was selected. If neither the events nor the residual
+          covariate is available, it shall error per ERR-001.</span>
         </div>
         <div class="req-row">
           <span class="req-id">REQ-009</span>
@@ -162,10 +182,14 @@
         <div class="req-row">
           <span class="req-id">REQ-015</span>
           <span>Before the build proceeds, the system shall run a <strong>feasibility spike</strong>
-          (T1) that assesses feature availability (given NOX-011 blocked) and whether any candidate
-          feature yields incremental information over CREA, and shall record a three-way go/no-go
-          verdict (<em>GO-primary</em> / <em>GO-degraded</em> / <em>NO-GO</em>) before any downstream
-          task runs.</span>
+          (T1) that confirms the physical proxy is unavailable and assesses whether the available
+          NO<sub>2</sub> features (events and/or residual covariate) yield any incremental information
+          over CREA, and shall record a go/no-go verdict before any downstream task runs. Because the
+          VIIRS proxy is closed (finding 2026-08-27), the realistic verdicts are <em>GO-degraded</em>
+          (events + covariate carry some incremental info → build the reduced-power nowcast) or
+          <em>NO-GO</em> (no feature carries incremental info → honest null, stop). The
+          <em>GO-primary</em> (VIIRS) branch is retained only as a dormant path should a valid thermal
+          series ever be supplied.</span>
         </div>
       </section>
 
@@ -224,9 +248,9 @@
         <h2>Edge cases</h2>
         <div class="req-row edge">
           <span class="req-id edge">EDGE-001</span>
-          <span>VIIRS thermal series absent (NOX-011 blocked): the nowcast runs in degraded mode on the
-          available features and is labelled degraded (REQ-008); it does not crash or silently emit a
-          VIIRS-based series.</span>
+          <span>VIIRS thermal series absent (the expected default — VNF paywalled, FIRMS invalid): the
+          nowcast runs the NO<sub>2</sub>-feature main path and is labelled reduced-power (REQ-008); it
+          does not crash and never fabricates or silently emits a VIIRS-based series.</span>
         </div>
         <div class="req-row edge">
           <span class="req-id edge">EDGE-002</span>
@@ -320,8 +344,8 @@
         </div>
         <div class="req-row ac">
           <span class="req-id ac">AC-005</span>
-          <span>With the VIIRS series absent, the nowcast runs in degraded mode, is labelled degraded,
-          and records the fallback feature used. (REQ-008, EDGE-001)</span>
+          <span>With the VIIRS series absent (the default), the nowcast runs the NO<sub>2</sub>-feature
+          main path, is labelled reduced-power, and records the feature used. (REQ-008, EDGE-001)</span>
         </div>
         <div class="req-row ac">
           <span class="req-id ac">AC-006</span>
@@ -335,8 +359,9 @@
         </div>
         <div class="req-row ac">
           <span class="req-id ac">AC-008</span>
-          <span>The T1 spike records a three-way go/no-go verdict (GO-primary / GO-degraded / NO-GO)
-          with its evidence before any downstream task runs. (REQ-015)</span>
+          <span>The T1 spike records a go/no-go verdict — realistically GO-degraded or NO-GO, with
+          GO-primary a dormant branch (VIIRS unavailable) — with its evidence before any downstream task
+          runs. (REQ-015)</span>
         </div>
       </section>
 
@@ -359,8 +384,10 @@
           <li><strong>CREA / Mysteel / WIND</strong> Tangshan blast-furnace operating rate — already
           ingested (NOX-001, <code>noxus ingest-benchmark</code>); the incumbent and the official-print
           input.</li>
-          <li><strong>VIIRS thermal series</strong> (NOX-011, VNF/FIRMS) — primary feature; contingent
-          and currently blocked on credentials.</li>
+          <li><strong>VIIRS thermal series</strong> (NOX-011, VNF/FIRMS) — <strong>unavailable</strong>
+          (finding 2026-08-27): VNF paywalled since 2025; FIRMS active-fire empirically invalid for this
+          steel cluster (crop-burning-dominated, misses year-round furnaces). Not a feature source for
+          this build.</li>
           <li><strong>Exporter-side shipments / freight / coking-coal</strong> for triangulation QC:
           candidate public/free sources include Pilbara Ports monthly throughput, Vale production/sales
           reports, Baltic/Capesize freight indices, and public coking-coal export series. The exact
@@ -389,9 +416,10 @@
         <ul>
           <li>The project product is reframed from a correlation study to an investment-grade
           <em>surprise</em> nowcast; triangulation is QC, not the goal.</li>
-          <li>The nowcast feature is an independent physical proxy (VIIRS) or discrete event markers —
-          not the continuous NO<sub>2</sub> residual — a consequence of the NOX-009 ~0 change-variance
-          finding.</li>
+          <li>The intended independent physical proxy (VIIRS thermal) is unavailable (VNF paywalled;
+          FIRMS active-fire invalid for this cluster, 2026-08-27), so the nowcast leans on NO<sub>2</sub>
+          discrete event markers + the residual covariate, at materially reduced power — a consequence
+          of the NOX-009 ~0 change-variance and NOX-011 negative-result findings.</li>
           <li>Incremental-information-over-CREA is adopted as the acceptance bar for the signal
           (edge = earlier or orthogonal), with honest-null as a first-class outcome.</li>
         </ul>
@@ -408,12 +436,12 @@
             <tr><td><span class="req-id">REQ-002</span>, <span class="req-id">REQ-003</span></td><td>AT1, AT2</td><td>Baseline + surprise from causal inputs.</td></tr>
             <tr><td><span class="req-id">REQ-004</span></td><td>AT1, AT2</td><td>Causal z-score uses only prior periods.</td></tr>
             <tr><td><span class="req-id">REQ-005</span>, <span class="req-id">REQ-006</span></td><td>AT2, AT-EDGE-3</td><td>Latency + publication-lag alignment.</td></tr>
-            <tr><td><span class="req-id">REQ-007</span>, <span class="req-id">REQ-008</span></td><td>AT5, AT-EDGE-1</td><td>Feature priority + graceful degradation.</td></tr>
+            <tr><td><span class="req-id">REQ-007</span>, <span class="req-id">REQ-008</span></td><td>AT5, AT-EDGE-1</td><td>NO<sub>2</sub>-feature main path + reduced-power label (VIIRS unavailable).</td></tr>
             <tr><td><span class="req-id">REQ-009</span>, <span class="req-id">REQ-010</span></td><td>AT6</td><td>Triangulation QC + discrepancy flag.</td></tr>
             <tr><td><span class="req-id">REQ-011</span></td><td>AT4</td><td>Incremental-information vs CREA (robust + FDR).</td></tr>
             <tr><td><span class="req-id">REQ-012</span>, <span class="req-id">REQ-013</span></td><td>AT1, AT-REG-1</td><td>CLI + outputs + gitignore.</td></tr>
             <tr><td><span class="req-id">REQ-014</span></td><td>AT7</td><td>Honest-null report.</td></tr>
-            <tr><td><span class="req-id">REQ-015</span></td><td>AT8</td><td>T1 three-way go/no-go verdict.</td></tr>
+            <tr><td><span class="req-id">REQ-015</span></td><td>AT8</td><td>T1 go/no-go verdict (GO-degraded / NO-GO; GO-primary dormant).</td></tr>
             <tr><td><span class="req-id">NFR-001</span></td><td>AT2 (no-look-ahead guard)</td><td>Future edits do not change past emissions.</td></tr>
             <tr><td><span class="req-id">NFR-002</span></td><td>AT3 (anti-p-hacking guard)</td><td>Model takes no returns/CREA-fit arg.</td></tr>
             <tr><td><span class="req-id">NFR-004</span></td><td>AT-REG-1</td><td>Reused modules unchanged (byte-for-byte).</td></tr>
