@@ -21,9 +21,9 @@
         <tbody>
           <tr><th>Task ID</th>       <td><code>NOX-011</code></td></tr>
           <tr><th>Feature slug</th>  <td><code>viirs-thermal-benchmark</code></td></tr>
-          <tr><th>Status</th>        <td><span class="badge badge-draft">spec_draft</span> <span class="small">(spec-author output; pending human approval)</span></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-draft">in_progress</span> <span class="small">(pivot revision 2026-08-22; implementation ongoing in parallel)</span></td></tr>
           <tr><th>Author</th>        <td>spec-author</td></tr>
-          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-ok">approved (pre-pivot); pivot developer-directed 2026-08-22</span></td></tr>
         </tbody>
       </table>
     </header>
@@ -32,6 +32,29 @@
 
       <section id="summary">
         <h2>Summary</h2>
+
+        <p class="callout"><strong>PIVOT (developer-directed, 2026-08-22).</strong> This spec was originally built
+        with <strong>VIIRS Nightfire (VNF, EOG / Colorado School of Mines)</strong> as the primary physical-heat
+        proxy and NASA FIRMS active fire as a cross-check. <strong>VNF is now DROPPED.</strong> It is no longer
+        public: a <em>VIIRS Nightfire Data Use License</em> (effective 2025-01-10) gates the data, and EOG limits
+        programmatic (OpenID/OAuth) access to <strong>paid subscribers</strong> (effective 2026-06-01); a free
+        account gives browser-only access, which is not automatable or reproducible. This conflicts with the
+        project's public/free reproducible-data principle, so VNF is out of scope. In its place, the
+        <strong>NASA FIRMS active-fire SP-archive is PROMOTED to the PRIMARY physical proxy.</strong> Live
+        evidence over the 39-facility bbox (117.9,38.9,119.1,40.3) on 2026-08-22: product
+        <code>VIIRS_SNPP_SP</code> returns <code>type=2</code> (static-land / industrial) detections over the
+        steel cluster — e.g. 5 detections on 2023-12-15, 73 on 2024-11-20, FRP 0.2–4.8&nbsp;MW — exactly the
+        intended physical proxy. See the decision log (2026-08-22 — <em>NOX-011 pivot</em>). VNF-specific text
+        below is retained only where it explains <em>why</em> VNF was withdrawn; the acquisition source of record
+        is now FIRMS SP-archive.</p>
+
+        <p class="callout"><strong>Honest caveat baked into this spec.</strong> The FIRMS active-fire signal over
+        the plants is <strong>sparse and low-FRP</strong> — many zero-detection nights — so the statistical power
+        of the triangulation is limited. A <strong>weak or null</strong> NO₂↔VIIRS or CREA↔VIIRS result is a
+        <strong>first-class, valid outcome</strong>, not a failure (REQ-025, NFR-005). The feature-vs-target
+        triangulation logic is <strong>unchanged</strong>: if NO₂ does not track the VIIRS physical heat → the
+        FEATURE is weak; if NO₂↔VIIRS holds but CREA↔VIIRS fails → the TARGET (CREA) is weak.</p>
+
         <p>Acquire an <strong>independent, physical activity proxy</strong> for the Tangshan steel cluster —
         <strong>VIIRS thermal anomalies</strong> over the catalogued steel facilities — and use it to run the
         <strong>decisive triangulation</strong> that breaks the <em>feature-vs-target</em> ambiguity raised by
@@ -62,23 +85,29 @@
         committable). It is the heaviest task on the roadmap for new data and is <strong>independent of
         NOX-009/010</strong>.</p>
 
-        <p><strong>Product (given as the factual basis; access details are unknowns resolved by the T1 spike).</strong>
-        The <strong>primary</strong> thermal series is <strong>VIIRS Nightfire (VNF)</strong> from the
-        NOAA / Colorado School of Mines Earth Observation Group (EOG, Payne Institute): it detects sub-pixel
-        high-temperature sources at night across multiple near/short-wave IR bands and reports per-detection
-        <strong>temperature (K)</strong>, <strong>source area</strong> and <strong>radiant heat (MW)</strong> —
-        physically matched to industrial combustion (steel, gas flares). It is nightly, ~2012→present, global,
-        free bulk download (per-night CSV, filtered to the AOI client-side); night-only is acceptable because
-        steel is 24/7 baseload. As an <strong>independent cross-check</strong>, <strong>NASA FIRMS VIIRS active
-        fire</strong> (VNP14IMGT S-NPP + VJ114 NOAA-20, 375&nbsp;m, free, <code>MAP_KEY</code> by email) is
-        active-fire-tuned but its <em>static-land-source</em> detections capture persistent industrial hot
-        spots. See <code>assumptions.html</code> (A1) and <code>open-questions.html</code> (Q1/Q2).</p>
+        <p><strong>Product (source of record after the pivot).</strong> The <strong>primary</strong> thermal
+        series is <strong>NASA FIRMS VIIRS active fire, SP (Standard Processing) archive</strong> — products
+        <code>VIIRS_SNPP_SP</code> (S-NPP) and <code>VIIRS_NOAA20_SP</code> (NOAA-20), 375&nbsp;m, free, keyed by a
+        <code>MAP_KEY</code> obtained by email (env var <code>FIRMS_MAP_KEY</code>). The SP archive exposes a
+        detection <strong>type</strong> column; the <strong>type=2 (static-land / industrial)</strong> class is
+        the physical proxy for the persistent furnace/sinter/coke hot spots. Per-detection fields:
+        <strong>FRP (fire radiative power, MW)</strong>, <strong>brightness temperature</strong>,
+        <strong>lat/lon</strong>, <strong>acq date/time</strong>, <strong>confidence</strong>, and
+        <strong>type</strong>. Access is via the FIRMS per-area CSV/archive API over the AOI bbox. Two properties
+        are load-bearing: (i) the SP archive <strong>lags ~2 months</strong> behind real time (recent dates are
+        empty — this is expected, not a failure); (ii) the NRT (near-real-time) products <strong>lack the
+        <code>type</code> column</strong>, so the type=2 industrial filter applies <strong>only to the SP
+        archive</strong> — which is exactly what the historical 2019+ series is built from. <strong>VNF (EOG /
+        CSM) is DROPPED</strong> (licence + paid-programmatic-access; not public — see the pivot callout above and
+        <code>assumptions.html</code> A1, <code>open-questions.html</code> Q1). A second-satellite / NRT FIRMS
+        series may be used as an <em>internal consistency check</em>, not as a separate independent product.</p>
 
-        <p class="callout"><strong>Gate.</strong> A <strong>T1 feasibility spike</strong> (like GEMS/NOX-007)
-        precedes the full build: fetch a small VNF window over Tangshan, confirm detections land on the
-        facilities, measure per-night volume + available fields + temporal coverage, and record a
-        <strong>go/no-go</strong>. This resolves the external-access unknowns before the acquisition loop is
-        written (REQ-000).</p>
+        <p class="callout"><strong>Gate.</strong> A <strong>T1 archive-window probe</strong> precedes/validates the
+        full build: fetch a FIRMS SP-archive window over Tangshan <strong>inside the ~2-month-lagged archive
+        horizon</strong> (not a recent window — a recent window gave a false NO-GO on 2026-08-22 because the SP
+        archive had not yet caught up), confirm type=2 detections land on the facilities, measure per-day volume +
+        available fields + temporal coverage, and record a <strong>go/no-go</strong> (REQ-000). The probe must be
+        archive-window-aware so it does not misreport an empty recent window as a data absence.</p>
       </section>
 
       <section id="functional-requirements">
@@ -87,41 +116,44 @@
         <code>010–019</code> join + thermal series, <code>020–029</code> triangulation, <code>030–039</code>
         verification/output, <code>040+</code> CLI.</p>
 
-        <h3 id="fr-spike">Viability gate (spike)</h3>
-        <div class="req-row"><span class="req-id">REQ-000</span><span>Before building the acquisition loop, the system shall (T1 spike, developer-run) <strong>fetch a small VNF window over Tangshan</strong> and record: (a) the <strong>download endpoint + file format</strong> and whether authentication is required; (b) <strong>per-night data volume</strong> and the implied full-era volume; (c) the <strong>detection fields available</strong> (temperature K, source area, radiant heat MW, lat/lon, timestamp, detection id, cloud/quality flags); (d) <strong>temporal coverage</strong> over the AOI (nights with ≥1 detection vs gaps); (e) confirmation that detections <strong>spatially co-locate with the catalogued facilities</strong>. A <strong>go/no-go</strong> against a download-budget threshold shall be recorded in <code>open-questions.html</code> (Q1) and the decision log before further implementation.</span></div>
+        <h3 id="fr-spike">Viability gate (archive-window probe)</h3>
+        <div class="req-row"><span class="req-id">REQ-000</span><span>Before/while building the acquisition loop, the system shall (T1 probe) <strong>fetch a FIRMS SP-archive window over Tangshan inside the ~2-month-lagged archive horizon</strong> and record: (a) the <strong>archive endpoint + CSV format</strong> and the required <code>MAP_KEY</code> credential; (b) <strong>per-day / per-window data volume</strong> and the implied full-era volume; (c) the <strong>detection fields available</strong> (FRP MW, brightness temperature, lat/lon, acq date/time, confidence, <strong>type</strong>); (d) <strong>temporal coverage</strong> over the AOI (days with ≥1 type=2 detection vs gaps) and the <strong>observed archive lag</strong>; (e) confirmation that <strong>type=2 (static-land) detections spatially co-locate with the catalogued facilities</strong>. The probe shall be <strong>archive-window-aware</strong>: it must query inside the archive horizon and must <strong>not</strong> report an empty <em>recent</em> window as a data absence (a recent-window probe produced a false NO-GO on 2026-08-22). A <strong>go/no-go</strong> shall be recorded in <code>open-questions.html</code> (Q1) and the decision log.</span></div>
 
         <h3 id="fr-acq">Acquisition</h3>
-        <div class="req-row"><span class="req-id">REQ-001</span><span>When acquisition runs, the system shall retrieve <strong>VNF thermal detections over the Tangshan AOI</strong> for the configured date range (default: the TROPOMI/CREA overlap era), filtering each per-night product to the AOI bbox client-side and retaining detections inside it.</span></div>
-        <div class="req-row"><span class="req-id">REQ-002</span><span>When acquiring, the system shall retain, per detection: <strong>temperature (K)</strong>, <strong>source area</strong>, <strong>radiant heat (MW)</strong>, <strong>latitude/longitude</strong>, <strong>observation timestamp</strong>, a <strong>detection id</strong>, and any available <strong>quality/cloud flag</strong>.</span></div>
-        <div class="req-row"><span class="req-id">REQ-003</span><span>When a night is ingested, the system shall persist the AOI-clipped detections reproducibly under <code>data/raw/viirs/</code>, tagged with date, AOI bbox, product/source, and fetch time (provenance).</span></div>
-        <div class="req-row"><span class="req-id">REQ-004</span><span>While acquiring the record, the system shall be <strong>idempotent and resumable</strong>: a manifest records fetched nights; re-running skips completed nights and continues after interruption; acquisition shall support <strong>batching by date window</strong> with retry/backoff.</span></div>
-        <div class="req-row"><span class="req-id">REQ-005</span><span>Where the chosen source requires credentials (e.g. FIRMS <code>MAP_KEY</code>), the system shall read them from an <strong>environment variable</strong> via <code>.env</code> (per <code>.env.example</code>), <strong>referencing the variable name only</strong> — never reading, logging, printing, or committing the value. VNF is expected to need no auth (confirmed at T1).</span></div>
-        <div class="req-row"><span class="req-id">REQ-006</span><span>The system shall additionally support an <strong>independent FIRMS active-fire cross-check</strong> acquisition (VNP14IMGT + VJ114) over the same AOI/era, retaining only <strong>static-land-source</strong> detections (the FIRMS detection <em>type</em> field), used as a robustness series — not the primary.</span></div>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When acquisition runs, the system shall retrieve <strong>FIRMS SP-archive VIIRS active-fire detections over the Tangshan AOI</strong> (products <code>VIIRS_SNPP_SP</code> primary + <code>VIIRS_NOAA20_SP</code>) for the configured date range (default: the TROPOMI/CREA overlap era up to the archive horizon), filtering to the AOI bbox and retaining <strong>type=2 (static-land / industrial)</strong> detections as the physical proxy.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When acquiring, the system shall retain, per detection: <strong>FRP (fire radiative power, MW)</strong>, <strong>brightness temperature</strong>, <strong>latitude/longitude</strong>, <strong>acquisition date/time</strong>, <strong>confidence</strong>, and the <strong>type</strong> field (SP-archive only). The primary thermal aggregate is derived from FRP (A3).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When a day/window is ingested, the system shall persist the AOI-clipped detections reproducibly under <code>data/raw/viirs/</code>, tagged with date range, AOI bbox, product/source (<code>VIIRS_SNPP_SP</code> / <code>VIIRS_NOAA20_SP</code>), and fetch time (provenance).</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>While acquiring the record, the system shall be <strong>idempotent and resumable</strong>: a manifest records fetched windows; re-running skips completed windows and continues after interruption; acquisition shall support <strong>batching by date window</strong> with retry/backoff.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>The FIRMS <code>MAP_KEY</code> credential shall be read from an <strong>environment variable</strong> via <code>.env</code> (per <code>.env.example</code>, variable name <code>FIRMS_MAP_KEY</code>), <strong>referencing the variable name only</strong> — never reading, logging, printing, or committing the value (scrub it from any request-URL logging).</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>The system shall support an <strong>internal consistency check</strong> by comparing the two SP-archive satellites (<code>VIIRS_SNPP_SP</code> vs <code>VIIRS_NOAA20_SP</code>) and, where useful, an NRT product — noting that <strong>NRT lacks the <code>type</code> column</strong> so the type=2 industrial filter cannot be applied to it. This is an <em>internal</em> consistency check, not a separate independent product (VNF, the former independent cross-check, is withdrawn).</span></div>
+        <div class="req-row withdrawn"><span class="req-id">REQ-007</span><span><s><strong>[WITHDRAWN 2026-08-22 — VNF dropped.]</strong> Retrieve VNF (EOG / CSM) per-night thermal detections as the primary series.</s> VNF is licence-gated (<em>VIIRS Nightfire Data Use License</em>, 2025-01-10) and its programmatic/OAuth access is restricted to paid subscribers (2026-06-01); it is not public/free, so it is out of scope. A missing-VNF code path shall raise a clear <strong>licence/pay-gated error</strong> rather than attempt a fetch (ERR-006).</span></div>
 
         <h3 id="fr-series">Facility join + thermal series</h3>
         <div class="req-row"><span class="req-id">REQ-010</span><span>When building the thermal series, the system shall <strong>join detections to the catalogued steel facilities</strong> (<code>data/derived/tangshan_steel_facilities.csv</code>) by assigning each detection to a facility whose centroid lies within a <strong>fixed facility radius</strong> (config default; A2), discarding detections outside every facility radius.</span></div>
-        <div class="req-row"><span class="req-id">REQ-011</span><span>When aggregating, the system shall produce a <strong>weekly</strong> (primary) and <strong>daily</strong> (secondary) thermal-activity series over the joined detections, with the <strong>primary aggregate = summed radiant heat (MW)</strong> and <strong>alternates = detection count and mean detection temperature</strong> retained alongside (A3).</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>When aggregating, the system shall produce a <strong>weekly</strong> (primary) and <strong>daily</strong> (secondary) thermal-activity series over the joined type=2 detections, with the <strong>primary aggregate = summed FRP (MW)</strong> and <strong>alternates = detection count and mean brightness temperature</strong> retained alongside (A3). Days/weeks with <strong>no detections</strong> are <strong>zero-filled</strong> and flagged (sparse thermal sampling; EDGE-001/005).</span></div>
         <div class="req-row"><span class="req-id">REQ-012</span><span>The thermal series shall be constructed <strong>benchmark-blind</strong>: the facility radius, quality thresholds, aggregation frequency and primary aggregate are <strong>fixed and recorded before</strong> the triangulation outputs are viewed (anti-p-hacking; A9, NFR-006). The series must not reference the CREA benchmark or the NO₂ result in its construction.</span></div>
 
         <h3 id="fr-triangulation">Triangulation</h3>
         <div class="req-row"><span class="req-id">REQ-020</span><span>When triangulation runs, the system shall compute <strong>NO₂-footprint ↔ VIIRS</strong> correlation (Pearson <em>r</em> + lead/lag) under the NOX-008 <strong>autocorrelation-robust significance</strong> by <strong>reusing <code>noxus/validation/robust.py</code> (<code>robust_corr</code>)</strong> — effective-N, Newey-West, moving-block bootstrap CI, block-permutation null. It shall <strong>not re-implement significance</strong>.</span></div>
         <div class="req-row"><span class="req-id">REQ-021</span><span>When triangulation runs, the system shall compute <strong>CREA ↔ VIIRS</strong> correlation (Pearson <em>r</em> + lead/lag) under the same robust significance, on the common overlap window.</span></div>
-        <div class="req-row"><span class="req-id">REQ-022</span><span>The system shall apply <strong>Benjamini-Hochberg FDR</strong> (<code>bh_fdr</code>) across the family of correlation p-values (NO₂↔VIIRS, CREA↔VIIRS, and the FIRMS cross-check pair) so the multiplicity is corrected transparently.</span></div>
-        <div class="req-row"><span class="req-id">REQ-023</span><span>The system shall emit an <strong>interpretation / decision table</strong> that maps the observed pattern of significant links onto the feature-vs-target diagnosis (NO₂ blind → feature is the weak link; CREA↔VIIRS absent while NO₂↔VIIRS holds → target was the weak link; VIIRS↔CREA holds while NO₂ tracks neither → NO₂ blind, target sound), <strong>including the honest-null branch</strong>.</span></div>
-        <div class="req-row"><span class="req-id">REQ-024</span><span>The system shall repeat the triangulation on the <strong>FIRMS static-land-source series</strong> as an independent robustness check, reporting whether the diagnosis is consistent across the two VIIRS products (REQ-006).</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>The system shall apply <strong>Benjamini-Hochberg FDR</strong> (<code>bh_fdr</code>) across the family of correlation p-values (NO₂↔VIIRS, CREA↔VIIRS, and the two-satellite consistency pair) so the multiplicity is corrected transparently.</span></div>
+        <div class="req-row"><span class="req-id">REQ-023</span><span>The system shall emit an <strong>interpretation / decision table</strong> that maps the observed pattern of significant links onto the feature-vs-target diagnosis (NO₂ blind → feature is the weak link; CREA↔VIIRS absent while NO₂↔VIIRS holds → target was the weak link; VIIRS↔CREA holds while NO₂ tracks neither → NO₂ blind, target sound), <strong>including the honest-null branch</strong>. The triangulation <strong>logic is unchanged by the pivot</strong>; only the VIIRS product feeding it changed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-024</span><span>The system shall repeat the triangulation on the <strong>second SP-archive satellite</strong> (<code>VIIRS_NOAA20_SP</code> vs <code>VIIRS_SNPP_SP</code>) as an <strong>internal consistency check</strong>, reporting whether the diagnosis is consistent across the two satellites (REQ-006). There is no longer a separate independent cross-check product (VNF withdrawn).</span></div>
+        <div class="req-row"><span class="req-id">REQ-025</span><span>The system shall <strong>report statistical power honestly</strong>: the effective sample size, the fraction of zero-detection weeks, and the FRP magnitude range shall be surfaced alongside every correlation, and the interpretation shall state that the FIRMS active-fire signal over the plants is <strong>sparse and low-FRP</strong> so a <strong>weak or null result is a first-class, valid outcome</strong> (not a failure) with limited power to distinguish the feature-vs-target branches. No result shall be massaged toward significance.</span></div>
+        <div class="req-row"><span class="req-id">REQ-026</span><span>The system shall <strong>handle the ~2-month SP-archive lag explicitly</strong>: the acquisition and probe shall treat the archive horizon as a known bound, empty <em>recent</em> windows shall be reported as <strong>expected archive lag</strong> (not a data absence or failure), and the analysis window shall end at the most recent date the SP archive actually covers (never padded/interpolated to real time).</span></div>
 
         <h3 id="fr-verify">Verification + output</h3>
         <div class="req-row"><span class="req-id">REQ-030</span><span>Verification shall render the <strong>VIIRS detections over the AOI with the steel-facility locations overlaid</strong>, so a reviewer can confirm the thermal detections co-locate with the steel facilities (reusing the facilities CSV + overlay convention).</span></div>
         <div class="req-row"><span class="req-id">REQ-031</span><span>The system shall emit <strong>small, committable outputs</strong> under <code>data/derived/</code>: the thermal-activity series and the triangulation result table (CSV/parquet + figures). VIIRS-derived <em>raw</em> detections stay gitignored (NFR-003).</span></div>
 
         <h3 id="fr-cli">CLI</h3>
-        <div class="req-row"><span class="req-id">REQ-040</span><span>When the user runs acquisition, series-build, triangulation and verification via the <code>noxus</code> CLI, the system shall expose them as documented subcommands (e.g. <code>fetch-viirs</code> with a <code>--probe</code> spike mode, <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code>) driven by <code>noxus/config/</code> (AOI/buffer, date range, source, facility radius, quality thresholds, frequency, budget).</span></div>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>When the user runs acquisition, series-build, triangulation and verification via the <code>noxus</code> CLI, the system shall expose them as documented subcommands (e.g. <code>fetch-viirs</code> with a <code>--probe</code> archive-window-probe mode and a <code>--source</code> selector (<code>firms-snpp-sp</code>/<code>firms-noaa20-sp</code>), <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code>) driven by <code>noxus/config/</code> (AOI/buffer, date range, source, facility radius, quality thresholds, frequency, budget).</span></div>
       </section>
 
       <section id="non-functional-requirements">
         <h2>Non-functional requirements</h2>
         <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span><strong>Reproducibility.</strong> Acquisition, join and triangulation are parameterised and provenance-tagged; given the same config and source state, the kept dataset and the triangulation table are reproducible (fixed RNG seeds via <code>robust_corr</code>).</span></div>
-        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free + credentials by reference.</strong> Uses only free VNF (EOG) and FIRMS. Any key (e.g. <code>FIRMS_MAP_KEY</code>) is read from <code>.env</code> per <code>.env.example</code>; the variable name is referenced, the value never read into logs/output or committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span><strong>Public/free + credentials by reference.</strong> Uses only free NASA FIRMS (SP archive). The <code>FIRMS_MAP_KEY</code> is read from <code>.env</code> per <code>.env.example</code>; the variable name is referenced, the value never read into logs/output or committed. <strong>VNF is excluded because it is no longer free/public</strong> (licence + paid programmatic access) — the public/free principle is the reason it was dropped.</span></div>
         <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span><strong>Storage discipline.</strong> VIIRS-derived <em>raw</em> detections live under gitignored <code>data/raw/viirs/</code>; only small derived stats + figures are committable (<code>data/derived/</code>).</span></div>
         <div class="req-row nfr"><span class="req-id nfr">NFR-004</span><span><strong>Stack conformance.</strong> Python ≥3.12; passes <code>uv run ruff check .</code> and <code>uv run pytest</code>; downloads via the existing <code>httpx</code> stack; the facility-radius join uses a <strong>numpy haversine</strong> (no new geospatial dependency). <strong>No new dependency shall be added without developer approval</strong> (Q5).</span></div>
         <div class="req-row nfr"><span class="req-id nfr">NFR-005</span><span><strong>Honest null is designed-for and informative.</strong> A null (no significant correlation) is a valid, reportable outcome; the value of this task is that <em>every</em> branch localises the weak link (see the decisive logic). No result is massaged to reach significance.</span></div>
@@ -135,9 +167,10 @@
         <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>A night with <strong>no detections over the AOI</strong> (cloud, no overpass, or genuinely no hot spot) → recorded as zero-activity for that night, <strong>not an error and not interpolated</strong> (honest gaps, same policy as TROPOMI coverage).</span></div>
         <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>A detection falls within the radius of <strong>more than one facility</strong> (facilities are dense) → assigned to the <strong>nearest</strong> facility centroid; a detection outside every radius is dropped from the facility series (REQ-010).</span></div>
         <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>The VIIRS overlap era is <strong>shorter than</strong> the CREA / NO₂ series → triangulation aligns on the <strong>common window</strong>; effective-N shrinks accordingly and is reported (never padded).</span></div>
-        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>FIRMS returns detections tagged as <strong>presumed vegetation fire / offshore / volcano</strong> rather than static land source → filtered out for the industrial cross-check (REQ-006), keeping only static-land-source.</span></div>
-        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>A weekly bin has <strong>very few detection-nights</strong> (sparse thermal sampling) → the aggregate is still computed but the sparse-coverage weeks are flagged so downstream can weight/exclude them.</span></div>
-        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>The two VIIRS products (VNF vs FIRMS) <strong>disagree in coverage</strong> (different overpass/detection logic) → each is aggregated independently; the triangulation reports both, and REQ-024 flags any diagnosis divergence rather than blending them.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-004</span><span>FIRMS SP-archive returns detections tagged as <strong>presumed vegetation fire (type=0) / offshore (type=3) / volcano (type=1)</strong> rather than static land source (type=2) → filtered out, keeping only <strong>type=2</strong> for the industrial series (REQ-001).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-005</span><span>A weekly bin has <strong>very few or zero detection-days</strong> (sparse, low-FRP thermal sampling — the expected regime here) → the aggregate is zero-filled and the sparse-coverage weeks are flagged so downstream can weight/exclude them and so power is reported honestly (REQ-025).</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-006</span><span>The two SP-archive satellites (<code>VIIRS_SNPP_SP</code> vs <code>VIIRS_NOAA20_SP</code>) <strong>disagree in coverage</strong> (different overpass times / mission spans) → each is aggregated independently; the triangulation reports both, and REQ-024 flags any diagnosis divergence rather than blending them.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-007</span><span>A queried window falls <strong>after the ~2-month SP-archive horizon</strong> → the API returns empty; the system records this as <strong>expected archive lag</strong>, not a data absence, and does not emit a NO-GO on that basis (REQ-026; this is the false-NO-GO trap that motivated the pivot probe fix).</span></div>
       </section>
 
       <section id="error-states">
@@ -145,19 +178,22 @@
         <div class="req-row err"><span class="req-id err">ERR-001</span><span>If a required credential (e.g. <code>FIRMS_MAP_KEY</code>) is missing/invalid, the system shall fail with a clear message <strong>referencing the environment-variable name</strong> — never echoing the value.</span></div>
         <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the download endpoint returns an error / empty listing for a date range, or the expected detection fields are absent from a product, the system shall raise a descriptive error naming the source/date/field attempted.</span></div>
         <div class="req-row err"><span class="req-id err">ERR-003</span><span>If a download fails irrecoverably for a batch, the system shall record the failure, leave already-fetched nights intact, and allow a resume (REQ-004).</span></div>
-        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If the measured per-night / full-era download volume (REQ-000) exceeds the configured budget threshold, the system shall <strong>stop and surface the no-go</strong> rather than silently starting an oversized download.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-004</span><span>If the measured per-window / full-era download volume (REQ-000) exceeds the configured budget threshold, the system shall <strong>stop and surface the no-go</strong> rather than silently starting an oversized download.</span></div>
         <div class="req-row err"><span class="req-id err">ERR-005</span><span>If the facilities CSV is missing or malformed, the join step shall raise a descriptive error rather than silently producing an empty series.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-006</span><span>If a VNF acquisition path is invoked (e.g. legacy config or an explicit <code>--source vnf</code>), the system shall raise a clear <strong>licence/pay-gated error</strong> stating that VNF is withdrawn (VIIRS Nightfire Data Use License 2025-01-10; paid programmatic access 2026-06-01) and directing the user to the FIRMS SP-archive source — never attempting an (impossible/non-reproducible) VNF fetch.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-007</span><span>If the NRT filter is asked to apply a <code>type=2</code> selection, the system shall raise a descriptive error noting that <strong>NRT products lack the <code>type</code> column</strong> and that the industrial filter is only valid on the SP archive.</span></div>
       </section>
 
       <section id="acceptance-criteria">
         <h2>Acceptance criteria</h2>
-        <div class="req-row ac"><span class="req-id ac">AC-000</span><span>The T1 spike produces a recorded measurement of the VNF endpoint/format, auth requirement, per-night volume, available fields, AOI temporal coverage, and facility co-location — plus a written go/no-go against the budget.</span></div>
-        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>A small date-range acquisition over the AOI returns AOI-clipped VNF detections with the required fields + provenance, and re-running skips completed nights (idempotent/resumable), keeping raw detections gitignored.</span></div>
-        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The join + aggregation produces a weekly (primary) and daily (secondary) thermal-activity series over the facilities (summed radiant heat primary; count + mean-temperature alternates), constructed benchmark-blind, with sparse-coverage weeks flagged.</span></div>
-        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The triangulation emits NO₂↔VIIRS and CREA↔VIIRS <code>robust_corr</code> results (r, effective-N, bootstrap CI, permutation p) with BH-FDR across the family and an interpretation table covering the honest-null branch — reusing <code>robust.py</code>, not re-implementing significance.</span></div>
-        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The FIRMS static-land-source cross-check runs the same triangulation and the report states whether the diagnosis is consistent across the two products.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-000</span><span>The T1 archive-window probe produces a recorded measurement of the FIRMS SP-archive endpoint/format, <code>MAP_KEY</code> requirement, per-window volume, available fields (incl. <code>type</code>), AOI temporal coverage + observed archive lag, and type=2 facility co-location — plus a written go/no-go. The probe queries inside the archive horizon (no false NO-GO from a recent window).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>A small date-range acquisition over the AOI (inside the archive horizon) returns AOI-clipped type=2 FIRMS SP detections with the required fields + provenance, and re-running skips completed windows (idempotent/resumable), keeping raw detections gitignored.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The join + aggregation produces a weekly (primary) and daily (secondary) thermal-activity series over the facilities (summed FRP primary; count + mean brightness-temperature alternates), constructed benchmark-blind, zero-filled with sparse-coverage weeks flagged.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The triangulation emits NO₂↔VIIRS and CREA↔VIIRS <code>robust_corr</code> results (r, effective-N, bootstrap CI, permutation p) with BH-FDR across the family and an interpretation table covering the honest-null branch — reusing <code>robust.py</code>, not re-implementing significance — and surfaces the power caveat (n_eff, zero-week fraction, FRP range; REQ-025).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The two-satellite (SNPP vs NOAA20) internal consistency check runs the same triangulation and the report states whether the diagnosis is consistent across the two satellites. A VNF request raises the licence/pay-gated error (AC-007).</span></div>
         <div class="req-row ac"><span class="req-id ac">AC-005</span><span>Verification renders VIIRS detections over the AOI with facility points overlaid (co-location check); committable series + triangulation table + figures land under <code>data/derived/</code>.</span></div>
         <div class="req-row ac"><span class="req-id ac">AC-006</span><span><code>uv run pytest</code> and <code>uv run ruff check .</code> pass; all network/auth is mocked in tests (synthetic detection fixtures, no network).</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-007</span><span>Invoking a VNF acquisition path raises a clear licence/pay-gated error (ERR-006) and never attempts a fetch; the NRT type=2 filter raises the descriptive guard error (ERR-007).</span></div>
       </section>
 
       <section id="ui-acceptance-criteria"><h2>UI acceptance criteria</h2><p>None (no browser UI). Verification output is static image/plot files and CSV/parquet tables inspected by a human.</p></section>
@@ -167,8 +203,8 @@
       <section id="external-dependencies">
         <h2>External dependencies and APIs</h2>
         <ul>
-          <li><strong>VIIRS Nightfire (VNF)</strong> — NOAA / Colorado School of Mines Earth Observation Group (EOG, Payne Institute, <code>mines.edu</code>). Per-detection temperature (K), source area, radiant heat (MW); nightly, ~2012→present, global, free bulk per-night files. <strong>Primary</strong> series. Exact endpoint/format/auth resolved at T1 (Q1).</li>
-          <li><strong>NASA FIRMS VIIRS active fire</strong> — VNP14IMGT (S-NPP) + VJ114 (NOAA-20), 375&nbsp;m, free, area+date API and archive; <code>MAP_KEY</code> by email (env var <code>FIRMS_MAP_KEY</code>). Detection <em>type</em> field distinguishes static land source from vegetation fire. <strong>Cross-check</strong> series (Q2).</li>
+          <li><strong>NASA FIRMS VIIRS active fire — SP archive</strong> — products <code>VIIRS_SNPP_SP</code> (primary) + <code>VIIRS_NOAA20_SP</code>, 375&nbsp;m, free, per-area CSV/archive API; <code>MAP_KEY</code> by email (env var <code>FIRMS_MAP_KEY</code>). The SP archive exposes a detection <em>type</em> field; <strong>type=2 (static-land / industrial)</strong> is the physical proxy. Fields: FRP (MW), brightness temperature, lat/lon, acq date/time, confidence, type. <strong>~2-month archive lag</strong>; <strong>NRT products lack the <code>type</code> column</strong> (type=2 filter applies only to SP). <strong>Now the PRIMARY series</strong> (Q1 resolved 2026-08-22).</li>
+          <li><strong>VIIRS Nightfire (VNF), EOG / CSM</strong> — <s><strong>WITHDRAWN 2026-08-22.</strong></s> No longer public: <em>VIIRS Nightfire Data Use License</em> (2025-01-10) gates the data; programmatic/OAuth access is paid-subscriber-only (2026-06-01). Out of scope; a VNF code path raises a licence/pay-gated error (ERR-006).</li>
           <li><strong>Facilities CSV</strong> — <code>data/derived/tangshan_steel_facilities.csv</code> (join target + overlay). Note: the committed CSV is the source of truth for the facility set (Q6).</li>
           <li><strong>AOI</strong> — <code>noxus.config.region.TANGSHAN</code> / <code>tangshan_aoi(buffer)</code> (reused).</li>
           <li><strong>NO₂ footprint series</strong> + <strong>CREA benchmark series</strong> — existing derived artifacts (the two series triangulated against VIIRS).</li>
@@ -178,12 +214,12 @@
 
       <section id="documentation-expectations">
         <h2>Documentation expectations</h2>
-        <p>Expected to affect: <code>docs/data-access.md</code> (VNF/FIRMS channels, key as env var, client-side-clip rationale, go/no-go), <code>README.md</code> (Data sources / Status), the project map (new <code>noxus/data/viirs.py</code>, new <code>noxus/signal/thermal.py</code>, new <code>data/raw/viirs/</code>, new CLI subcommands), <code>.env.example</code> (the <code>FIRMS_MAP_KEY</code> variable name), <code>.gitignore</code> (<code>data/raw/viirs/</code>), and a decision-log entry for the VIIRS product choice + triangulation diagnosis. Reviewer confirms.</p>
+        <p>Expected to affect: <code>docs/data-access.md</code> (FIRMS SP-archive channel, <code>MAP_KEY</code> as env var, type=2 filter + SP-vs-NRT distinction, ~2-month archive lag, VNF-dropped note, go/no-go), <code>README.md</code> (Data sources / Status), the project map (new <code>noxus/data/viirs.py</code>, new <code>noxus/signal/thermal.py</code>, new <code>data/raw/viirs/</code>, new CLI subcommands), <code>.env.example</code> (the <code>FIRMS_MAP_KEY</code> variable name), <code>.gitignore</code> (<code>data/raw/viirs/</code>), and the decision-log (the 2026-08-22 pivot is already recorded; the triangulation diagnosis is proposed after the live run). Reviewer confirms.</p>
       </section>
 
       <section id="memory-decision-implications">
         <h2>Memory and decision implications</h2>
-        <p>Candidate decision-log entries (proposed at review): (1) <strong>VNF Nightfire as the primary independent physical benchmark</strong> (industrial-combustion-tuned) with FIRMS active-fire as the cross-check, and the free/public acquisition pattern; (2) the <strong>feature-vs-target diagnosis</strong> the triangulation settles (which link is the weak one) — this potentially re-interprets every prior near-null and is durable. Both proposed only; developer decides.</p>
+        <p><strong>Recorded decision:</strong> the 2026-08-22 pivot — <em>VNF dropped (no longer public); FIRMS SP-archive is the physical proxy</em> — is already logged in <code>decisions/architecture-decisions.md</code>. Remaining candidate decision-log entry (proposed at review, after the live run): the <strong>feature-vs-target diagnosis</strong> the triangulation settles (which link is the weak one) — this potentially re-interprets every prior near-null and is durable, but it is <strong>deferred to the real run</strong> and, given the sparse/low-FRP signal, a weak/null diagnosis is a valid outcome. Proposed only; developer decides.</p>
       </section>
 
       <section id="requirement-to-test-mapping">
@@ -191,13 +227,16 @@
         <table>
           <thead><tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td><span class="req-id">REQ-000</span></td><td>AT0 (manual spike)</td><td>Developer-run; measurement + go/no-go recorded, not CI-asserted.</td></tr>
-            <tr><td><span class="req-id">REQ-001/002/003</span></td><td>AT1</td><td>Mocked fetcher + synthetic per-night detections: AOI clip, fields retained, provenance written.</td></tr>
+            <tr><td><span class="req-id">REQ-000</span></td><td>AT0 (archive-window probe)</td><td>Developer-run; archive-window-aware; measurement + go/no-go recorded, not CI-asserted.</td></tr>
+            <tr><td><span class="req-id">REQ-001/002/003</span></td><td>AT1</td><td>Mocked fetcher + synthetic per-window detections: AOI clip, type=2 filter, fields retained, provenance written.</td></tr>
             <tr><td><span class="req-id">REQ-004</span></td><td>AT2</td><td>Resumable: second run skips fetched nights; mid-range interruption resumes.</td></tr>
-            <tr><td><span class="req-id">REQ-005</span></td><td>AT-ERR-1</td><td>Missing/invalid key referenced by env-var name, value never echoed.</td></tr>
-            <tr><td><span class="req-id">REQ-006/024</span></td><td>AT4</td><td>FIRMS static-land-source filter + cross-check triangulation.</td></tr>
+            <tr><td><span class="req-id">REQ-005</span></td><td>AT-ERR-1</td><td>Missing/invalid <code>FIRMS_MAP_KEY</code> referenced by env-var name, value never echoed.</td></tr>
+            <tr><td><span class="req-id">REQ-006/024</span></td><td>AT4</td><td>Two-satellite (SNPP vs NOAA20) internal consistency check; NRT-lacks-type guard.</td></tr>
+            <tr><td><span class="req-id">REQ-007/ERR-006</span></td><td>AT-ERR-2</td><td>VNF path raises the licence/pay-gated error; no fetch attempted.</td></tr>
+            <tr><td><span class="req-id">REQ-025</span></td><td>AT8</td><td>Power reporting: n_eff, zero-week fraction, FRP range surfaced; null accepted.</td></tr>
+            <tr><td><span class="req-id">REQ-026/EDGE-007</span></td><td>AT9</td><td>Archive-lag: empty recent window reported as expected lag, not NO-GO.</td></tr>
             <tr><td><span class="req-id">REQ-010</span></td><td>AT3a</td><td>Radius join; nearest-facility tie-break; outside-radius dropped (synthetic).</td></tr>
-            <tr><td><span class="req-id">REQ-011</span></td><td>AT3b</td><td>Weekly/daily aggregation; summed radiant heat primary + count + mean-temp alternates.</td></tr>
+            <tr><td><span class="req-id">REQ-011</span></td><td>AT3b</td><td>Weekly/daily aggregation; summed FRP primary + count + mean brightness-temp alternates; zero-fill flag.</td></tr>
             <tr><td><span class="req-id">REQ-012</span></td><td>AT3c</td><td>Benchmark-blind: series build takes no CREA/NO₂ input.</td></tr>
             <tr><td><span class="req-id">REQ-020/021/022</span></td><td>AT5</td><td>Triangulation reuses <code>robust_corr</code>/<code>bh_fdr</code>; synthetic correlated/uncorrelated series.</td></tr>
             <tr><td><span class="req-id">REQ-023</span></td><td>AT6</td><td>Interpretation table branches incl. honest null.</td></tr>

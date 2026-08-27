@@ -10,7 +10,8 @@ autocorrelation-robust significance. The diagnosis localises the weak link eithe
        no       |     yes      | NO2 blind at this scale; TARGET sound (VIIRS<->CREA holds)
        yes      |     no       | TARGET (CREA) was the weak link (re-interprets every prior null)
        yes      |     yes      | coherent: NO2 tracks the physical heat and CREA is sound
-       no       |     no       | honest null: FEATURE weak here; VIIRS<->CREA unconfirmed (informative)
+       no       |     no       | inconclusive: VIIRS tracks NEITHER series — the proxy may be
+                |              | uninformative/invalid here and cannot arbitrate feature-vs-target
 
 Significance is **reused, never re-implemented**: ``robust_corr`` (effective-N, moving-block bootstrap
 CI, block-permutation null) + ``bh_fdr`` across the correlation family + ``lead_lag`` for the profile,
@@ -45,10 +46,15 @@ DIAG_COHERENT = (
     "Coherent: NO2<->VIIRS and CREA<->VIIRS both hold — NO2 is a valid physical proxy and the target "
     "is sound; any prior near-null lies elsewhere in the chain."
 )
-DIAG_HONEST_NULL = (
-    "Honest null: neither NO2<->VIIRS nor CREA<->VIIRS is significant — the FEATURE is the weak link "
-    "here and VIIRS<->CREA is unconfirmed (possibly sparse thermal sampling). Informative either way."
+DIAG_PROXY_INVALID = (
+    "Inconclusive — the VIIRS thermal proxy does not track NO2 or CREA (neither NO2<->VIIRS nor "
+    "CREA<->VIIRS is significant), so the proxy may be uninformative/invalid for this cluster (e.g. "
+    "active-fire dominated by non-target sources such as seasonal crop-residue burning rather than "
+    "the year-round furnaces). It therefore cannot arbitrate feature-vs-target — this is NOT a "
+    "'feature weak' claim. Informative as a proxy-validity result."
 )
+# Back-compat alias: prior name for the both-null branch (kept so any external reference resolves).
+DIAG_HONEST_NULL = DIAG_PROXY_INVALID
 
 
 @dataclass(frozen=True)
@@ -112,7 +118,7 @@ def interpret(no2_significant: bool, crea_significant: bool) -> str:
         return DIAG_TARGET_WEAK
     if crea_significant and not no2_significant:
         return DIAG_NO2_BLIND
-    return DIAG_HONEST_NULL
+    return DIAG_PROXY_INVALID
 
 
 def triangulate(

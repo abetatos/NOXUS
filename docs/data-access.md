@@ -10,8 +10,8 @@ references **variable names only** — never put secret values in the repo, in l
 | ERA5 reanalysis (wind + BLH) | meteorology for regress-out | Copernicus CDS API (free account + licence) | `CDSAPI_KEY` (+ optional `CDSAPI_URL`) |
 | CREA steel CSV | physical-output benchmark | public Google-Sheet CSV | none |
 | GEM Global Iron & Steel Tracker | facility locations (AOI) | free download (form) | none |
-| VIIRS Nightfire (VNF) | independent physical thermal benchmark (primary) | EOG / Colorado School of Mines (EOG SSO — see §5) | EOG account (VNF is **not** keyless) |
-| NASA FIRMS active fire | VIIRS thermal cross-check | FIRMS area/CSV API (free MAP_KEY) | `FIRMS_MAP_KEY` |
+| NASA FIRMS active fire | independent physical thermal benchmark (primary) | FIRMS area/CSV API (free MAP_KEY) | `FIRMS_MAP_KEY` |
+| VIIRS Nightfire (VNF) | **dropped** — no longer public (licence/pay-gated, see §5) | — (retained only to raise a clear error) | — |
 | Tangshan/Hebei curtailment calendar | ground-truth production-event calendar | public State Council holiday notices + MEE / Hebei DEE heating-season notices | none |
 
 ---
@@ -142,60 +142,59 @@ NOXUS derives the study facilities from the **plant-level** workbook (`Plant dat
 `Status` from the `Plant capacities and status` sheet, and parse `Coordinates` → lat/lon. The result is
 committed at `data/derived/tangshan_steel_facilities.csv` and defines the area of interest (AOI).
 
-## 5. VIIRS thermal anomalies — VNF (EOG) primary + NASA FIRMS cross-check (NOX-011)
+## 5. VIIRS thermal anomalies — NASA FIRMS primary (VNF dropped) (NOX-011)
 
-The VIIRS thermal channel is an **independent physical benchmark**: blast furnaces, sinter plants and
-coke ovens are high-temperature combustion sources that VIIRS detects from orbit, over the same
-catalogued Tangshan steel facilities (`data/derived/tangshan_steel_facilities.csv`). It exists to
-**triangulate** the NO₂ signal against a hard-to-falsify heat measurement. Both sources are
-public/free (no paid feed), acquired behind a common fetcher seam, AOI-clipped **client-side** (each
-per-night product is global, so NOXUS filters to the AOI bbox after download), written per night with
-a provenance sidecar under `data/raw/viirs/` (gitignored, like the NO₂ raw store), and resumed via a
-manifest.
+The VIIRS thermal channel was intended as an **independent physical benchmark**: blast furnaces, sinter
+plants and coke ovens are high-temperature combustion sources that VIIRS detects from orbit, over the
+catalogued Tangshan steel facilities (`data/derived/tangshan_steel_facilities.csv`), to **triangulate**
+the NO₂ signal against a hard-to-falsify heat measurement. The source is public/free, acquired behind a
+fetcher seam, AOI-clipped **client-side** (each per-night product is global, so NOXUS filters to the AOI
+bbox after download), written per night with a provenance sidecar under `data/raw/viirs/` (gitignored,
+like the NO₂ raw store), and resumed via a manifest.
 
-- **Primary — VIIRS Nightfire (VNF)**, from the Earth Observation Group (EOG, Colorado School of
-  Mines). VNF is industrial-combustion-tuned (reports temperature, source area and radiant heat),
-  which is why it is the primary series over FIRMS.
-- **Cross-check — NASA FIRMS active fire** (VIIRS SNPP / NOAA-20). FIRMS is used only as a
-  consistency cross-check; detections are filtered to the **static-land-source** type (`type == 2`)
-  so vegetation fires, volcanoes and offshore detections are excluded.
+- **Primary — NASA FIRMS active fire** (VIIRS SNPP, SP-archive). Free with a `MAP_KEY`. Detections are
+  filtered to the **static-land-source** type (`type == 2`) to exclude vegetation fires, volcanoes and
+  offshore detections. The **SP (standard-processing) archive lags ~2 months** behind real time, so a
+  probe/fetch must target an archive window, not the last few nights (an early recent-window probe was a
+  false-negative for exactly this reason).
+- **Dropped — VIIRS Nightfire (VNF)**, from the Earth Observation Group (EOG, Colorado School of Mines).
+  VNF is industrial-combustion-tuned (temperature, source area, radiant heat) and *would* have been the
+  ideal series, but it is **no longer public**: a VIIRS Nightfire Data Use License (effective 2025-01-10)
+  plus paid-subscriber-only EOG programmatic access (effective 2026-06-01) conflict with the free/public
+  -data principle. It was dropped in the 2026-08-22 pivot; `--source vnf` now raises a clear
+  licence/pay-gated error (`VnfUnavailableError`) that names the licence and points to FIRMS, rather than
+  hitting the EOG host.
 
 ### Credentials (by reference only)
 
 - **FIRMS** — request a free `MAP_KEY` at <https://firms.modaps.eosdis.nasa.gov/api/map_key/> and set
   `FIRMS_MAP_KEY` in `.env`. NOXUS references this variable **by name only** and never logs or commits
   the value; the key path segment is scrubbed from any error/URL before it surfaces.
-- **VNF — auth caveat (T1 finding, unresolved).** VNF is **not keyless.** A T1 feasibility probe found
-  that the defaulted bulk EOG path
-  (`eogdata.mines.edu/.../VNF_npp_*.csv.gz`) returns an **EOG Keycloak SSO login page**, not a data
-  file; the fetcher detects the HTML/login body and raises a clear `ViirsAuthError` rather than
-  writing a login page as data. Before the go/no-go gate can pass, a developer must resolve EOG VNF
-  authentication (an EOG account/token and the authenticated download URL/flow). This is an
-  **access** finding, not a scientific result.
 
-### How a developer completes the T1 gate
-
-The feasibility spike and the real acquisition run against **live** services and are not CI-asserted;
-a developer runs them once VNF auth is resolved and `FIRMS_MAP_KEY` is set:
+### Commands
 
 ```bash
-uv run noxus fetch-viirs --probe --source vnf     # T1 spike: per-night volume + fields + go/no-go
-uv run noxus fetch-viirs --probe --source firms   # same probe against the FIRMS cross-check
+uv run noxus fetch-viirs --probe                # feasibility spike: per-night volume + fields + go/no-go
+uv run noxus fetch-viirs                         # resumable bulk FIRMS acquisition → data/raw/viirs/
+uv run noxus build-thermal-series                # facility-radius join → benchmark-blind thermal series
+uv run noxus verify-viirs                        # detections + facilities overlay (co-location PNG)
+uv run noxus triangulate-thermal                 # NO2↔VIIRS + CREA↔VIIRS robust significance
 ```
 
-Once the probe records a go, the acquisition + downstream steps are:
+### Result — FIRMS active-fire is not a valid steel thermometer here (negative result)
 
-```bash
-uv run noxus fetch-viirs --source vnf                # resumable bulk acquisition → data/raw/viirs/
-uv run noxus build-thermal-series                    # facility-radius join → benchmark-blind series
-uv run noxus verify-viirs                            # detections + facilities overlay (co-location PNG)
-uv run noxus triangulate-thermal                     # NO2↔VIIRS + CREA↔VIIRS robust significance
-```
-
-**Status:** the acquisition/join/triangulation **machinery has landed and is tested offline**, but the
-scientific triangulation **result is pending** the developer's live VNF/FIRMS run (the T1 auth gate
-above, then the real acquisition + triangulation). The go/no-go and any feature-vs-target verdict will
-be recorded after that run — this doc does not assert one.
+The full FIRMS SP-archive was acquired over the AOI (2019-01-01 → 2026-06-12, 2720 nights, 90,895
+detections) and the triangulation run (weekly, n=373 common weeks, NOX-008 autocorrelation-robust
+significance): **NO₂↔VIIRS r=−0.054** and **CREA↔VIIRS r=−0.049**, neither significant. The proxy tracks
+**neither** series, so it cannot arbitrate feature-vs-target (diagnosis `DIAG_PROXY_INVALID`; this is
+**not** a "feature weak" claim). **Root cause:** FIRMS active-fire over this AOI is dominated by
+**seasonal agricultural crop-residue burning** (North China Plain / Hebei), not steel furnaces — the
+detection climatology peaks spring–autumn and is ≈0 in winter (Jan 0.00 · May 0.87 · Sep 1.00 · Dec
+0.09), low FRP (~1.4 MW median), and the same summer-peaked shape holds even for detections **<2 km from
+the facilities** (42% of all). Blast furnaces run year-round and are winter-curtailed (opposite phase),
+so VNP14 active-fire cannot see them; the sensor that could (VNF Nightfire) is the licence/pay-gated one
+above. So critique #1 (target-vs-feature ambiguity) remains **unresolved by public VIIRS**. Full write-up
+in `docs/exploration-results.html` §11 and `decisions/architecture-decisions.md` (2026-08-27).
 
 ---
 

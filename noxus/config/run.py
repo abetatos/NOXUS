@@ -315,30 +315,45 @@ class ViirsAcquisitionConfig:
     """Configuration for VIIRS thermal-anomaly acquisition over the AOI (NOX-011, REQ-001..006/040).
 
     Mirrors :class:`AcquisitionConfig` (TROPOMI): a resumable, provenance-tagged, credentials-by-
-    reference acquisition. Two sources share the fetcher seam: ``vnf`` (VIIRS Nightfire, EOG/CSM — the
-    industrial-combustion-tuned *primary*, expected keyless) and ``firms`` (NASA FIRMS active fire —
-    the *cross-check*, key ``FIRMS_MAP_KEY`` by reference). The exact VNF endpoint/format/auth and the
-    per-night volume are the external-access unknowns confirmed by the **T1 spike** (Q1/Q2); the
-    defaults below are the safe defaults recorded in the spec and are verified before any bulk fetch.
+    reference acquisition. The PRIMARY physical proxy is now ``firms`` (NASA FIRMS active fire, key
+    ``FIRMS_MAP_KEY`` by reference) — its SP-archive ``type=2`` static-land detections over the steel
+    cluster are the space-based thermometer. ``vnf`` (VIIRS Nightfire, EOG/CSM) was the original
+    primary but is DROPPED as of the 2026-08-22 pivot: it is no longer public (VIIRS Nightfire Data
+    Use License eff. 2025-01-10; EOG programmatic access paid-subscriber-only eff. 2026-06-01), which
+    conflicts with the free/public-data principle — the ``vnf`` source now surfaces a clear
+    licence/pay-gated error (see :class:`VnfFetcher`). Defaults are recorded in the spec and verified
+    by the T1 ``--probe`` before any bulk fetch.
     """
 
-    source: str = "vnf"  # "vnf" (primary) | "firms" (cross-check)
-    # VNF (EOG / Colorado School of Mines) per-night bulk store. Verified/pinned at T1 (Q1). The
-    # per-night file is filtered to the AOI bbox client-side (VNF is global per night).
+    source: str = "firms"  # "firms" (PRIMARY, public) | "vnf" (DROPPED — licence/pay-gated error)
+    # VNF (EOG / Colorado School of Mines): retained only so ``source="vnf"`` can raise a clear
+    # licence/pay-gated error. No longer fetched (2026-08-22 pivot; not public/free).
     vnf_endpoint_base: str = "https://eogdata.mines.edu/wwwdata/viirs_products/vnf"
-    vnf_file_template: str = "VNF_npp_d{yyyymmdd}_noaa_v30.csv.gz"  # confirm exact name at T1
+    vnf_file_template: str = "VNF_npp_d{yyyymmdd}_noaa_v30.csv.gz"
     # NASA FIRMS area+date CSV API. product = collection id; key read from the env var by name only.
     firms_endpoint_base: str = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+    # SP (Standard-Processing) archive products: they carry the `type` column needed for the type=2
+    # industrial filter and cover the 2019+ historical era. NRT products (VIIRS_*_NRT) are recent but
+    # have NO `type` column, so they are NOT used for the historical series. The SP archive LAGS the
+    # present by ~`firms_archive_lag_days` (recent dates return 0 rows).
     firms_products: tuple[str, ...] = ("VIIRS_SNPP_SP", "VIIRS_NOAA20_SP")
     firms_env_key: str = (
         "FIRMS_MAP_KEY"  # referenced by NAME only; value never read into logs/output
     )
-    # FIRMS detection "type" code kept for the industrial cross-check: 2 == "other static land source"
-    # (0 presumed vegetation fire, 1 active volcano, 3 offshore are excluded — EDGE-004).
+    # FIRMS detection "type" code kept for the industrial proxy: 2 == "other static land source"
+    # (0 presumed vegetation fire, 1 active volcano, 3 offshore are excluded — EDGE-004). Applies to
+    # the SP archive only (NRT products lack the `type` column).
     firms_static_land_type: int = 2
+    # SP-archive publication lag (days). The archive trails the present by ~2 months; the probe
+    # anchors its window back by this offset and the acquisition clamps a "chase-today" end by it so
+    # neither chases empty recent SP territory. Safe default ~2.5 months; override for a fresher run.
+    firms_archive_lag_days: int = 75
+    # Optional explicit probe-window anchor date (window end). None => today - firms_archive_lag_days
+    # for FIRMS (an SP-archive-appropriate window), or today for other sources.
+    probe_anchor: date | None = None
 
-    start: date = date(2019, 1, 1)  # TROPOMI/CREA overlap era (VNF itself is ~2012->present, A6)
-    end: date | None = None  # None => today at runtime
+    start: date = date(2019, 1, 1)  # TROPOMI/CREA overlap era
+    end: date | None = None  # None => (today - archive lag) for FIRMS at runtime (clamped)
     aoi_buffer_deg: float = DEFAULT_AOI_BUFFER_DEG
     raw_dir: Path = Path("data/raw/viirs")
 
@@ -385,8 +400,12 @@ class ThermalTriangulationConfig:
     # --- Inputs (read-only) + committable outputs (REQ-031) -----------------------------------
     facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
     # Existing NO2-footprint series + CREA benchmark, aligned on the common window (EDGE-003).
-    no2_series_path: Path = Path("data/derived/no2/steel_footprint_daily.parquet")
-    no2_series_column: str = "no2_attributed"
+    # NO2 variant of record for the triangulation: the *background-corrected attributed footprint NO2
+    # level* — i.e. the `no2_corrected` column of `steel_footprint_signal.parquet`, the canonical
+    # series `noxus attribute` (attribution.source.build_footprint_signal) actually writes. This keeps
+    # `triangulate-thermal` reproducible from the CLI with no hand-materialised intermediate.
+    no2_series_path: Path = Path("data/derived/no2/steel_footprint_signal.parquet")
+    no2_series_column: str = "no2_corrected"
     benchmark_path: Path = Path("data/derived/benchmark_tangshan_bf_operating_rate.parquet")
     raw_dir: Path = Path("data/raw/viirs")
     out_dir: Path = Path("data/derived")

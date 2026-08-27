@@ -21,7 +21,7 @@
         <tbody>
           <tr><th>Task ID</th>      <td><code>NOX-011</code></td></tr>
           <tr><th>Feature slug</th> <td><code>viirs-thermal-benchmark</code></td></tr>
-          <tr><th>Status</th>       <td><span class="badge badge-draft">spec_draft</span></td></tr>
+          <tr><th>Status</th>       <td><span class="badge badge-draft">in_progress</span> <span class="small">(FIRMS-primary pivot, 2026-08-22)</span></td></tr>
         </tbody>
       </table>
     </header>
@@ -30,14 +30,26 @@
 
       <section id="technical-summary">
         <h2>Technical summary</h2>
+
+        <p class="callout"><strong>PIVOT (developer-directed, 2026-08-22).</strong> VNF (EOG / CSM) is
+        <strong>dropped</strong> — no longer public (VIIRS Nightfire Data Use License 2025-01-10; paid
+        programmatic access 2026-06-01), which breaks the project's free/reproducible-data principle. The
+        <strong>NASA FIRMS SP-archive is now the PRIMARY physical proxy</strong>: products
+        <code>VIIRS_SNPP_SP</code> + <code>VIIRS_NOAA20_SP</code>, filtered to <strong>type=2 (static-land /
+        industrial)</strong> detections over the AOI, keyed by <code>FIRMS_MAP_KEY</code>. Two design-shaping
+        facts: the SP archive <strong>lags ~2 months</strong> (recent windows are empty by design), and the
+        <strong>NRT products lack the <code>type</code> column</strong> (so type=2 filtering, and hence the
+        historical 2019+ series, is SP-only). Full rationale + live evidence: decision log 2026-08-22.</p>
+
         <p>Three additive pieces in the shape of NOX-002a (acquisition) + NOX-008 (analysis):</p>
         <ol>
           <li><strong>Acquisition</strong> — a new <code>noxus/data/viirs.py</code>: a resumable loop that, per
-          date-batch, retrieves VNF per-night thermal detections, filters them to the Tangshan AOI bbox
-          client-side, and writes per-night AOI-clipped detections under gitignored <code>data/raw/viirs/</code>
-          with a JSON manifest and provenance. The network interaction sits behind a <code>Fetcher</code> seam
-          (Protocol, exactly like <code>tropomi.py</code>) so the clip/persist/manifest logic is unit-testable
-          without network or keys. FIRMS is an alternate fetcher implementing the same seam.</li>
+          date-window, retrieves <strong>FIRMS SP-archive</strong> VIIRS active-fire detections over the Tangshan
+          AOI bbox, keeps <strong>type=2 (static-land)</strong> detections, and writes AOI-clipped detections
+          under gitignored <code>data/raw/viirs/</code> with a JSON manifest and provenance. The network
+          interaction sits behind a <code>Fetcher</code> seam (Protocol, exactly like <code>tropomi.py</code>) so
+          the clip/persist/manifest logic is unit-testable without network or keys. The two SP-archive satellites
+          (SNPP, NOAA20) are alternate fetchers on the same seam; a VNF path raises a licence/pay-gated error.</li>
           <li><strong>Facility join + thermal series</strong> — a new <code>noxus/signal/thermal.py</code>:
           joins detections to the catalogued facilities within a fixed radius (numpy haversine, no geopandas),
           then aggregates to a weekly (primary) and daily (secondary) thermal-activity series — summed radiant
@@ -50,11 +62,13 @@
           <code>leadlag</code>) to produce the NO₂↔VIIRS and CREA↔VIIRS correlations, the BH-FDR family, and the
           interpretation table. Significance is <strong>reused, never re-implemented</strong>.</li>
         </ol>
-        <p class="callout"><strong>Gate.</strong> Task <strong>T1</strong> is a feasibility spike: fetch a small
-        VNF window over Tangshan, confirm detections land on the facilities, measure per-night volume + fields +
-        temporal coverage, and record a <strong>go/no-go</strong> against a configured download budget before the
-        loop is built. The exact VNF endpoint/format/auth and per-night volume are the external-access unknowns
-        (Q1); they are safe-defaulted so the spec is complete, and pinned empirically at T1.</p>
+        <p class="callout"><strong>Gate.</strong> Task <strong>T1</strong> is an <strong>archive-window
+        probe</strong>: fetch a FIRMS SP-archive window over Tangshan <strong>inside the ~2-month archive
+        horizon</strong> (a recent window gives a false NO-GO because the SP archive has not caught up — this is
+        the exact bug that motivated the pivot's probe fix), confirm type=2 detections land on the facilities,
+        measure per-window volume + fields + temporal coverage + observed lag, and record a
+        <strong>go/no-go</strong>. The probe must report an empty recent window as <em>expected archive lag</em>,
+        not a data absence (REQ-000, REQ-026, EDGE-007).</p>
       </section>
 
       <section id="data-flow">
@@ -63,22 +77,22 @@
           <svg width="820" height="230" viewBox="0 0 820 230" aria-label="VIIRS thermal triangulation data flow">
             <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6b7280"/></marker></defs>
             <rect x="8" y="20" width="150" height="48" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
-            <text x="83" y="40" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e3a8a">VNF nightfire (EOG)</text>
-            <text x="83" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">+ FIRMS (cross-check)</text>
+            <text x="83" y="40" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#1e3a8a">FIRMS SP-archive</text>
+            <text x="83" y="55" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#1e3a8a">SNPP_SP + NOAA20_SP (type=2)</text>
             <line x1="158" y1="44" x2="196" y2="44" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
             <rect x="198" y="16" width="164" height="56" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
-            <text x="280" y="36" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">clip AOI + retain fields</text>
-            <text x="280" y="51" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(T,area,radiant heat)</text>
+            <text x="280" y="36" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">clip AOI + type=2 filter</text>
+            <text x="280" y="51" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">(FRP, bright-temp)</text>
             <text x="280" y="65" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4c1d95">+ manifest (resumable)</text>
             <line x1="362" y1="44" x2="400" y2="44" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
             <rect x="402" y="20" width="150" height="48" rx="6" fill="#eafaf1" stroke="#27ae60" stroke-width="1.5"/>
             <text x="477" y="40" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">data/raw/viirs</text>
-            <text x="477" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">per-night detections (gitignored)</text>
+            <text x="477" y="55" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#14532d">per-window detections (gitignored)</text>
             <line x1="477" y1="68" x2="477" y2="104" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
             <rect x="360" y="106" width="234" height="52" rx="6" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
             <text x="477" y="126" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#7c2d12">facility-radius join (haversine)</text>
             <text x="477" y="141" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7c2d12">→ weekly/daily thermal series</text>
-            <text x="477" y="154" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c2d12">(benchmark-blind; summed radiant heat)</text>
+            <text x="477" y="154" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#7c2d12">(benchmark-blind; summed FRP)</text>
             <line x1="360" y1="132" x2="322" y2="132" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrowhead)"/>
             <rect x="150" y="106" width="170" height="52" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
             <text x="235" y="126" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4c1d95">robust_corr + bh_fdr</text>
@@ -112,13 +126,13 @@
         <table>
           <thead><tr><th>File</th><th>Change</th><th>Reason</th></tr></thead>
           <tbody>
-            <tr><td><code>noxus/data/viirs.py</code></td><td>new</td><td>VNF (+ FIRMS) fetcher seam, AOI clip, per-night persist, manifest, resumable batching, provenance (REQ-001..006).</td></tr>
-            <tr><td><code>noxus/signal/thermal.py</code></td><td>new</td><td>Facility-radius join (numpy haversine) + weekly/daily aggregation; benchmark-blind (REQ-010..012).</td></tr>
-            <tr><td><code>analysis/viirs_triangulation.py</code></td><td>new</td><td>Align + triangulate via <code>robust_corr</code>/<code>bh_fdr</code>/<code>leadlag</code>; interpretation table + FIRMS cross-check (REQ-020..024, 031).</td></tr>
+            <tr><td><code>noxus/data/viirs.py</code></td><td>new</td><td>FIRMS SP-archive fetcher seam (SNPP_SP + NOAA20_SP), AOI clip, type=2 filter, per-window persist, manifest, resumable batching, archive-lag handling, provenance; VNF path raises licence/pay-gated error (REQ-001..007, ERR-006/007).</td></tr>
+            <tr><td><code>noxus/signal/thermal.py</code></td><td>new</td><td>Facility-radius join (numpy haversine) + weekly/daily aggregation (summed FRP primary), zero-fill + sparse flag; benchmark-blind (REQ-010..012).</td></tr>
+            <tr><td><code>analysis/viirs_triangulation.py</code></td><td>new</td><td>Align + triangulate via <code>robust_corr</code>/<code>bh_fdr</code>/<code>leadlag</code>; interpretation table + power caveat + two-satellite consistency (REQ-020..026, 031).</td></tr>
             <tr><td><code>noxus/data/verify_viirs.py</code></td><td>new</td><td>Detection-over-AOI render with facility overlay (REQ-030). May reuse helpers from <code>verify_no2.py</code>.</td></tr>
-            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>ViirsAcquisitionConfig</code> (source, endpoint base, date range, AOI buffer, quality thresholds, batch window, download budget, paths, env-var name) + <code>ThermalTriangulationConfig</code> (facility radius, frequency, primary aggregate).</td></tr>
-            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>fetch-viirs</code> (+ <code>--probe</code>), <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code> (REQ-040).</td></tr>
-            <tr><td><code>.env.example</code></td><td>add</td><td>Document <code>FIRMS_MAP_KEY</code> (name only; VNF expected keyless).</td></tr>
+            <tr><td><code>noxus/config/run.py</code></td><td>add</td><td><code>ViirsAcquisitionConfig</code> (source = <code>VIIRS_SNPP_SP</code>/<code>VIIRS_NOAA20_SP</code>, endpoint base, date range, AOI buffer, type filter, archive-lag bound, batch window, download budget, paths, env-var name) + <code>ThermalTriangulationConfig</code> (facility radius, frequency, primary aggregate = FRP).</td></tr>
+            <tr><td><code>noxus/cli/main.py</code></td><td>extend</td><td>Wire <code>fetch-viirs</code> (+ <code>--probe</code>, <code>--source firms-snpp-sp|firms-noaa20-sp</code>), <code>build-thermal-series</code>, <code>triangulate-thermal</code>, <code>verify-viirs</code> (REQ-040).</td></tr>
+            <tr><td><code>.env.example</code></td><td>add</td><td>Document <code>FIRMS_MAP_KEY</code> (name only; required for the SP-archive API).</td></tr>
             <tr><td><code>.gitignore</code></td><td>add</td><td><code>data/raw/viirs/</code>.</td></tr>
             <tr><td><code>tests/data/test_viirs.py</code>, <code>tests/signal/test_thermal.py</code>, <code>tests/analysis/test_viirs_triangulation.py</code>, <code>tests/cli/test_cli.py</code></td><td>new/extend</td><td>Mocked-fetcher + synthetic-detection unit tests (no network).</td></tr>
           </tbody>
@@ -150,22 +164,26 @@
           <div class="tab-panel">
 <pre><code># noxus/data/viirs.py  (mirrors tropomi.py's Fetcher seam)
 class ViirsFetcher(Protocol):
-    def fetch_night(self, aoi: Region, day: date) -> "pandas.DataFrame": ...  # AOI detections for one night
+    def fetch_window(self, aoi: Region, start: date, end: date) -> "pandas.DataFrame": ...  # AOI type=2 detections
 
 @dataclass
-class VnfFetcher:   ...   # real VNF per-night fetch over httpx (endpoint resolved at T1)
-@dataclass
-class FirmsFetcher: ...   # FIRMS area+date API; MAP_KEY from env; keeps static-land-source only
+class FirmsSpFetcher:   ...  # FIRMS SP-archive area API (VIIRS_SNPP_SP | VIIRS_NOAA20_SP);
+                            # MAP_KEY from env; keeps type=2 (static-land) only; archive-lag aware
+def vnf_fetcher(*a, **k):    # VNF withdrawn -> raises ViirsLicenceError (licence/pay-gated; ERR-006)
+    raise ViirsLicenceError("VNF dropped 2026-08-22: licence + paid programmatic access; use FIRMS SP.")
 
 def acquire_viirs(aoi, cfg, fetcher=None, today=None) -> AcquireReport:
-    """Resumable: batch -> fetch night -> clip AOI -> retain fields -> per-night write + manifest."""
-def probe_viirs(aoi, cfg) -> ViirsProbe:   # T1 spike: endpoint/format/auth, volume, fields, coverage, co-location
+    """Resumable: batch by window -> fetch SP archive -> clip AOI -> keep type=2 -> write + manifest.
+       Empty windows past the ~2-month archive horizon are recorded as expected lag, not failure."""
+def probe_viirs(aoi, cfg) -> ViirsProbe:   # T1 archive-window probe: endpoint/format, MAP_KEY, volume,
+                                           # fields (incl. type), coverage + observed lag, type=2 co-location
 
 # noxus/signal/thermal.py  (benchmark-blind: no CREA/NO2 argument anywhere)
 def join_to_facilities(detections: DataFrame, facilities: DataFrame, radius_km: float) -> DataFrame:
-    """Assign each detection to the nearest facility within radius_km (haversine); drop those outside."""
-def build_thermal_series(joined: DataFrame, freq: str = "W", aggregate: str = "radiant_heat") -> DataFrame:
-    """Weekly/daily series: summed radiant heat (primary) + detection count + mean temperature; sparse flag."""
+    """Assign each type=2 detection to the nearest facility within radius_km (haversine); drop those outside."""
+def build_thermal_series(joined: DataFrame, freq: str = "W", aggregate: str = "frp") -> DataFrame:
+    """Weekly/daily series: summed FRP (primary) + detection count + mean brightness-temp;
+       zero-fill empty bins + sparse flag (sparse/low-FRP is the expected regime)."""
 
 # analysis/viirs_triangulation.py  (reuses robust.py; does NOT re-implement significance)
 def triangulate(thermal: Series, no2: Series, crea: Series, cfg) -> TriangulationReport:
@@ -175,11 +193,11 @@ def triangulate(thermal: Series, no2: Series, crea: Series, cfg) -> Triangulatio
           </div>
           <div class="tab-panel">
 <pre><code>data/raw/viirs/                         # gitignored
-  manifest.json                          # {nights: {YYYY-MM-DD: {fetched_at, source, n_detections, path}}, batches_done, batch_errors}
-  &lt;source&gt;/&lt;YYYY&gt;/&lt;YYYY-MM-DD&gt;.parquet    # AOI-clipped detections for one night
+  manifest.json                          # {windows: {start..end: {fetched_at, source, n_detections, path}}, batches_done, batch_errors, archive_horizon}
+  &lt;source&gt;/&lt;YYYY&gt;/&lt;start&gt;_&lt;end&gt;.parquet    # AOI-clipped type=2 detections for one window
 # per-detection columns kept:
-#   temperature_k, source_area, radiant_heat_mw, latitude, longitude, timestamp, detection_id, quality_flag
-# provenance (sidecar/attrs): source (VNF|FIRMS), aoi_bbox, fetched_at, endpoint, product
+#   frp_mw, bright_temp_k, latitude, longitude, acq_datetime, confidence, type, detection_id
+# provenance (sidecar/attrs): source (VIIRS_SNPP_SP|VIIRS_NOAA20_SP), aoi_bbox, fetched_at, endpoint, product
 
 data/derived/                           # committable (small)
   viirs_thermal_series.parquet           # weekly/daily thermal-activity series (per source)
@@ -188,12 +206,13 @@ data/derived/                           # committable (small)
 </code></pre>
           </div>
           <div class="tab-panel">
-<pre><code>uv run noxus fetch-viirs --probe                                  # T1 spike: small window, measure + go/no-go
-uv run noxus fetch-viirs --source vnf --start 2019-01-01 --end 2025-12-31   # full era (batched, resumable)
-uv run noxus fetch-viirs --source firms --start 2019-01-01 --end 2025-12-31 # FIRMS cross-check
-uv run noxus build-thermal-series --source vnf --freq W --radius-km 3.0     # facility join + aggregate
-uv run noxus triangulate-thermal --source vnf                    # NO2<->VIIRS, CREA<->VIIRS, BH-FDR, diagnosis
-uv run noxus verify-viirs --date 2023-06-15                      # detections over AOI + facility overlay
+<pre><code>uv run noxus fetch-viirs --probe --source firms-snpp-sp          # T1 archive-window probe (inside archive horizon)
+uv run noxus fetch-viirs --source firms-snpp-sp  --start 2019-01-01 --end 2025-06-30  # primary (batched, resumable)
+uv run noxus fetch-viirs --source firms-noaa20-sp --start 2019-01-01 --end 2025-06-30 # second-satellite consistency
+uv run noxus build-thermal-series --source firms-snpp-sp --freq W --radius-km 3.0     # facility join + aggregate (FRP)
+uv run noxus triangulate-thermal --source firms-snpp-sp          # NO2<->VIIRS, CREA<->VIIRS, BH-FDR, diagnosis
+uv run noxus verify-viirs --date 2024-11-20                      # detections over AOI + facility overlay
+# NB: --source vnf raises a licence/pay-gated error (VNF withdrawn 2026-08-22).
 </code></pre>
           </div>
         </div>
@@ -201,22 +220,23 @@ uv run noxus verify-viirs --date 2023-06-15                      # detections ov
 
       <section id="data-model-changes">
         <h2>Data model changes</h2>
-        <p>New gitignored raw store <code>data/raw/viirs/</code> (per-night parquet + JSON manifest). New small
+        <p>New gitignored raw store <code>data/raw/viirs/</code> (per-window parquet + JSON manifest). New small
         committable derived artifacts under <code>data/derived/</code> (thermal series parquet, triangulation
         CSV, verification PNGs). No database. No change to existing schemas.</p>
       </section>
 
       <section id="external-dependencies-and-freshness">
         <h2>External dependencies and freshness</h2>
-        <p>This feature integrates two <strong>external Earth-observation data services</strong> and (for FIRMS)
-        an <strong>API key</strong>, so verification applies. <strong>The spec-author cannot web-search</strong>;
-        the rows below record the given factual basis and mark the access-detail unknowns explicitly resolved by
-        the <strong>T1 spike</strong> (Q1/Q2) with a documentation check by the developer at that point.</p>
+        <p>This feature integrates an <strong>external Earth-observation data service</strong> with an
+        <strong>API key</strong>, so verification applies. The pivot was driven by <strong>live evidence on
+        2026-08-22</strong> (recorded in the decision log): a FIRMS SP-archive query over the AOI returned type=2
+        detections (5 on 2023-12-15, 73 on 2024-11-20, FRP 0.2–4.8 MW), and VNF was found to be licence/pay-gated.
+        The rows below reflect that verification.</p>
         <table>
           <thead><tr><th>External system / dependency</th><th>Docs checked (source, date)</th><th>Version constraints</th><th>Deprecated APIs avoided</th><th>Compatibility notes</th></tr></thead>
           <tbody>
-            <tr><td>VIIRS Nightfire (VNF), EOG / CSM Payne Institute (<code>mines.edu</code>)</td><td><strong>To verify at T1</strong> (given: nightly per-night files, temperature/area/radiant-heat, ~2012→present, free bulk, likely keyless).</td><td>Product version pinned at T1</td><td>Confirm current download path vs any legacy path at T1</td><td>Night-only; steel is 24/7 baseload so representative (A8). Exact endpoint/format/auth = Q1.</td></tr>
-            <tr><td>NASA FIRMS VIIRS active fire (VNP14IMGT / VJ114)</td><td><strong>To verify at T1</strong> (given: 375&nbsp;m, area+date API + archive, <code>MAP_KEY</code> by email, detection <em>type</em> field).</td><td>S-NPP + NOAA-20 collections</td><td>Use current FIRMS area/archive API, not superseded endpoints (confirm at T1)</td><td>Cross-check only; keep static-land-source detections (Q2, EDGE-004).</td></tr>
+            <tr><td><strong>NASA FIRMS VIIRS active fire — SP archive</strong> (<code>VIIRS_SNPP_SP</code>, <code>VIIRS_NOAA20_SP</code>)</td><td>Live probe 2026-08-22 over bbox 117.9,38.9,119.1,40.3 (decision log). Per-area CSV/archive API, <code>MAP_KEY</code> by email.</td><td>S-NPP + NOAA-20 SP collections; ~2-month archive lag</td><td>Query inside the archive horizon (recent-window query returns empty — the false-NO-GO trap). Use SP (not NRT) for the <code>type</code> column.</td><td><strong>PRIMARY.</strong> Keep <strong>type=2 (static-land)</strong> only (EDGE-004). NRT lacks <code>type</code> so the industrial filter is SP-only (ERR-007). Signal is sparse/low-FRP → limited power, null valid (REQ-025).</td></tr>
+            <tr><td><s>VIIRS Nightfire (VNF), EOG / CSM Payne Institute (<code>mines.edu</code>)</s></td><td><strong>WITHDRAWN 2026-08-22.</strong> VIIRS Nightfire Data Use License (eff. 2025-01-10); programmatic/OAuth access paid-only (eff. 2026-06-01).</td><td>—</td><td>—</td><td>No longer public/free → out of scope. A VNF path raises <code>ViirsLicenceError</code> (ERR-006).</td></tr>
             <tr><td><code>httpx</code> / <code>python-dotenv</code> / <code>pandas</code> / <code>pyarrow</code></td><td>Already in stack (<code>pyproject.toml</code>)</td><td>pinned via uv</td><td>—</td><td>No new dependency; radius join via numpy haversine (no geopandas). New dep only with approval (Q5, NFR-004).</td></tr>
             <tr><td><code>noxus/validation/robust.py</code></td><td>In-repo (NOX-008)</td><td>—</td><td>—</td><td>Significance reused, not re-implemented (REQ-020).</td></tr>
           </tbody>
@@ -225,10 +245,11 @@ uv run noxus verify-viirs --date 2023-06-15                      # detections ov
 
       <section id="security-and-permissions">
         <h2>Security and permissions</h2>
-        <p>The only credential is an optional FIRMS <code>MAP_KEY</code> read from <code>.env</code> via
-        <code>python-dotenv</code>; it is referenced by variable name only and never logged, printed, or committed
-        (if it appears in a request URL, request-URL logging must be scrubbed — same discipline as
-        <code>tropomi.py</code>). VNF is expected keyless. Network egress is limited to the EOG / FIRMS hosts. No
+        <p>The only credential is the FIRMS <code>MAP_KEY</code> (now <strong>required</strong>, since FIRMS is the
+        primary source) read from <code>.env</code> via <code>python-dotenv</code>; it is referenced by variable
+        name only and never logged, printed, or committed (it appears in the FIRMS request URL, so request-URL
+        logging must be scrubbed — same discipline as <code>tropomi.py</code>). Network egress is limited to the
+        FIRMS host. No
         protected files are written; no remote mutations. This is a <strong>security-sensitive integration</strong>
         only in the mild sense of API-key handling; it is <strong>not</strong> a high-risk deep-review category
         (no auth/authz surface, payments, migrations, or infra). Standard review applies.</p>
@@ -236,24 +257,26 @@ uv run noxus verify-viirs --date 2023-06-15                      # detections ov
 
       <section id="documentation-targets">
         <h2>Documentation targets</h2>
-        <p><code>docs/data-access.md</code> (VNF/FIRMS channels, key as env var, client-side-clip rationale,
-        go/no-go result), <code>README.md</code> (Status / Data sources), the project map
-        (<code>data/viirs.py</code>, <code>signal/thermal.py</code>, <code>analysis/viirs_triangulation.py</code>,
-        new raw store + CLI), <code>.env.example</code>, <code>.gitignore</code>, and a decision-log entry (VNF
-        product choice + feature-vs-target diagnosis). Reviewer confirms the final list.</p>
+        <p><code>docs/data-access.md</code> (FIRMS SP-archive channel, <code>MAP_KEY</code> as env var, type=2
+        filter, SP-vs-NRT distinction, ~2-month archive lag, VNF-dropped note, go/no-go result),
+        <code>README.md</code> (Status / Data sources), the project map (<code>data/viirs.py</code>,
+        <code>signal/thermal.py</code>, <code>analysis/viirs_triangulation.py</code>, new raw store + CLI),
+        <code>.env.example</code>, <code>.gitignore</code>, and the decision log (the 2026-08-22 pivot is already
+        recorded; the feature-vs-target diagnosis is proposed after the live run). Reviewer confirms the final
+        list.</p>
       </section>
 
       <section id="test-design">
         <h2>Test design</h2>
         <ul>
-          <li><strong>Mocked fetcher</strong>: a fake <code>ViirsFetcher</code> returns synthetic per-night
-          detection frames (some on facilities, some off, some empty nights) so acquire→clip→retain
-          fields→persist→manifest is tested without network/key (AT1); resumability: run twice, second run
-          fetches nothing new; mid-range interruption resumes (AT2).</li>
+          <li><strong>Mocked fetcher</strong>: a fake <code>ViirsFetcher</code> returns synthetic per-window
+          detection frames with mixed <code>type</code> (some on facilities, some off, some empty windows) so
+          acquire→clip→type=2 filter→persist→manifest is tested without network/key (AT1); resumability: run
+          twice, second run fetches nothing new; mid-range interruption resumes (AT2).</li>
           <li><strong>Radius join</strong>: synthetic detections at known offsets from facility centroids →
           assigned to the nearest within radius, ties resolved, outside-radius dropped (AT3a, EDGE-002).</li>
-          <li><strong>Aggregation</strong>: synthetic joined detections → weekly/daily summed radiant heat,
-          detection count, mean temperature correct; empty/sparse weeks flagged (AT3b, EDGE-001/005).</li>
+          <li><strong>Aggregation</strong>: synthetic joined detections → weekly/daily summed FRP,
+          detection count, mean brightness temperature correct; empty bins zero-filled and sparse weeks flagged (AT3b, EDGE-001/005).</li>
           <li><strong>Benchmark-blind</strong>: assert the series-build signature takes no CREA/NO₂ argument
           (AT3c, REQ-012).</li>
           <li><strong>Triangulation</strong>: feed a synthetic thermal series correlated with a synthetic NO₂
@@ -261,8 +284,12 @@ uv run noxus verify-viirs --date 2023-06-15                      # detections ov
           and the interpretation table selects the correct feature-vs-target branch, incl. the honest-null
           branch (AT5/AT6); BH-FDR applied across the family (REQ-022). Significance functions are exercised via
           the real <code>robust.py</code>, not mocked, on tiny arrays.</li>
-          <li><strong>FIRMS cross-check</strong>: synthetic FIRMS frame with mixed detection types → only
-          static-land-source retained; cross-check triangulation runs (AT4, EDGE-004).</li>
+          <li><strong>Type=2 filter + two-satellite consistency</strong>: synthetic SP frame with mixed
+          <code>type</code> values → only type=2 (static-land) retained; the SNPP-vs-NOAA20 consistency check runs
+          (AT4, EDGE-004/006). A synthetic NRT frame (no <code>type</code> column) → the type=2 filter raises the
+          descriptive guard error (ERR-007). Invoking the VNF path → <code>ViirsLicenceError</code> (ERR-006).</li>
+          <li><strong>Archive-lag / probe</strong>: a fetcher returning empty for a post-horizon window → recorded
+          as expected lag, not a NO-GO (AT9, REQ-026/EDGE-007); the probe reports the observed lag.</li>
           <li><strong>Verification</strong>: synthetic store → <code>render</code> writes a PNG with facility
           markers (AT7; real-data visual check manual).</li>
           <li><strong>Errors</strong>: missing/invalid key (no value echoed), endpoint/field-not-found, download
@@ -276,33 +303,44 @@ uv run noxus verify-viirs --date 2023-06-15                      # detections ov
       <section id="risks-and-trade-offs">
         <h2>Risks and trade-offs</h2>
         <ul>
-          <li><strong>External-access unknowns (the gate).</strong> The exact VNF endpoint/format, whether auth
-          is needed, and the per-night volume are not verifiable without web access. Mitigation: safe defaults
-          (VNF primary, per-night CSV, keyless) + the <strong>T1 spike</strong> that measures and records a
-          go/no-go (REQ-000, ERR-004) before the loop is built — the GEMS/NOX-007 precedent. This is the main
-          reason for the spike-gated structure.</li>
-          <li><strong>Honest null is designed-for and informative.</strong> A null NO₂↔VIIRS is a valid outcome
-          and, combined with CREA↔VIIRS, <em>localises the weak link</em> either way (the whole point). No result
-          is massaged toward significance (NFR-005). This is called out here so nobody treats a null as a failure
-          at review time.</li>
-          <li><strong>Detection sparsity / VNF vs FIRMS coverage.</strong> Night-only sampling, cloud, and
-          sub-detection-threshold furnaces can make the thermal series sparse; sparse weeks are flagged
-          (EDGE-005) and effective-N shrinks honestly (EDGE-003). VNF and FIRMS may disagree; they are kept
-          independent and any diagnosis divergence is reported, not blended (REQ-024, EDGE-006).</li>
+          <li><strong>Source availability was the gate (now resolved by the pivot).</strong> VNF turned out to be
+          licence/pay-gated (not public), and the FIRMS <code>--probe</code> initially returned a
+          <strong>false NO-GO</strong> because it tested a recent window against the ~2-month-lagged SP archive.
+          Resolution: drop VNF, promote FIRMS SP-archive, and make the probe <strong>archive-window-aware</strong>
+          (REQ-000, REQ-026, EDGE-007). This is the load-bearing risk that the pivot addresses.</li>
+          <li><strong>Sparse, low-FRP signal → limited statistical power (the key honest caveat).</strong> The
+          FIRMS active-fire signal over the plants is sparse (many zero-detection nights) and low-FRP
+          (0.2–4.8 MW observed). The triangulation therefore has <strong>limited power</strong> to distinguish the
+          feature-vs-target branches, and a <strong>weak or null result is a first-class, valid outcome</strong>,
+          not a failure (REQ-025, NFR-005). Power (n_eff, zero-week fraction, FRP range) is reported alongside
+          every correlation. Called out here so nobody treats a null as a failure at review time. The
+          triangulation <em>logic</em> is unchanged by the pivot.</li>
+          <li><strong>Detection sparsity / two-satellite coverage.</strong> Overpass timing, cloud, and
+          sub-detection-threshold furnaces make the series sparse; empty bins are zero-filled and sparse weeks
+          flagged (EDGE-005), effective-N shrinks honestly (EDGE-003). The two SP satellites (SNPP, NOAA20) may
+          disagree; they are kept independent as an internal consistency check and any diagnosis divergence is
+          reported, not blended (REQ-024, EDGE-006).</li>
+          <li><strong>Archive lag (~2 months).</strong> The SP archive trails real time; the analysis window ends
+          at the archive horizon and empty recent windows are recorded as expected lag, never as a data absence or
+          NO-GO (REQ-026, EDGE-007). NRT could extend recency but <strong>lacks the <code>type</code> column</strong>,
+          so it cannot carry the industrial filter and is used only as an internal consistency check (ERR-007).</li>
           <li><strong>Multiple testing.</strong> Several correlations are computed → BH-FDR across the family
           (REQ-022) and pre-registered radius/thresholds/aggregate (NFR-006) guard against a false positive.</li>
           <li><strong>Facility-set count discrepancy (Q6).</strong> The committed facilities CSV holds ~39 rows,
           while roadmap text references &ldquo;84&rdquo;; the committed CSV is treated as the source of truth
           (A7). Impact if wrong: the join target differs — non-blocking, flagged for developer confirmation.</li>
-          <li><strong>Interpretation is diagnostic, not causal.</strong> VIIRS radiant heat is a proxy for
+          <li><strong>Interpretation is diagnostic, not causal.</strong> VIIRS FRP is a proxy for
           furnace thermal state, not a direct production measurement; the triangulation localises the weak link
           but does not by itself prove causation. Stated in the interpretation table.</li>
-          <li><strong>Rejected alternatives:</strong> (a) FIRMS as the <em>primary</em> series — it is
-          active-fire-tuned, so VNF (industrial-combustion-tuned, reports radiant heat/temperature) is the
-          better primary and FIRMS the cross-check; (b) adding <code>geopandas</code>/<code>shapely</code> for
-          the join — unnecessary for a point-in-radius test, a numpy haversine avoids a heavy dependency;
-          (c) re-implementing significance — forbidden; reuse <code>robust.py</code>; (d) day+night VIIRS
-          products — night-only VNF is sufficient for 24/7 steel baseload and is the cleaner thermal product.</li>
+          <li><strong>Rejected alternatives:</strong> (a) <strong>keeping VNF by paying for an EOG
+          subscription</strong> — rejected: breaks the project's free/public reproducibility principle;
+          (b) <strong>manual browser VNF downloads</strong> — rejected: not automatable/reproducible;
+          (c) <strong>accepting the probe's false NO-GO and abandoning FIRMS</strong> — rejected: the SP archive
+          demonstrably shows the type=2 signal is there (live evidence 2026-08-22); (d) using <strong>NRT for the
+          industrial series</strong> — rejected: NRT lacks the <code>type</code> column, so type=2 cannot be
+          applied; (e) adding <code>geopandas</code>/<code>shapely</code> for the join — unnecessary for a
+          point-in-radius test, a numpy haversine avoids a heavy dependency; (f) re-implementing significance —
+          forbidden; reuse <code>robust.py</code>.</li>
         </ul>
       </section>
 

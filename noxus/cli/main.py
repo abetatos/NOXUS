@@ -370,6 +370,10 @@ def _cmd_fetch_viirs(args: argparse.Namespace) -> int:
                 f"auth_required={probe.auth_required}"
             )
             print(
+                f"[noxus]   window={probe.window[0]}..{probe.window[1]} "
+                f"archive_lag_days={probe.archive_lag_days}"
+            )
+            print(
                 f"[noxus]   nights_with_detections={probe.nights_with_detections}/{probe.nights_probed} "
                 f"detections={probe.n_detections} colocated={probe.facilities_colocated}"
             )
@@ -411,7 +415,7 @@ def _cmd_build_thermal_series(args: argparse.Namespace) -> int:
         radius_km=args.radius_km if args.radius_km is not None else cfg.radius_km,
         freq=args.freq or cfg.freq,
     )
-    source = args.source or "vnf"
+    source = args.source or "firms"
     try:
         facilities = load_facilities(cfg.facilities_csv)
     except FacilitiesError as exc:
@@ -523,7 +527,7 @@ def _cmd_verify_viirs(args: argparse.Namespace) -> int:
     from noxus.data.verify_viirs import render_from_store
 
     cfg = ThermalTriangulationConfig()
-    source = args.source or "vnf"
+    source = args.source or "firms"
     facilities = Path(args.facilities) if args.facilities else DEFAULT_FACILITIES
     out_png = Path(args.out) if args.out else cfg.figures_dir / f"viirs_{source}_colocation.png"
     png = render_from_store(cfg.raw_dir, facilities, out_png, source=source, aoi=TANGSHAN)
@@ -645,9 +649,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p_fviirs = sub.add_parser(
         "fetch-viirs",
-        help="acquire VIIRS thermal detections (VNF primary/FIRMS cross-check); --probe = T1 spike",
+        help="acquire VIIRS thermal detections (FIRMS SP-archive primary; vnf dropped); --probe = T1 spike",
     )
-    p_fviirs.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_fviirs.add_argument(
+        "--source",
+        choices=("vnf", "firms"),
+        help="thermal source (default firms; vnf is dropped/licence-gated)",
+    )
     p_fviirs.add_argument("--start", help="ISO start date (default: config 2019-01-01)")
     p_fviirs.add_argument("--end", help="ISO end date (default: today)")
     p_fviirs.add_argument(
@@ -662,7 +670,9 @@ def main(argv: list[str] | None = None) -> int:
         help="facility-radius join + weekly/daily thermal-activity series (benchmark-blind)",
     )
     p_thermal.add_argument(
-        "--source", choices=("vnf", "firms"), help="thermal source (default vnf)"
+        "--source",
+        choices=("vnf", "firms"),
+        help="thermal source (default firms; vnf is dropped/licence-gated)",
     )
     p_thermal.add_argument("--freq", help="aggregation frequency (pandas alias; default W)")
     p_thermal.add_argument(
@@ -674,7 +684,11 @@ def main(argv: list[str] | None = None) -> int:
         "triangulate-thermal",
         help="NO2<->VIIRS + CREA<->VIIRS robust significance -> feature-vs-target diagnosis",
     )
-    p_tri.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_tri.add_argument(
+        "--source",
+        choices=("vnf", "firms"),
+        help="thermal source (default firms; vnf is dropped/licence-gated)",
+    )
     p_tri.set_defaults(func=_cmd_triangulate_thermal)
 
     p_cal = sub.add_parser(
@@ -705,7 +719,11 @@ def main(argv: list[str] | None = None) -> int:
     p_vviirs = sub.add_parser(
         "verify-viirs", help="render VIIRS detections over the AOI with facilities overlaid"
     )
-    p_vviirs.add_argument("--source", choices=("vnf", "firms"), help="thermal source (default vnf)")
+    p_vviirs.add_argument(
+        "--source",
+        choices=("vnf", "firms"),
+        help="thermal source (default firms; vnf is dropped/licence-gated)",
+    )
     p_vviirs.add_argument("--facilities", help="facilities CSV (default: data/derived/...)")
     p_vviirs.add_argument("--out", help="output PNG path")
     p_vviirs.set_defaults(func=_cmd_verify_viirs)

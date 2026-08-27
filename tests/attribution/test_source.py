@@ -133,6 +133,31 @@ def test_footprint_signal_columns_and_subtract(synthetic_cube, facilities_csv):
     assert len(df) == 2  # both periods retained
 
 
+def test_triangulation_no2_contract_matches_attribution_output(synthetic_cube, facilities_csv):
+    """BUG 2 data-contract: `triangulate-thermal` must read the series `noxus attribute` writes.
+
+    The configured NO2 path/column must equal the file `build_footprint_signal` emits
+    (steel_footprint_signal.parquet) and a column it genuinely produces (no2_corrected), so the
+    triangulation is reproducible from the CLI with no hand-materialised intermediate.
+    """
+    from pathlib import Path
+
+    from noxus.config.run import ThermalTriangulationConfig
+
+    tri = ThermalTriangulationConfig()
+    sig = SignalConfig()
+    # Path/column contract: exactly the canonical produced series + a real column of it.
+    assert tri.no2_series_path == Path(sig.out_dir) / sig.footprint_signal_name
+    assert tri.no2_series_column == "no2_corrected"
+    # Behavioural check: the attribution writer really produces that column.
+    fac = S.load_facilities(facilities_csv)
+    fp = S.footprint_mask(synthetic_cube, fac, OPERATING_RADIUS_KM)
+    bg = S.background_ring(synthetic_cube, fp, RING_INNER_KM, RING_OUTER_KM, facilities=fac)
+    df = S.footprint_signal(synthetic_cube, fp, bg, mode="subtract")
+    assert tri.no2_series_column in df.columns
+    assert "date" in df.columns  # the triangulation loader keys on a `date` column
+
+
 def test_footprint_signal_normalise_mode(synthetic_cube, facilities_csv):
     fac = S.load_facilities(facilities_csv)
     fp = S.footprint_mask(synthetic_cube, fac, OPERATING_RADIUS_KM)

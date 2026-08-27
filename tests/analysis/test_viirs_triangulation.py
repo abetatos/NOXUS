@@ -81,7 +81,14 @@ def test_interpret_branches():
     assert "TARGET" in VT.interpret(True, False)
     assert "blind" in VT.interpret(False, True)
     assert "Coherent" in VT.interpret(True, True)
-    assert "Honest null" in VT.interpret(False, False)
+    # Both-null must be an "inconclusive / proxy may be invalid" verdict, NOT a "feature weak" claim.
+    both_null = VT.interpret(False, False)
+    assert both_null == VT.DIAG_PROXY_INVALID
+    assert "Inconclusive" in both_null
+    assert "uninformative" in both_null or "invalid" in both_null
+    assert "cannot arbitrate" in both_null
+    # BUG 3: it must explicitly DISCLAIM the "feature weak" reading, not assert it.
+    assert "NOT a 'feature weak' claim" in both_null
 
 
 def test_diagnosis_no2_blind_target_sound():
@@ -108,8 +115,9 @@ def test_diagnosis_target_weak():
     assert report.diagnosis == VT.DIAG_TARGET_WEAK
 
 
-def test_diagnosis_honest_null_both_absent():
-    # Neither tracks the heat -> honest null (still reported, not suppressed).
+def test_diagnosis_both_absent_is_proxy_invalid_not_feature_weak():
+    # Neither NO2<->VIIRS nor CREA<->VIIRS holds -> the proxy tracks nothing -> INCONCLUSIVE /
+    # proxy-may-be-invalid, still reported (not suppressed) and NOT a "feature weak" claim (BUG 3).
     idx, base, tracks, indep = _make(seed=3)
     rng = np.random.default_rng(99)
     thermal = _series(base, idx)
@@ -118,7 +126,9 @@ def test_diagnosis_honest_null_both_absent():
     report = VT.triangulate(thermal, no2, crea, CFG)
     assert not report.link("no2_viirs").significant
     assert not report.link("crea_viirs").significant
-    assert report.diagnosis == VT.DIAG_HONEST_NULL
+    assert report.diagnosis == VT.DIAG_PROXY_INVALID
+    assert "cannot arbitrate" in report.diagnosis
+    assert "NOT a 'feature weak' claim" in report.diagnosis
 
 
 # ------------------------------------------------------------------------------------ AT4 cross-check

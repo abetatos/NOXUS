@@ -249,6 +249,114 @@
         remain gated on the developer T1 live run (Q1 go/no-go) + T12 + T14 docs; then reviewer docs re-check → <code>done</code>.</p>
       </section>
 
+      <!-- ================================================================================ -->
+      <!-- FINAL REVIEW PASS — FIRMS pivot + negative-result, 2026-08-27                     -->
+      <!-- ================================================================================ -->
+      <section id="firms-negative-pass-2026-08-27">
+        <h2>FIRMS pivot + negative-result pass — 2026-08-27</h2>
+
+        <p>This section supersedes the "blocked — data-gated" boundary above (kept for the record). The
+        developer-directed pivot (2026-08-22: VNF dropped, FIRMS SP-archive promoted to primary) landed, the real FIRMS
+        acquisition ran, and the decisive triangulation completed as a <strong>first-class negative result</strong>. Everything
+        below was re-verified against the actual code, tests, raw store and derived artifacts — no claim was taken on trust.</p>
+
+        <h3>Reproduction (ran it myself)</h3>
+        <ul>
+          <li><code>uv run noxus build-thermal-series</code> → <code>data/derived/viirs_thermal_series.parquet</code>
+              (firms, 383 W-periods) from the existing raw store (no re-download).</li>
+          <li><code>uv run noxus triangulate-thermal</code> → <code>data/derived/viirs_triangulation.csv</code>. The emitted
+              diagnosis is <code>DIAG_PROXY_INVALID</code> ("proxy tracks neither series … cannot arbitrate … NOT a 'feature
+              weak' claim"), <strong>not</strong> feature-weak.</li>
+          <li>Reproduced table is <strong>byte-identical</strong> (to 1e-6) to the committed CSV:
+              NO₂↔VIIRS r=−0.05399, p<sub>NW</sub>=0.3431, BH p<sub>adj</sub>=0.6301, ns, peak lag 0;
+              CREA↔VIIRS r=−0.04852, p<sub>NW</sub>=0.6125, BH p<sub>adj</sub>=0.6301, ns, peak lag −6 r=−0.15910.
+              n=373 common weeks. Matches the documented numbers exactly.</li>
+          <li>Raw store manifest independently confirmed: source=firms, 2720 nights 2019-01-01→2026-06-12,
+              <strong>90,895</strong> detections, <strong>0</strong> batch errors, end clamped by the 75-day SP-archive lag.</li>
+        </ul>
+
+        <h3>Root-cause numbers re-derived from the 90,895 raw detections</h3>
+        <ul>
+          <li>Detection climatology is summer/autumn-peaked, winter-trough — the opposite phase of winter-curtailed blast
+              furnaces (verified directly from the per-night parquet store).</li>
+          <li><strong>42.3%</strong> of detections fall &lt;2 km from the 39 facilities (doc: "42%"), and that near-plant subset
+              carries the <em>same</em> summer-peaked shape with <strong>median FRP 1.39 MW</strong> (doc: "~1.4 MW") — so
+              tightening the radius does not rescue it. Confirmed.</li>
+          <li>The doc's normalised-monthly figures (Jan 0.00 · May 0.87 · Sep 1.00 · Dec 0.09) reproduce <em>exactly</em> as the
+              min-subtracted normalisation of the <code>thermal_activity</code> series (the actual triangulated signal, Sept
+              peak) — accurate and reproducible, not raw-count cherry-picking.</li>
+        </ul>
+
+        <h3>Four real-run bug fixes — verified correct, minimal, tested (fail-without/pass-with)</h3>
+        <ul>
+          <li><strong>BUG1 (--radius-km):</strong> flag already threads into <code>join_to_facilities</code>; default radius is
+              <code>3.0</code> km (<code>ThermalSeriesConfig.radius_km</code>). No code change needed; new regression
+              <code>test_build_thermal_series_radius_flag_threads_into_join</code> proves 3 km→1 detection vs 20 km→2. Correct.</li>
+          <li><strong>BUG2 (NO₂ data-contract):</strong> triangulation config repointed to
+              <code>data/derived/no2/steel_footprint_signal.parquet</code> / column <code>no2_corrected</code> — exactly the file
+              and a real column that <code>attribution.source.build_footprint_signal</code> writes (verified against
+              <code>source.py</code> and the on-disk parquet: cols date/no2_footprint/no2_bg/no2_corrected/valid_coverage). New
+              <code>test_triangulation_no2_contract_matches_attribution_output</code> asserts both the path/column contract and
+              that the writer really produces that column. Correct.</li>
+          <li><strong>BUG3 (both-null diagnosis):</strong> <code>interpret()</code> both-null branch returns
+              <code>DIAG_PROXY_INVALID</code> (proxy-invalid, explicitly "NOT a 'feature weak' claim"). The other three branches
+              (<code>DIAG_COHERENT</code>, <code>DIAG_TARGET_WEAK</code>, <code>DIAG_NO2_BLIND</code>) are intact and unit-covered.
+              A back-compat alias <code>DIAG_HONEST_NULL = DIAG_PROXY_INVALID</code> preserves external references. Correct.</li>
+          <li><strong>BUG4 (pd.concat FutureWarning):</strong> <code>load_detections</code> now drops empty / all-NA per-night
+              frames before concat (zero-detection nights persist a schema-only parquet). Minimal and correct.</li>
+          <li>Prior nits also swept: <strong>N1</strong> (probe <code>auth_required=True</code> for FIRMS, with test),
+              <strong>N3</strong> (<code>_scrub_url</code> now redacts the MAP_KEY <em>value</em> anywhere, with a
+              key-never-leaks test). VNF is now a hard <code>VnfUnavailableError</code> (ViirsAuthError subclass, no network),
+              with a licence/pay-gate test.</li>
+        </ul>
+
+        <h3>Integrity checks</h3>
+        <ul>
+          <li><strong>Benchmark-blindness / no look-ahead:</strong> <code>join_to_facilities</code> and
+              <code>build_thermal_series</code> take only detections + facilities + fixed params — never CREA/NO₂ (docstring +
+              signature confirmed). CREA/NO₂ are read only at the correlation step in <code>triangulate</code>. The weekly
+              resample/align (<code>_resample</code>/<code>_align_common</code>) consults no benchmark to choose anything.</li>
+          <li><strong>Reused NOX-004/008 modules unchanged:</strong> <code>git diff -- noxus/validation/ catalyst/</code> is
+              <strong>empty</strong> — <code>robust.py</code>/<code>leadlag.py</code> byte-for-byte identical; significance is
+              reused, not re-implemented.</li>
+          <li><strong>Tests + lint:</strong> <code>uv run pytest</code> → <strong>263 passed</strong>;
+              <code>uv run ruff check .</code> → clean; <code>ruff format --check</code> → 85 files already formatted.</li>
+        </ul>
+
+        <h3>Documentation accuracy — faithful, no overstatement</h3>
+        <p>Checked <code>docs/exploration-results.html</code> §11, <code>history.html</code>, <code>README.md</code>,
+        <code>docs/data-access.md</code>, <code>.claude/context/project-map.md</code> and the two decision-log entries. All
+        recorded numbers match the CSV. Every "feature weak" occurrence is an explicit <em>disclaimer</em> ("NOT a 'feature weak'
+        claim"), never a claim. The result is framed as a proxy-validity / instrument-failure finding — <strong>not</strong> a
+        "NO₂ feature weak" claim and <strong>not</strong> a validation or indictment of CREA. Critique #1 is stated as
+        <strong>unresolved by public VIIRS</strong>. Documentation is <span class="badge badge-ok">accurate and complete</span>.</p>
+
+        <h3>External dependencies &amp; freshness</h3>
+        <p>Recorded in the decision log: VNF dropped on documented licence/pay-gate dates (VIIRS Nightfire Data Use License
+        2025-01-10; EOG programmatic access paid-only 2026-06-01); FIRMS SP-archive products carry the <code>type</code> column
+        (NRT do not) and lag ~2 months. Credentials referenced by env-var name only; raw store gitignored. No high-risk category
+        (no auth/payments/migrations in the codebase; FIRMS_MAP_KEY handled by reference with a leak-proof scrub test).</p>
+
+        <h3>High-risk review record</h3>
+        <p>Categories touched: <strong>None</strong> (public read-only EO data; secret handled by reference with a regression
+        test proving the key value never surfaces). Escalation rung: <strong>standard</strong> review, sufficient here.</p>
+
+        <h3>Verdict</h3>
+        <p><span class="badge badge-ok">APPROVED</span> as a documented <strong>first-class negative result</strong>. The
+        machinery is correct, the negative result is reproducible and honestly framed, tests/lint are green, and the docs are
+        accurate. <strong>No blocking findings.</strong></p>
+        <p><strong>Non-blocking nits:</strong> (1) the spec HTML (requirements/design/tasks) is coherent as a FIRMS-primary spec
+        but was not extended with the final negative-result verdict wording (<code>DIAG_PROXY_INVALID</code> is absent there);
+        the verdict lives in the decision log + exploration-results, which is acceptable. (2) <code>tasks.html</code> still shows
+        ~10 task-items as <code>in-progress</code> and only 3 <code>done</code>; the completed real-run/bug-fix/docs items should
+        be flipped to <code>done</code> as part of completion. Neither blocks <code>done</code>.</p>
+        <p><strong>Readiness for <code>done</code>:</strong> <span class="badge badge-ok">Yes</span> — NOX-011 can be marked
+        <code>done</code> as a documented negative result. <code>documentation_status</code> is already <code>updated</code> and
+        the docs re-check passed. Remaining mechanical completion steps (for the orchestrator; this reviewer did not perform
+        them per the task scope): flip the completed <code>tasks.html</code> task-items to <code>done</code>, and set
+        <code>tasks.json</code> status <code>in_progress → done</code>. The <code>history.html</code> entry is already written.</p>
+      </section>
+
     </main>
   </div>
 </div>

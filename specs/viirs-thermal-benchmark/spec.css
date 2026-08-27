@@ -581,3 +581,9 @@ dl.card-fields dd { margin: 0; color: var(--text-muted); }
   .sidebar { position: static; width: 100%; height: auto; }
   .main-content { padding: 1.25rem; }
 }
+
+/* Withdrawn items (pivot 2026-08-22): muted, grey left border */
+.req-row.withdrawn,
+.task-item.withdrawn { opacity: 0.6; }
+.req-row.withdrawn   { border-left-color: #9ca3af; }
+.task-item.withdrawn::before { background: #9ca3af; border-color: #9ca3af; }

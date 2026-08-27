@@ -21,12 +21,12 @@
     <main>
       <section id="purpose">
         <h2>Purpose</h2>
-        <p>Unresolved questions. This is a new-acquisition task with genuine <strong>external-access unknowns</strong>
-        (exact VNF endpoint/format, whether auth is needed, per-night volume, product choice). Following the
-        GEMS/NOX-007 precedent, each is captured with a <strong>safe default</strong> and resolved by the
-        <strong>T1 feasibility spike</strong>, so the spec is complete and reviewable. <strong>No question is
-        blocking</strong> — none would cause the wrong thing to be built given its recorded default, so the task
-        can reach <code>spec_ready</code>.</p>
+        <p><strong>Update (2026-08-22 pivot).</strong> The two access questions that gated this task are now
+        <strong>resolved</strong>: <strong>Q1</strong> (is the keyless VNF path usable?) → <strong>no; VNF is
+        dropped</strong> because it is no longer public (licence + paid programmatic access), and <strong>Q2</strong>
+        (product choice) → <strong>FIRMS SP-archive is primary</strong>. <strong>Q7</strong> (sparse/low-FRP signal
+        power) is resolved non-blocking: proceed, an honest null is accepted. Q3/Q4 (radius, aggregate — now FRP)
+        and Q5/Q6 remain non-blocking with safe defaults. <strong>No question is blocking.</strong></p>
       </section>
       <hr>
       <section id="question-status-summary">
@@ -34,43 +34,57 @@
         <table><thead><tr><th>Type</th><th style="text-align:right">Count</th></tr></thead>
         <tbody>
           <tr><td><span class="badge badge-blocking">Blocking</span></td><td style="text-align:right">0</td></tr>
-          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">6</td></tr>
-          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">0</td></tr>
+          <tr><td><span class="badge badge-warning">Non-blocking</span></td><td style="text-align:right">4</td></tr>
+          <tr><td><span class="badge badge-ok">Resolved</span></td><td style="text-align:right">3</td></tr>
         </tbody></table>
-        <p><strong>Blocking questions present:</strong></p><pre><code>No — all non-blocking with safe defaults; access details resolved at the T1 spike.</code></pre>
+        <p><strong>Blocking questions present:</strong></p><pre><code>No. The 2026-08-22 pivot RESOLVED Q1 (VNF dropped — not public) and Q2 (FIRMS SP-archive is now primary) and Q7 (sparsity/power — proceed, honest null accepted). Q3/Q4/Q5/Q6 remain non-blocking with safe defaults.</code></pre>
       </section>
       <hr>
       <section id="open-questions">
         <h2>Open questions</h2>
 
         <div class="card" id="q1">
-          <div class="card-header"><span class="req-id">Q1</span><span class="card-title">VNF download endpoint, file format, auth requirement, and per-night volume</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-header"><span class="req-id">Q1</span><span class="card-title">Is the keyless VNF path usable? → RESOLVED: VNF dropped (not public)</span><span class="badge badge-ok">Resolved</span></div>
           <div class="card-body"><dl class="card-fields">
-            <dt>Question</dt><dd>What is the exact VNF (EOG / CSM) download endpoint and per-night file format, does it require authentication or registration, and what is the per-night (hence full-era) data volume over an AOI-sized filter?</dd>
-            <dt>Why it matters</dt><dd>Drives the acquisition client, the batching/budget strategy, and whether an env-var credential is needed at all.</dd>
+            <dt>Question</dt><dd>What is the exact VNF (EOG / CSM) download endpoint and per-night file format, does it require authentication, and is the keyless/free path usable for a reproducible pipeline?</dd>
+            <dt>Why it matters</dt><dd>Drives the acquisition client and whether VNF can be the primary series under the project's public/free reproducibility principle.</dd>
             <dt>Blocking</dt><dd>No</dd>
-            <dt>Default assumption if not answered</dt><dd>VNF per-night CSV, free bulk, <strong>no auth</strong> (or lightweight registration); filter to the AOI client-side. <strong>Resolve at T1</strong>: fetch a small window, measure volume/fields/coverage, record go/no-go (REQ-000, ERR-004).</dd>
-            <dt>T1 partial finding (2026-07-12, implementer offline probe)</dt><dd><strong>The keyless default is contradicted.</strong> A live GET of the defaulted path <code>https://eogdata.mines.edu/wwwdata/viirs_products/vnf/&lt;YYYY&gt;/VNF_npp_d&lt;YYYYMMDD&gt;_noaa_v30.csv.gz</code> returns HTTP&nbsp;200 with an HTML <strong>Keycloak login page</strong> (<code>content-type: text/html</code>, ~8.5&nbsp;KB), i.e. the EOG host is behind SSO — VNF is <strong>not keyless</strong> at this path. <code>VnfFetcher</code> now detects the login/HTML body and raises a clear <code>ViirsAuthError</code> rather than a CSV parser error. <strong>Still unknown (developer T1):</strong> the exact authenticated download URL/filename, whether an EOG account + token (or the <code>eogdata</code> auth token endpoint) is required, the true per-night file format/volume, and full-era coverage. <strong>Gate outcome: blocked-on-live-run</strong> — needs an authenticated VNF fetch. The offline code path (clip/persist/manifest/probe/join/triangulation) is complete and unit-tested; the go/no-go cannot be finalised until an authenticated slice is fetched. Command to complete: <code>uv run noxus fetch-viirs --probe --source vnf</code> once EOG auth is wired (and, for the FIRMS cross-check, <code>FIRMS_MAP_KEY</code> set in <code>.env</code> then <code>uv run noxus fetch-viirs --probe --source firms</code>).</dd>
-            <dt>Affected files / sections</dt><dd><code>noxus/data/viirs.py</code>, design External-dependencies</dd>
-            <dt>Related requirements</dt><dd>REQ-000, REQ-001, REQ-005</dd>
-            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span> — VNF auth requirement measured; exact endpoint/auth flow to be pinned by the developer at T1.</dd>
-            <dt>Resolved by</dt><dd>T1 spike (developer)</dd>
-            <dt>Resolved at</dt><dd>Partially probed 2026-07-12 (implementer); full resolution pending an authenticated run.</dd>
+            <dt>Resolution (2026-08-22, developer-directed pivot)</dt><dd><strong>VNF is DROPPED — it is no longer public.</strong> A <strong>VIIRS Nightfire Data Use License</strong> (effective 2025-01-10) gates the data, and EOG limits <strong>programmatic (OpenID/OAuth) access to paid subscribers</strong> (effective 2026-06-01); a free EOG account gives browser-only access, which is not automatable or reproducible. This conflicts with the project's public/free reproducible-data principle, so VNF is out of scope. (Earlier 2026-07-12 finding: the defaulted bulk path returned a Keycloak SSO login page — <code>VnfFetcher</code> raised <code>ViirsAuthError</code>; the licence + pay-gate confirm the path cannot be made keyless/reproducible.) The VNF code path now raises a clear licence/pay-gated error (ERR-006).</dd>
+            <dt>Affected files / sections</dt><dd><code>noxus/data/viirs.py</code>, design External-dependencies, requirements REQ-007/ERR-006</dd>
+            <dt>Related requirements</dt><dd>REQ-007, ERR-006, NFR-002</dd>
+            <dt>Decision</dt><dd><span class="badge badge-ok">Resolved</span> — VNF dropped; FIRMS SP-archive promoted to primary (see Q2). Recorded in <code>decisions/architecture-decisions.md</code> (2026-08-22 — NOX-011 pivot).</dd>
+            <dt>Resolved by</dt><dd>Developer-directed pivot (2026-08-22)</dd>
+            <dt>Resolved at</dt><dd>2026-08-22</dd>
           </dl></div>
         </div>
 
         <div class="card" id="q2">
-          <div class="card-header"><span class="req-id">Q2</span><span class="card-title">Product choice: VNF primary vs FIRMS primary</span><span class="badge badge-warning">Non-blocking</span></div>
+          <div class="card-header"><span class="req-id">Q2</span><span class="card-title">Product choice: VNF primary vs FIRMS primary → RESOLVED: FIRMS SP-archive primary</span><span class="badge badge-ok">Resolved</span></div>
           <div class="card-body"><dl class="card-fields">
-            <dt>Question</dt><dd>Should VNF be the primary thermal series with FIRMS as the cross-check, or vice-versa?</dd>
-            <dt>Why it matters</dt><dd>Sets which product the headline diagnosis rests on. Both are public/free and both are implemented.</dd>
+            <dt>Question</dt><dd>Which product is the primary thermal series?</dd>
+            <dt>Why it matters</dt><dd>Sets which product the headline diagnosis rests on.</dd>
             <dt>Blocking</dt><dd>No</dd>
-            <dt>Default assumption if not answered</dt><dd><strong>VNF primary</strong> (temperature/radiant-heat, industrial-combustion-tuned), <strong>FIRMS active-fire as the independent cross-check</strong> (A1). Confirm suitability at T1.</dd>
+            <dt>Resolution (2026-08-22)</dt><dd><strong>FIRMS SP-archive is the PRIMARY</strong> (VNF withdrawn, Q1). Products <code>VIIRS_SNPP_SP</code> (primary) + <code>VIIRS_NOAA20_SP</code>, filtered to <strong>type=2 (static-land / industrial)</strong>. Live evidence 2026-08-22 over the AOI: 5 type=2 detections on 2023-12-15, 73 on 2024-11-20, FRP 0.2–4.8 MW. The two satellites serve as an <strong>internal consistency check</strong>; there is no separate independent cross-check product any more.</dd>
             <dt>Affected files / sections</dt><dd>requirements REQ-001/006/024; assumptions A1</dd>
             <dt>Related requirements</dt><dd>REQ-001, REQ-006, REQ-024</dd>
-            <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
-            <dt>Resolved by</dt><dd>developer / T1</dd>
-            <dt>Resolved at</dt><dd>Pending</dd>
+            <dt>Decision</dt><dd><span class="badge badge-ok">Resolved</span> — FIRMS SP-archive primary; recorded in the decision log (2026-08-22).</dd>
+            <dt>Resolved by</dt><dd>Developer-directed pivot (2026-08-22)</dd>
+            <dt>Resolved at</dt><dd>2026-08-22</dd>
+          </dl></div>
+        </div>
+
+        <div class="card" id="q7">
+          <div class="card-header"><span class="req-id">Q7</span><span class="card-title">FIRMS signal is sparse / low-FRP — is there enough statistical power? → RESOLVED: proceed, honest null accepted</span><span class="badge badge-ok">Resolved</span></div>
+          <div class="card-body"><dl class="card-fields">
+            <dt>Question</dt><dd>The FIRMS active-fire signal over the plants is sparse (many zero-detection nights) and low-FRP (0.2–4.8 MW). Is there enough statistical power for the NO₂↔VIIRS / CREA↔VIIRS triangulation to distinguish the feature-vs-target branches?</dd>
+            <dt>Why it matters</dt><dd>Low power could leave the triangulation inconclusive. It must not be spun as a positive or a failure.</dd>
+            <dt>Blocking</dt><dd>No</dd>
+            <dt>Default / resolution (2026-08-22)</dt><dd><strong>Proceed.</strong> A <strong>weak or null result is a first-class, valid outcome</strong> (Morris &amp; Zhang 2019 honest-null; consistent with NOX-008/009). The weekly series zero-fills and flags sparse bins, and the triangulation surfaces the power caveat explicitly (n_eff, zero-week fraction, FRP range; REQ-025). No result is massaged toward significance. The triangulation <em>logic</em> is unchanged by the pivot.</dd>
+            <dt>Affected files / sections</dt><dd>requirements REQ-025/EDGE-005; design Risks; assumptions A11</dd>
+            <dt>Related requirements</dt><dd>REQ-025, NFR-005, EDGE-005</dd>
+            <dt>Decision</dt><dd><span class="badge badge-ok">Resolved</span> — proceed; honest null accepted.</dd>
+            <dt>Resolved by</dt><dd>Developer-directed pivot (2026-08-22)</dd>
+            <dt>Resolved at</dt><dd>2026-08-22</dd>
           </dl></div>
         </div>
 
@@ -92,10 +106,10 @@
         <div class="card" id="q4">
           <div class="card-header"><span class="req-id">Q4</span><span class="card-title">Primary thermal aggregate</span><span class="badge badge-warning">Non-blocking</span></div>
           <div class="card-body"><dl class="card-fields">
-            <dt>Question</dt><dd>Which aggregate is the headline thermal-activity index — summed radiant heat, detection count, or mean temperature?</dd>
+            <dt>Question</dt><dd>Which aggregate is the headline thermal-activity index — summed FRP, detection count, or mean brightness temperature?</dd>
             <dt>Why it matters</dt><dd>Different aggregates could yield different correlations; the primary must be pre-registered.</dd>
             <dt>Blocking</dt><dd>No</dd>
-            <dt>Default assumption if not answered</dt><dd><strong>Weekly summed radiant heat (MW)</strong> primary, with detection count + mean temperature retained as alternates (A3).</dd>
+            <dt>Default assumption if not answered</dt><dd><strong>Weekly summed FRP (MW)</strong> primary, with detection count + mean brightness temperature retained as alternates (A3). (Post-pivot: FIRMS reports FRP, not VNF radiant heat.)</dd>
             <dt>Affected files / sections</dt><dd><code>noxus/signal/thermal.py</code>; assumptions A3</dd>
             <dt>Related requirements</dt><dd>REQ-011, NFR-006</dd>
             <dt>Decision</dt><dd><span class="badge badge-pending">Pending</span></dd>
@@ -143,10 +157,10 @@
       <section id="notes-for-claude-code">
         <h2>Notes for Claude Code</h2>
         <div class="claude-note"><h4>Rules</h4><ol>
-          <li>No question is blocking → the task may reach <code>spec_ready</code> once requirements/design/tasks are complete; the final report must mention the unresolved non-blocking questions.</li>
-          <li>Q1/Q2/Q5 are resolved empirically at the T1 spike; reflect the outcome back into the spec and the decision log.</li>
-          <li>Q3/Q4 (radius, aggregate) must be fixed and recorded in <code>assumptions.html</code> before the triangulation is viewed (anti-p-hacking).</li>
-          <li>Do not answer the product/data/dependency questions silently — surface a change of default to the developer.</li>
+          <li>No question is blocking. Q1/Q2/Q7 are <strong>resolved</strong> by the 2026-08-22 pivot (VNF dropped; FIRMS SP-archive primary; honest null accepted) and recorded in the decision log.</li>
+          <li>Q5 (new dependency) is still resolved empirically during implementation; the numpy-haversine + httpx default holds.</li>
+          <li>Q3/Q4 (radius, aggregate = FRP) must be fixed and recorded in <code>assumptions.html</code> before the triangulation is viewed (anti-p-hacking).</li>
+          <li>Do not silently re-introduce VNF or apply a type=2 filter to NRT — surface any such change to the developer.</li>
         </ol></div>
       </section>
     </main>

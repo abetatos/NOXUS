@@ -62,6 +62,63 @@ def test_build_thermal_series_empty_store_returns_1(tmp_path, monkeypatch):
     assert main(["build-thermal-series"]) == 1
 
 
+def test_build_thermal_series_radius_flag_threads_into_join(tmp_path, monkeypatch):
+    """BUG 1 regression: `--radius-km` must reach join_to_facilities -> a tighter radius keeps fewer
+    detections, so two builds at different radii yield different detection counts/series."""
+    from datetime import date
+
+    from noxus.config.region import tangshan_aoi
+    from noxus.config.run import ViirsAcquisitionConfig
+    from noxus.data import viirs as V
+
+    monkeypatch.chdir(tmp_path)
+    # One facility inside the Tangshan AOI; a near detection (~0 km) and a far one (~10 km).
+    fac_lat, fac_lon = 39.63, 118.18
+    fac_csv = tmp_path / "data" / "derived" / "tangshan_steel_facilities.csv"
+    fac_csv.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"name": ["A"], "latitude": [fac_lat], "longitude": [fac_lon]}).to_csv(
+        fac_csv, index=False
+    )
+
+    def _det(lat, lon, did):
+        return {
+            V.TEMPERATURE_K: 1500.0,
+            V.SOURCE_AREA: 0.01,
+            V.RADIANT_HEAT_MW: 5.0,
+            V.LATITUDE: lat,
+            V.LONGITUDE: lon,
+            V.TIMESTAMP: pd.Timestamp("2023-06-05T18:00"),
+            V.DETECTION_ID: did,
+            V.QUALITY_FLAG: 1,
+        }
+
+    d = date(2023, 6, 5)
+    near = _det(fac_lat, fac_lon, "near")  # ~0 km from A
+    far = _det(fac_lat, fac_lon + 0.12, "far")  # ~10 km east of A
+
+    class _Fake:
+        def fetch_night(self, aoi, day):
+            return pd.DataFrame([near, far]) if day == d else V.standardise(V._empty_frame())
+
+    acfg = ViirsAcquisitionConfig(raw_dir=tmp_path / "data" / "raw" / "viirs", start=d, end=d)
+    V.acquire_viirs(tangshan_aoi(acfg.aoi_buffer_deg), acfg, fetcher=_Fake(), today=d)
+
+    series_path = tmp_path / "data" / "derived" / "viirs_thermal_series.parquet"
+
+    assert main(["build-thermal-series", "--radius-km", "3"]) == 0
+    tight = pd.read_parquet(series_path)
+    tight_det = float(tight["detection_count"].sum())
+
+    assert main(["build-thermal-series", "--radius-km", "20"]) == 0
+    wide = pd.read_parquet(series_path)
+    wide_det = float(wide["detection_count"].sum())
+
+    assert tight_det == 1  # only the near detection within 3 km
+    assert wide_det == 2  # both within 20 km
+    assert wide_det > tight_det
+    assert wide["radiant_heat_mw"].sum() > tight["radiant_heat_mw"].sum()
+
+
 def test_triangulate_thermal_missing_series_returns_1(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["triangulate-thermal"]) == 1

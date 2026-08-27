@@ -58,6 +58,9 @@ data/derived/no2/
 # dated fetch, not committed (NOX-011 NFR-003). Only small derived stats + figures under
 # data/derived/ are committable.
 data/raw/viirs/
+# VIIRS-derived intermediate weekly thermal series (regenerable from the raw store via
+# build-thermal-series, NOX-011 NFR-003). The small triangulation result stats CSV IS committed.
+data/derived/viirs_thermal_series.parquet
 # ERA5 reanalysis snapshots (dated NetCDF subsets of the public ARCO-ERA5 store) — reproducible,
 # not committed (NOX-003 T12). Also matched by data/raw/ and *.nc above; kept explicit for clarity.
 data/raw/era5/

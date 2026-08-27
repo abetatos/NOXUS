@@ -75,7 +75,7 @@ def render_from_store(
     raw_dir: Path | str,
     facilities_csv: Path | str,
     out_png: Path | str,
-    source: str = "vnf",
+    source: str = "firms",
     aoi: Region | None = None,
 ) -> Path:
     """Load all persisted detections for a source and render the co-location figure (REQ-030)."""

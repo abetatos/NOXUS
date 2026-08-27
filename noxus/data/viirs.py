@@ -3,12 +3,15 @@
 An **independent, hard-to-falsify physical activity proxy** for the Tangshan steel cluster: VIIRS
 thermal anomalies over the catalogued steel facilities. Blast furnaces, sinter plants and coke ovens
 are high-temperature combustion sources VIIRS detects from orbit, so a space-based thermometer cannot
-be dressed up by any statistical office. Two free/public sources share one :class:`ViirsFetcher` seam:
+be dressed up by any statistical office.
 
-  * **VNF** — VIIRS Nightfire (NOAA / Colorado School of Mines Earth Observation Group). Per-detection
-    temperature (K), source area and radiant heat (MW); the industrial-combustion-tuned *primary*.
-  * **FIRMS** — NASA FIRMS VIIRS active fire (VNP14IMGT + VJ114). Active-fire-tuned; its
-    *static-land-source* detections are kept as an independent *cross-check* (REQ-006, EDGE-004).
+**2026-08-22 pivot** (decisions/architecture-decisions.md): the PRIMARY (and only supported) source
+is now **FIRMS** — NASA FIRMS VIIRS active fire. Its SP-archive ``type=2`` static-land detections over
+the steel cluster are the physical proxy (live evidence: 5 detections 2023-12-15, 73 on 2024-11-20,
+FRP 0.2–4.8 MW). **VNF** — VIIRS Nightfire (EOG / Colorado School of Mines) — is **DROPPED**: it is no
+longer public (VIIRS Nightfire Data Use License eff. 2025-01-10; EOG programmatic access
+paid-subscriber-only eff. 2026-06-01), conflicting with the free/public-data principle. ``source="vnf"``
+now surfaces a clear licence/pay-gated :class:`ViirsAuthError` (:class:`VnfFetcher`), not a network path.
 
 Mirrors ``noxus/data/tropomi.py``: the network interaction sits behind the fetcher seam so the AOI
 clip, field retention, per-night persistence and resumable manifest are unit-testable without network
@@ -16,14 +19,15 @@ or credentials (tests inject a fake fetcher). VIIRS-derived raw detections live 
 ``data/raw/viirs/`` (NFR-003); only small derived stats + figures are committable.
 
 Credentials (FIRMS ``FIRMS_MAP_KEY``) are read from the environment **by variable name only** — never
-read into logs/output, never committed (REQ-005, ERR-001). VNF was defaulted keyless, but the 2026-07-12
-T1 probe found the EOG host answers a Keycloak login page for the guessed path — VNF auth is a T1
-open item (Q1); :class:`VnfFetcher` surfaces that as a clear :class:`ViirsAuthError`.
+read into logs/output, never committed (REQ-005, ERR-001). The MAP_KEY is embedded as a URL path
+segment, so any surfaced URL/error is scrubbed by **redacting the key value** (:func:`_scrub_url`),
+not by matching a fixed path segment.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -35,6 +39,8 @@ import pandas as pd
 
 from noxus.config.region import Region
 from noxus.config.run import ViirsAcquisitionConfig
+
+logger = logging.getLogger(__name__)
 
 # Standardised per-detection columns kept downstream, whatever the source band/column names (REQ-002).
 TEMPERATURE_K = "temperature_k"
@@ -66,6 +72,14 @@ class ViirsAcquisitionError(RuntimeError):
 
 class ViirsAuthError(ViirsAcquisitionError):
     """A required credential (referenced by env-var name) is missing or invalid."""
+
+
+class VnfUnavailableError(ViirsAuthError):
+    """VNF (VIIRS Nightfire, EOG/CSM) is no longer public — licence/pay-gated, not a supported source.
+
+    Subclasses :class:`ViirsAuthError` so the retry loop does not re-attempt it (a licence gate will
+    not clear on retry). FIRMS is the supported free/public source (2026-08-22 pivot).
+    """
 
 
 class BudgetExceededError(ViirsAcquisitionError):
@@ -111,9 +125,23 @@ def standardise(df: pd.DataFrame, column_map: dict[str, str] | None = None) -> p
     return out[list(STANDARD_COLUMNS)].reset_index(drop=True)
 
 
-def _scrub_url(url: str) -> str:
-    """Remove a FIRMS MAP_KEY path segment from a URL before it appears in any error/log (REQ-005)."""
-    return url.split("/csv/", 1)[0] + "/csv/<MAP_KEY>/..." if "/csv/" in url else url
+def _scrub_url(text: str, key: str | None = None) -> str:
+    """Redact the FIRMS MAP_KEY from any URL/error string before it is logged or surfaced (REQ-005).
+
+    N3 fix: the MAP_KEY is embedded as a URL path segment, and httpx error bodies embed the full URL,
+    so scrubbing must **redact the actual key value** wherever it appears — not merely rewrite a
+    literal ``/csv/<seg>`` segment. When the value is known it is replaced everywhere first; the
+    path-segment rewrite is only a best-effort fallback for callers without the value to hand.
+    """
+    out = text
+    if key:
+        out = out.replace(key, "<MAP_KEY>")
+    if "/csv/" in out:
+        head, tail = out.split("/csv/", 1)
+        seg, sep, rest = tail.partition("/")
+        if seg and seg != "<MAP_KEY>":
+            out = f"{head}/csv/<MAP_KEY>" + (f"/{rest}" if sep else "/...")
+    return out
 
 
 # ------------------------------------------------------------------------------- real fetchers
@@ -121,47 +149,26 @@ def _scrub_url(url: str) -> str:
 
 @dataclass
 class VnfFetcher:
-    """Real VNF :class:`ViirsFetcher`: download one per-night VNF file and clip to the AOI.
+    """VNF :class:`ViirsFetcher` — **dropped source**: raises a clear licence/pay-gated error.
 
-    The exact endpoint/filename/format and whether any auth is needed are the T1 unknowns (Q1); the
-    config carries the safe defaults. Column mapping to the standard names is applied in
-    :func:`standardise`; unknown VNF headers should be added to ``column_map`` once confirmed at T1.
+    2026-08-22 pivot: VIIRS Nightfire (EOG / Colorado School of Mines) is no longer public, so there
+    is no free/reproducible fetch path. Any ``fetch_night`` call raises :class:`VnfUnavailableError`
+    naming the licence and pointing at FIRMS as the supported source, instead of hitting the EOG host
+    (which now answers an OAuth/Keycloak login for anonymous access).
     """
 
     cfg: ViirsAcquisitionConfig
     column_map: dict[str, str] = field(default_factory=dict)
 
-    def _url(self, day: date) -> str:
-        fname = self.cfg.vnf_file_template.format(yyyymmdd=day.strftime("%Y%m%d"))
-        return f"{self.cfg.vnf_endpoint_base.rstrip('/')}/{day.strftime('%Y')}/{fname}"
-
     def fetch_night(self, aoi: Region, day: date) -> pd.DataFrame:
-        import httpx
-
-        url = self._url(day)
-        try:
-            resp = httpx.get(url, timeout=self.cfg.request_timeout, follow_redirects=True)
-            if resp.status_code == 404:
-                return standardise(_empty_frame())  # no VNF product this night -> empty (EDGE-001)
-            resp.raise_for_status()
-        except Exception as exc:  # noqa: BLE001 - descriptive, endpoint named, no secret in VNF URLs
-            raise ViirsAcquisitionError(f"VNF fetch failed for {day} at {url}: {exc}") from exc
-        # T1 finding (2026-07-12): the EOG host answers a 200 HTML Keycloak login page for the guessed
-        # path, i.e. VNF is NOT keyless as defaulted (Q1). Detect a login/HTML body and surface a clear
-        # auth error instead of a confusing CSV parser error (ERR-002), pending T1 endpoint/auth pinning.
-        ctype = resp.headers.get("content-type", "")
-        if "html" in ctype.lower() or resp.content[:15].lstrip().lower().startswith(
-            b"<!doctype html"
-        ):
-            raise ViirsAuthError(
-                f"VNF endpoint returned an HTML/login page for {day} at {url} (content-type={ctype!r}). "
-                "VNF appears to require EOG authentication — resolve the exact endpoint/filename/auth at "
-                "the T1 spike (open-questions Q1) before the acquisition loop is run."
-            )
-        from io import BytesIO
-
-        raw = pd.read_csv(BytesIO(resp.content), compression="infer")
-        return clip_to_aoi(standardise(raw, self.column_map or None), aoi)
+        raise VnfUnavailableError(
+            "VNF (VIIRS Nightfire, EOG / Colorado School of Mines) is no longer a public/free "
+            "source and is unsupported: a VIIRS Nightfire Data Use License (effective 2025-01-10) "
+            "gates the data and EOG programmatic access is paid-subscriber-only (effective "
+            "2026-06-01). This conflicts with the project's free/public-data principle. Use the "
+            "supported FIRMS source (source='firms'; NASA FIRMS SP-archive VIIRS active fire, "
+            "static-land type=2), which needs only a free FIRMS_MAP_KEY (by env-var reference)."
+        )
 
 
 @dataclass
@@ -196,8 +203,7 @@ class FirmsFetcher:
             )
         return key
 
-    def _url(self, aoi: Region, day: date) -> str:
-        key = self._map_key()
+    def _url(self, aoi: Region, day: date, key: str) -> str:
         product = self.product or self.cfg.firms_products[0]
         w, s, e, n = aoi.as_bbox()
         bbox = f"{w},{s},{e},{n}"
@@ -209,15 +215,16 @@ class FirmsFetcher:
     def fetch_night(self, aoi: Region, day: date) -> pd.DataFrame:
         import httpx
 
-        url = self._url(aoi, day)
+        key = self._map_key()
+        url = self._url(aoi, day, key)
         try:
             resp = httpx.get(url, timeout=self.cfg.request_timeout, follow_redirects=True)
             resp.raise_for_status()
         except ViirsAuthError:
             raise
-        except Exception as exc:  # noqa: BLE001 - scrub the MAP_KEY out of the URL before surfacing
+        except Exception as exc:  # noqa: BLE001 - redact the MAP_KEY *value* before surfacing (N3)
             raise ViirsAcquisitionError(
-                f"FIRMS fetch failed for {day} at {_scrub_url(url)}: {exc}"
+                _scrub_url(f"FIRMS fetch failed for {day} at {url}: {exc}", key)
             ) from exc
         from io import StringIO
 
@@ -228,6 +235,9 @@ class FirmsFetcher:
         """Keep static-land-source detections and map FIRMS columns to the standard schema."""
         if raw.empty:
             return standardise(_empty_frame())
+        # SP-archive rows carry a `type` code -> keep only static-land (type=2) industrial sources.
+        # NRT products have NO `type` column, so this filter simply does not apply to them (and the
+        # historical 2019+ series uses the SP archive, which always has `type`).
         if "type" in raw.columns:
             raw = raw.loc[raw["type"] == self.cfg.firms_static_land_type].copy()
         ts = _firms_timestamp(raw, day)
@@ -267,7 +277,7 @@ def _manifest_path(raw_dir: Path, source: str) -> Path:
     return Path(raw_dir) / source / "manifest.json"
 
 
-def load_manifest(raw_dir: Path, source: str = "vnf") -> dict:
+def load_manifest(raw_dir: Path, source: str = "firms") -> dict:
     path = _manifest_path(raw_dir, source)
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
@@ -380,7 +390,34 @@ def acquire_viirs(
     endpoint = cfg.firms_endpoint_base if source == "firms" else cfg.vnf_endpoint_base
     aoi_bbox = aoi.as_bbox()
     manifest = load_manifest(raw_dir, source)
-    end = cfg.end or (today or date.today())
+
+    # SP-archive lag (item 4): when the end is left to "chase today" (cfg.end is None), FIRMS SP
+    # products lag the present by ~firms_archive_lag_days, so the recent tail is empty. Clamp the
+    # effective end back by the lag rather than fetching an empty tail; record it honestly in the
+    # manifest + log. An explicit cfg.end is respected as-is (any empty tail is zero-filled, EDGE-001).
+    now = today or date.today()
+    requested_end = cfg.end or now
+    end = requested_end
+    if source == "firms" and cfg.end is None:
+        latest_available = now - timedelta(days=cfg.firms_archive_lag_days)
+        if end > latest_available:
+            skipped_tail = (end - latest_available).days
+            logger.info(
+                "FIRMS SP archive lags ~%dd; clamping end %s -> %s (skipping %d empty tail night(s)).",
+                cfg.firms_archive_lag_days,
+                end.isoformat(),
+                latest_available.isoformat(),
+                skipped_tail,
+            )
+            manifest["end_clamp"] = {
+                "requested_end": end.isoformat(),
+                "clamped_end": latest_available.isoformat(),
+                "skipped_tail_nights": skipped_tail,
+                "archive_lag_days": cfg.firms_archive_lag_days,
+                "reason": "FIRMS SP archive lags the present; recent dates return 0 rows.",
+            }
+            _save_manifest(raw_dir, source, manifest)
+            end = latest_available
 
     fetched = skipped = failed = empty = total_detections = 0
     for day in _nights(cfg.start, end):
@@ -426,14 +463,19 @@ def acquire_viirs(
     )
 
 
-def load_detections(raw_dir: Path | str, source: str = "vnf") -> pd.DataFrame:
+def load_detections(raw_dir: Path | str, source: str = "firms") -> pd.DataFrame:
     """Concatenate all persisted per-night AOI-clipped detections for a source (join input)."""
     manifest = load_manifest(Path(raw_dir), source)
     frames = []
     for entry in manifest["nights"].values():
         p = Path(entry["path"])
         if p.exists():
-            frames.append(pd.read_parquet(p))
+            frame = pd.read_parquet(p)
+            # Exclude empty / all-NA per-night frames before concat: zero-detection nights (EDGE-001)
+            # persist an empty schema-only parquet, and concatenating those triggers the pandas
+            # all-NA-column FutureWarning and can upcast dtypes. We drop them here (BUG 4).
+            if not frame.empty and not frame.isna().all(axis=None):
+                frames.append(frame)
     if not frames:
         return standardise(_empty_frame())
     return pd.concat(frames, ignore_index=True)
@@ -459,6 +501,10 @@ class ViirsProbe:
     within_budget: bool
     go: bool
     notes: str
+    # Archive-lag honesty (item 1): the SP-archive publication lag applied to anchor the probe window,
+    # and the [start, end] window actually probed (ISO). 0 for sources without an archive lag.
+    archive_lag_days: int = 0
+    window: tuple[str, str] = ("", "")
 
 
 def probe_viirs(
@@ -475,16 +521,27 @@ def probe_viirs(
     the available detection fields, temporal coverage (nights with >=1 detection), and how many
     detections co-locate with the facilities (within ``radius_km``). ``go`` is True only when the
     implied full-era volume is within ``cfg.download_budget_mb`` (ERR-004). No bulk download is started.
+
+    Archive-lag fix (item 1): the FIRMS SP archive lags the present by ~``firms_archive_lag_days``, so a
+    *recent* window returns 0 rows (the earlier false NO-GO). For FIRMS the window is anchored back by
+    the archive lag (or an explicit ``cfg.probe_anchor``), and the applied lag + probed window are
+    reported so a cluster that really has SP detections yields GO.
     """
     cfg = cfg or ViirsAcquisitionConfig()
     fetcher = fetcher or _default_fetcher(cfg)
     endpoint = cfg.firms_endpoint_base if cfg.source == "firms" else cfg.vnf_endpoint_base
-    end = today or date.today()
+    now = today or date.today()
+    # Anchor the probe window to an archive-appropriate date: FIRMS SP lags the present, so probe
+    # (today - archive lag) unless an explicit anchor is configured; other sources probe up to today.
+    archive_lag = cfg.firms_archive_lag_days if cfg.source == "firms" else 0
+    anchor = cfg.probe_anchor or (now - timedelta(days=archive_lag))
+    end = anchor
     start = end - timedelta(days=cfg.probe_days - 1)
 
     per_night_bytes: list[float] = []
     nights_with = n_det = colocated = 0
     fields: set[str] = set()
+    # FIRMS needs the FIRMS_MAP_KEY (by env-var reference) -> auth_required is True for FIRMS (N1).
     auth_required = cfg.source == "firms"
 
     for day in _nights(start, end):
@@ -502,14 +559,20 @@ def probe_viirs(
     implied_mb = _implied_full_era_mb(per_night_mb, cfg.start, end)
     within_budget = cfg.download_budget_mb is None or implied_mb <= cfg.download_budget_mb
     go = within_budget and n_det > 0
+    lag_note = (
+        f" (FIRMS SP archive lags ~{archive_lag}d; probed {start.isoformat()}..{end.isoformat()})"
+        if cfg.source == "firms"
+        else f" (probed {start.isoformat()}..{end.isoformat()})"
+    )
     notes = (
-        "GO — VNF/FIRMS detections co-locate with the facilities and the implied volume is within "
-        "budget."
+        "GO — FIRMS detections co-locate with the facilities and the implied volume is within budget."
+        + lag_note
         if go
         else (
-            "NO-GO — implied full-era volume exceeds the budget."
+            "NO-GO — implied full-era volume exceeds the budget." + lag_note
             if not within_budget
-            else "NO-GO — no detections over the AOI in the probe window (check endpoint/date/auth)."
+            else "NO-GO — no detections over the AOI in the probe window (for FIRMS confirm the window "
+            "is inside the SP archive, i.e. offset back by the ~2-month lag)." + lag_note
         )
     )
     return ViirsProbe(
@@ -526,6 +589,8 @@ def probe_viirs(
         within_budget=within_budget,
         go=go,
         notes=notes,
+        archive_lag_days=archive_lag,
+        window=(start.isoformat(), end.isoformat()),
     )
 
 

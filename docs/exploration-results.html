@@ -62,7 +62,8 @@
     <a href="#scale">8 · Spatial-scale sensitivity</a> ·
     <a href="#variance">9 · Change-variance decomposition</a> ·
     <a href="#regime2023">10 · 2023 regime peak, resolved</a> ·
-    <a href="#takeaways">11 · Takeaways</a></p>
+    <a href="#viirs">11 · VIIRS thermal triangulation</a> ·
+    <a href="#takeaways">12 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -403,7 +404,65 @@
   → the four figures above + <code>regime_2023_findings.txt</code>. This closes the 2023-regime thread the
   full-series arbiter run (NOX-003.1 T10) left open.</p>
 
-  <h2 id="takeaways">11 · Takeaways &amp; next probes</h2>
+  <h2 id="viirs">11 · VIIRS thermal triangulation — the physical thermometer is invalid here (NOX-011)</h2>
+  <p>Critique #1 — the "fraudulent/unverifiable target": the CREA benchmark is a commercial trader survey
+  (WIND / Custeel), so a near-null could always be blamed on either the <em>feature</em> (NO₂) or the
+  <em>target</em> (CREA). NOX-011 tried to break that ambiguity with a <strong>hard-to-falsify physical
+  proxy</strong>: VIIRS thermal anomalies over the 39 catalogued Tangshan steel facilities — a space-based
+  thermometer no statistical office can dress up. After the 2026-08-22 pivot (VNF Nightfire dropped as no
+  longer public — licence/pay-gated), the free <strong>NASA FIRMS</strong> active-fire SP-archive was
+  promoted to the primary proxy, acquired in full (2019-01-01 → 2026-06-12, 2720 nights, 90,895 detections),
+  and the decisive triangulation was run <strong>benchmark-blind</strong> under the NOX-008
+  autocorrelation-robust significance: does the heat track NO₂ and/or CREA?</p>
+
+  <div class="callout warn">
+    <h3>Verdict: an honest null in which the weak link is the INSTRUMENT, not NO₂ or CREA</h3>
+    <p>Weekly, n=373 common weeks (Newey-West effective-N, moving-block bootstrap, block-permutation,
+    BH-FDR): <strong>NO₂↔VIIRS r=−0.054</strong> (p<sub>NW</sub>=0.343, p<sub>perm</sub>=0.336, BH
+    p<sub>adj</sub>=0.630, peak lag 0, not significant); <strong>CREA↔VIIRS r=−0.049</strong>
+    (p<sub>NW</sub>=0.612, BH p<sub>adj</sub>=0.630, not significant; best cross-lag r=−0.159 at −6 weeks,
+    also inside the noise band). VIIRS tracks <strong>neither</strong> series, so it <strong>cannot
+    arbitrate feature-vs-target</strong>. The auto-diagnosis is <code>DIAG_PROXY_INVALID</code>:
+    "the proxy tracks neither NO₂ nor CREA … it may be uninformative/invalid for this cluster … this is
+    <strong>NOT a 'feature weak' claim</strong>." This is a first-class proxy-validity result, not a
+    failure of NO₂.</p>
+  </div>
+
+  <h3>Root cause: FIRMS active-fire here is agricultural crop-residue burning, not steel furnaces</h3>
+  <p>A direct spatial-seasonal analysis of the 90,895 raw detections explains the null. FIRMS active-fire
+  over this AOI is dominated by <strong>seasonal agricultural crop-residue burning</strong> (the North China
+  Plain / Hebei), not the steel plants. The detection climatology <strong>peaks in spring–autumn and is
+  ≈0 in winter</strong> (normalised monthly: Jan 0.00 · May 0.87 · Sep 1.00 · Dec 0.09), with low radiative
+  power (~1.4 MW median FRP). Crucially this shape <strong>persists even for detections within 2 km of the
+  facilities</strong> (42% of all detections; same summer-peaked climatology, median FRP ~1.4 MW), so
+  tightening the facility radius does not rescue it — the FIRMS <code>type==2</code> "static land source"
+  filter does not separate industrial from agricultural burning at this scale.</p>
+  <p>The physics is the opposite phase of what steel would produce: blast furnaces run <strong>year-round and
+  are winter-<em>curtailed</em></strong>, and NO₂ accumulates in winter, so a genuine furnace thermometer
+  should peak in <em>winter</em>, not summer. The conclusion is that <strong>VNP14 active-fire simply cannot
+  see the blast furnaces</strong> — their sustained radiant heat sits below the sensor's active-fire
+  detection regime. The one VIIRS product tuned for sub-pixel high-temperature industrial/flare sources,
+  <strong>VNF Nightfire</strong>, is exactly the instrument that is now licence/pay-gated (2026-08-22 pivot),
+  and so is unavailable to a free/public-data project.</p>
+
+  <div class="callout">
+    <h3>Consequence: critique #1 remains unresolved by <em>public</em> VIIRS</h3>
+    <p>The free space-based thermometer cannot arbitrate the target-vs-feature ambiguity for this cluster,
+    because it does not measure the furnaces at all. This is an <strong>informative negative result</strong>:
+    it forecloses public VIIRS as a triangulation lever (and removes it as the primary physical feature for
+    the NOX-013 nowcast), rather than leaving the question open. It does <strong>not</strong> indict NO₂ as
+    a weak feature, and it can neither validate nor impugn the CREA target.</p>
+  </div>
+
+  <p style="color:var(--muted);font-size:14px">Reproduce: <code>uv run noxus build-thermal-series</code> →
+  <code>data/derived/viirs_thermal_series.parquet</code>, then <code>uv run noxus triangulate-thermal</code>
+  → <code>data/derived/viirs_triangulation.csv</code> (the source of every number above). The triangulation
+  script (<code>analysis/viirs_triangulation.py</code>) emits the table only — no figures; the optional
+  <code>uv run noxus verify-viirs</code> renders a detections-over-facilities co-location overlay when run
+  against a populated raw store. Full rationale in
+  <code>decisions/architecture-decisions.md</code> (2026-08-27 entry).</p>
+
+  <h2 id="takeaways">12 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>
@@ -425,6 +484,13 @@
     higher: after removing the dominant regional common mode (≈0.94) the footprint and background move in
     lockstep, so the null is SNR-bound / physical. The catalyst/event framing remains the only in-regime lever,
     but the variance-share headroom hypothesis is closed.</li>
+    <li><strong>Public VIIRS cannot arbitrate feature-vs-target here (NOX-011, §11).</strong> The
+    hard-to-falsify thermometer came back an honest null (NO₂↔VIIRS r=−0.054, CREA↔VIIRS r=−0.049, neither
+    significant, n=373) because <em>the instrument</em> is the weak link: FIRMS active-fire over this AOI is
+    seasonal agricultural crop-residue burning (summer-peaked, ~0 in winter, ~1.4 MW), not the year-round,
+    winter-curtailed furnaces — which VNP14 active-fire cannot see. VNF Nightfire, the product that could, is
+    licence/pay-gated. So critique #1 stays <strong>unresolved by public VIIRS</strong> — an informative
+    proxy-validity result, not a claim that NO₂ is weak.</li>
     <li><strong>Don't over-read −0.35</strong> — it's a whole-sample trend crossing, not intra-period
     inversion.</li>
     <li><strong>Economy link is below noise</strong> on partial data — revisit after the full fetch + the

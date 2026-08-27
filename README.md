@@ -267,12 +267,12 @@ All inputs are intended to be public and free:
   column is selected by exact name to survive any change in the source's column set.
 
 - **Independent thermal benchmark** — **VIIRS thermal anomalies** over the same steel facilities, used
-  to triangulate the NO₂ signal against a hard-to-falsify space-based heat measurement: **VIIRS
-  Nightfire (VNF)** from the Earth Observation Group (EOG / Colorado School of Mines) as the primary
-  series, with **NASA FIRMS** active fire as a cross-check (`FIRMS_MAP_KEY` in `.env`, by name only).
-  Acquired via `noxus fetch-viirs` (resumable; VIIRS raw store gitignored). See
-  [docs/data-access.md](docs/data-access.md), including the T1 access caveat that **VNF is not keyless**
-  (it sits behind EOG SSO).
+  to triangulate the NO₂ signal against a hard-to-falsify space-based heat measurement. **NASA FIRMS**
+  active fire is the primary (free) proxy (`FIRMS_MAP_KEY` in `.env`, by name only); **VIIRS Nightfire
+  (VNF)** was the original primary but was **dropped** in the 2026-08-22 pivot — it is no longer public
+  (VIIRS Nightfire Data Use License + paid-only EOG programmatic access), so `--source vnf` now raises a
+  clear licence/pay-gated error. Acquired via `noxus fetch-viirs` (resumable; VIIRS raw store gitignored).
+  See [docs/data-access.md](docs/data-access.md).
 
 # Status
 
@@ -286,10 +286,16 @@ facilities/AOI** (Global Iron & Steel Tracker); **gridding/compositing** to a we
 the null when that is what the data show). A reproducible preliminary run (`analysis/preliminary_signal.py`)
 produces the first end-to-end result — see [docs/preliminary-results.html](docs/preliminary-results.html).
 An **independent VIIRS thermal-benchmark** capability has also landed (`noxus fetch-viirs` /
-`build-thermal-series` / `triangulate-thermal` / `verify-viirs`, NOX-011): the offline acquisition,
-facility-join and NO₂↔VIIRS / CREA↔VIIRS triangulation machinery is implemented and tested, but the
-live triangulation **result is pending** a developer VNF/FIRMS run (VNF requires resolving EOG SSO auth
-first — see `docs/data-access.md`).
+`build-thermal-series` / `triangulate-thermal` / `verify-viirs`, NOX-011). After the 2026-08-22 pivot
+(VNF dropped as no longer public; **NASA FIRMS** promoted to the primary proxy), the full FIRMS SP-archive
+was acquired (2019-01-01 → 2026-06-12, 2720 nights, 90,895 detections) and the triangulation **run
+completed** with a **first-class negative result**: NO₂↔VIIRS r=−0.054 and CREA↔VIIRS r=−0.049 (n=373
+weeks, neither significant under the NOX-008 robust test). The proxy tracks **neither** series, so **FIRMS
+active-fire is not a valid steel-activity thermometer here** — the detections over the AOI are dominated by
+seasonal agricultural crop-residue burning (summer-peaked, ~0 in winter), not the year-round, winter-curtailed
+furnaces, which VNP14 active-fire cannot see. This is an informative proxy-validity result (the weak link is
+the instrument, **not** NO₂ or CREA), so critique #1 (target-vs-feature ambiguity) remains **unresolved by
+public VIIRS**. See `docs/exploration-results.html` §11 and `decisions/architecture-decisions.md` (2026-08-27).
 A **2023-regime event-study** capability has likewise landed (`noxus assemble-calendar` /
 `noxus regime-study`, NOX-012): a public, source-cited Tangshan/Hebei curtailment calendar at
 **coarse-floor** granularity (holidays + heating-season windows; committed under `data/curtailment/`,
