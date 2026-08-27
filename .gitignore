@@ -64,6 +64,11 @@ data/derived/viirs_thermal_series.parquet
 # ERA5 reanalysis snapshots (dated NetCDF subsets of the public ARCO-ERA5 store) — reproducible,
 # not committed (NOX-003 T12). Also matched by data/raw/ and *.nc above; kept explicit for clarity.
 data/raw/era5/
+# Raw TROPOMI L2 __NO2___ swath granules (full-orbit ~0.6 GB each; NOX-005 flux-divergence) —
+# large EO downloads, reproducible from CDSE, NOT committed. Matched by data/raw/ above; explicit for
+# clarity. Fine oversampled/divergence fields under data/derived/fluxdiv/ are *.nc (ignored above);
+# the small committable T1 verdict fluxdiv_probe.txt under data/derived/fluxdiv/ IS committed.
+data/raw/tropomi_l2/
 # Market price snapshots (third-party daily prices via yfinance) — reproducible from a dated fetch,
 # not committed (NOX-004 NFR-005). NO2-derived event tables live under data/derived/no2/ (above).
 data/raw/market/

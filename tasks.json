@@ -219,15 +219,20 @@
       "slug": "flux-divergence-attribution",
       "description": "DEFERRED future phase (decided 2026-06-13, phased-hybrid). Point-source NOx attribution via NO2 flux divergence (Beirle 2021/2023): flux = TVCD x ERA5 wind, divergence isolates the local source term, with chemical-loss and plume-height corrections (PAL product, v2). Requires a RAW L2 swath acquisition path (NOX-002a delivered the openEO gridded product, not raw swath needed for fine oversampling) plus ERA5 winds. Known to resolve poorly in high-background / complex-wind regions like industrial NE China -- expected to be hard at Tangshan; that risk is the reason it is a separate phase after the relative-index v1 (NOX-003) establishes whether any signal exists.",
       "sdd": true,
-      "status": "spec_ready",
+      "status": "in_progress",
       "spec_path": "specs/flux-divergence-attribution/",
       "approval": {
-        "human_approved": false
+        "human_approved": true,
+        "approved_by": "developer",
+        "approved_at": "2026-08-27",
+        "note": "Developer approved verbally (\"si\") to proceed, starting with the T1 feasibility gate only. Q2 (server-class compute for a full run) deferred to a post-T1 decision with measured cost in hand; T1 downloads only a bounded laptop-feasible subset and verifies the Q1 free CDSE L2 access path live."
       },
       "created": "2026-06-13",
       "spec_draft_at": "2026-08-27",
       "status_note": "SPEC_READY 2026-08-27: full SDD spec authored (REQ-001..015, NFR-001..008, EDGE-001..007, ERR-001..006, AC-001..008, AT1..8 + edge/err/reg, tasks T1..T14). 0 blocking open questions. T1 = feasibility gate on a bounded laptop-feasible subset, benchmark-blind, three-way go/no-go (GO / GO-degraded / NO-GO honest-null), also measures the compute/storage profile and stops the build on NO-GO. Two decision-shaping items for the developer at approval: Q1 raw-L2 free access path (new CDSE OData/S3 route for S5P_*_L2__NO2___ swath; NOX-002a delivered only the gridded openEO product) and Q2 expected method-hardness + server-class compute for a full run (NO-GO realistic at Tangshan; ~tens of GB raw). New additive noxus/fluxdiv/ + noxus/data/tropomi_l2.py + FluxDivergenceConfig + CLI fetch-l2 / flux-divergence[--probe]; relative-index pipeline untouched. Reuses NOX-008 robust significance + align_series + ERA5 + facility footprints byte-for-byte. This is the DL-A root-cause attempt (a null here closes DL-A decisively). Awaiting human approval (only the developer moves to human_approved).",
-      "spec_ready_at": "2026-08-27"
+      "spec_ready_at": "2026-08-27",
+      "human_approved_at": "2026-08-27",
+      "in_progress_at": "2026-08-27"
     },
     {
       "id": "NOX-006",

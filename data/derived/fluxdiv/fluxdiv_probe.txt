@@ -1,0 +1,35 @@
+NOX-005 T1 feasibility spike — flux-divergence go/no-go gate (GATES THE BUILD)
+==================================================================================
+Generated: 2026-08-27T16:30:53+00:00
+Benchmark-blind: the CREA benchmark is NEVER read/tuned to in this gate.
+
+VERDICT: NO-GO
+  escalate (ERR-002 stop-and-escalate): True
+
+Q1 — FREE CDSE raw-L2 access (resolved live)
+----------------------------------------------------------------------------------
+  access_ok: True
+  free CDSE OData/zipper route reached: 1 granule(s) selected, 1 reused, 0.0 MB downloaded this run.
+  route: OData catalogue https://catalogue.dataspace.copernicus.eu/odata/v1/Products  +  zipper download https://zipper.dataspace.copernicus.eu/odata/v1/Products  (password-grant token; credentials by env-var name only, never logged)
+
+Spatial coherence over the steel cluster (benchmark-blind)
+----------------------------------------------------------------------------------
+  QA-valid AOI pixels: 422  valid grid cells: 422  footprint cells: 154
+  effective wind (ERA5 10m): u=+4.94 v=+2.56 |U|=5.57 m/s calm=False (calm floor 1.0 m/s)
+  fixed operators: resolution=5.0 km  tau=4.0 h  qa>=0.75  coloc_radius=15.0 km
+  source term E: footprint_median=+1.310e-08 background_median=+3.242e-09 noise(MAD)=3.618e-08 mol m-2 s-1
+  (a) hotspot co-location enrichment vs area: coloc_ratio=2.06 (GO>=1.5, degraded>=1.0)
+  (b) footprint source vs field noise: SNR=+0.27 (GO>=3.0, degraded>=1.5)
+
+Q2 — MEASURED compute/storage profile (bounded run → full-run extrapolation)
+----------------------------------------------------------------------------------
+  bounded run: 1 granule(s), 1 reused, 0.0 MB downloaded, wall_clock=1.4s, peak_mem=61 MB
+  per full-orbit granule ~609 MB (OData delivers the WHOLE orbit; the AOI window is clipped AFTER download — kept field here = 422 pixels)
+  ~1.2 AOI-intersecting granule(s)/day over the bounded window
+  EXTRAPOLATED full record (2795 days since 2019-01-01): ~2127 GB of DOWNLOAD transfer (kept AOI storage is far smaller after clipping). Fine oversampling+divergence over the full record is server-class; the bounded subset here is laptop-feasible.
+
+Interpretation
+----------------------------------------------------------------------------------
+  HONEST NULL. On the bounded real subset no coherent, spatially-localised source term co-locates with the plant footprints above the field noise — the expected-hard outcome for flux-divergence in high-background/complex-wind NE China. Per ERR-002 the build STOPS and escalates. A null here is a first-class, designed-for result (it closes the DL-A revisit condition), not a pipeline failure. NOTE: a single-overpass bounded probe has low power; a NO-GO warrants confirming on a few more overpasses before closing DL-A.
+
+Scale caveat: Tangshan is ~13% of national steel; this is a cluster signal, Hebei-provincial statistics preferred where available.

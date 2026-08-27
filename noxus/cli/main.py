@@ -71,6 +71,43 @@ def _cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_flux_divergence(args: argparse.Namespace) -> int:
+    """Flux-divergence attribution. Only ``--probe`` (T1 gate) is wired; the full run is T2+."""
+    from noxus.config.run import FluxDivergenceConfig
+    from noxus.fluxdiv.probe import probe
+
+    if not args.probe:
+        print(
+            "[noxus] flux-divergence: only the T1 feasibility gate is available "
+            "(run with --probe). The full attribution is gated behind a GO verdict (NOX-005 T2+)."
+        )
+        return 1
+
+    cfg = FluxDivergenceConfig()
+    cfg = replace(
+        cfg,
+        subset_start=date.fromisoformat(args.start) if args.start else cfg.subset_start,
+        subset_end=date.fromisoformat(args.end) if args.end else cfg.subset_end,
+    )
+    v = probe(cfg)
+    print(f"[noxus] T1 flux-divergence probe VERDICT={v.verdict} escalate={v.escalate}")
+    print(f"[noxus]   Q1 free-CDSE access_ok={v.access_ok}: {v.access_note}")
+    if v.evidence is not None and v.compute is not None:
+        e, c = v.evidence, v.compute
+        print(
+            f"[noxus]   coherence: coloc_ratio={e.coloc_ratio:.2f} SNR={e.snr:+.2f} "
+            f"(pixels={e.n_pixels}, footprint_cells={e.n_footprint_cells})"
+        )
+        print(
+            f"[noxus]   compute: {c.downloaded_bytes / 1e6:.1f} MB dl, "
+            f"~{c.per_granule_mb:.0f} MB/granule, wall={c.wall_clock_s:.1f}s, "
+            f"extrapolated full download ~{c.extrapolated_full_download_gb:.0f} GB"
+        )
+    print(f"[noxus]   report -> {v.report_path}")
+    # NO-GO / NO-GO-DATA stop the build (ERR-002): non-zero exit so callers/CI can gate on it.
+    return 0 if v.verdict in ("GO", "GO-degraded") else 2
+
+
 def _cmd_verify_no2(args: argparse.Namespace) -> int:
     """Render NO2 over the AOI with facilities overlaid for clear-sky high-NO2 days."""
     from noxus.data.verify_no2 import fetch_optical_thumbnail, render_day, select_clear_high_days
@@ -593,6 +630,19 @@ def main(argv: list[str] | None = None) -> int:
     p_fetch.add_argument("--buffer", type=float, help="AOI buffer in degrees (default: 0.25)")
     p_fetch.add_argument("--qa", type=float, help="qa_value threshold (default: 0.75)")
     p_fetch.set_defaults(func=_cmd_fetch)
+
+    p_fdiv = sub.add_parser(
+        "flux-divergence",
+        help="Beirle flux-divergence attribution; --probe = T1 feasibility gate (NOX-005)",
+    )
+    p_fdiv.add_argument(
+        "--probe",
+        action="store_true",
+        help="T1 feasibility spike on a bounded subset: three-way go/no-go + compute profile",
+    )
+    p_fdiv.add_argument("--start", help="ISO start of the bounded subset window (default 2023-06-01)")
+    p_fdiv.add_argument("--end", help="ISO end of the bounded subset window (default 2023-06-05)")
+    p_fdiv.set_defaults(func=_cmd_flux_divergence)
 
     p_ver = sub.add_parser("verify-no2", help="render NO2 vs facilities on clear high-NO2 days")
     p_ver.add_argument("--raw-dir", help="acquired store (default: data/raw/tropomi)")

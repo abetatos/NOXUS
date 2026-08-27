@@ -583,6 +583,77 @@ class RegimeStudyConfig:
 
 
 @dataclass(frozen=True)
+class FluxDivergenceConfig:
+    """Minimal frozen config for the NOX-005 T1 feasibility gate (REQ-015, AT7).
+
+    This is intentionally the *smallest* surface the T1 probe needs — the raw-L2 bounded fetch, the
+    minimal oversample -> flux -> divergence(+V/tau) chain, and the fixed benchmark-blind verdict
+    thresholds. T2 builds out the full config surface (full tau/wind sweeps, freq, compute-budget
+    knobs for the multi-year run); do not add those here. Frozen so no default can be tuned against
+    an outcome (anti-p-hacking, NFR-002). The CREA benchmark is NEVER referenced by this config.
+
+    Q1 (raw-L2 free access) is resolved live at T1: the CDSE OData catalogue search + password-grant
+    token + authenticated download are exercised on a BOUNDED subset (``max_probe_granules``). No
+    paid/licence-gated source is permitted (ERR-005); if the free route is unavailable the probe
+    emits NO-GO-DATA without a heavy download.
+    """
+
+    # --- AOI + bounded subset window (laptop-feasible; never the full multi-year record) --------
+    aoi_buffer_deg: float = DEFAULT_AOI_BUFFER_DEG
+    subset_start: date = date(2023, 6, 1)
+    subset_end: date = date(2023, 6, 5)
+    max_probe_granules: int = 1  # bounded: download at most this many full granules for the gate
+
+    # --- Oversampling + flux + divergence operators (fixed pre-outcome) ------------------------
+    resolution_km: float = 5.0  # fine-grid spacing for the oversampled TVCD field
+    qa_threshold: float = 0.75  # L2 qa_value screen (Beirle/CDSE recommended floor)
+    min_pixels: int = 30  # refuse the coherence assessment below this many QA-valid AOI pixels
+    wind_level: str = "10m"  # "10m" (ERA5 u10/v10) default; boundary-layer mean is a T2 option (Q3)
+    wind_min_ms: float = 1.0  # calm-wind floor; below this the flux is flagged (EDGE-003)
+    tau_hours: float = 4.0  # fixed literature NO2 lifetime central value (Q4); sink = V / tau
+    coloc_radius_km: float = 15.0  # facility footprint radius for the hotspot co-location test
+
+    # --- Three-way verdict thresholds (fixed constants; benchmark-blind) -----------------------
+    # A source term is "coherent + localised" when positive-E hotspots preferentially fall over the
+    # plant footprints (co-location ratio > 1) AND the footprint source rises above the field noise.
+    snr_go: float = 3.0  # footprint-source signal-to-noise for a clean GO
+    snr_degraded: float = 1.5  # partial/noisy but usable -> GO-degraded
+    coloc_go: float = 1.5  # hotspot-over-footprint enrichment vs area expectation for GO
+    coloc_degraded: float = 1.0  # any positive enrichment -> at least GO-degraded
+    hotspot_top_frac: float = 0.05  # top fraction of positive-E cells treated as "hotspots"
+
+    # --- CDSE free access route (OData catalogue + password-grant token + zipper download) ------
+    odata_url: str = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
+    zipper_url: str = "https://zipper.dataspace.copernicus.eu/odata/v1/Products"
+    token_url: str = CDSE_TOKEN_URL
+    cdse_client_id: str = "cdse-public"
+    env_username: str = "CDSE_USERNAME"
+    env_password: str = "CDSE_PASSWORD"
+    # Hostnames that are part of the FREE public CDSE route. Any other download host is refused
+    # (ERR-005): the raw-L2 path must never reach a paid/licence-gated source (the NOX-011 lesson).
+    free_hosts: tuple[str, ...] = (
+        "catalogue.dataspace.copernicus.eu",
+        "zipper.dataspace.copernicus.eu",
+        "download.dataspace.copernicus.eu",
+        "identity.dataspace.copernicus.eu",
+        "eodata.dataspace.copernicus.eu",
+    )
+    request_timeout: float = 600.0
+
+    # --- Paths ---------------------------------------------------------------------------------
+    raw_dir: Path = Path("data/raw/tropomi_l2")  # gitignored raw swath store (data/raw/)
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    active_statuses: tuple[str, ...] = ACTIVE_FACILITY_STATUSES
+    out_dir: Path = Path("data/derived/fluxdiv")
+    probe_report_name: str = "fluxdiv_probe.txt"
+
+    def probe_report_path(self) -> Path:
+        """Committable T1 GO/GO-degraded/NO-GO(/NO-GO-DATA) verdict report path."""
+        return self.out_dir / self.probe_report_name
+
+
+@dataclass(frozen=True)
 class NowcastConfig:
     """Configuration for the investment-grade activity nowcast (NOX-013).
 
