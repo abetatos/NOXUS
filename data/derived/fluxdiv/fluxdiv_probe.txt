@@ -1,6 +1,7 @@
 NOX-005 T1 feasibility spike — flux-divergence go/no-go gate (GATES THE BUILD)
+EXTENDED multi-overpass probe (SNR-vs-N scaling; powers the n=1 gate)
 ==================================================================================
-Generated: 2026-08-27T16:30:53+00:00
+Generated: 2026-08-27T16:54:18+00:00
 Benchmark-blind: the CREA benchmark is NEVER read/tuned to in this gate.
 
 VERDICT: NO-GO
@@ -9,27 +10,40 @@ VERDICT: NO-GO
 Q1 — FREE CDSE raw-L2 access (resolved live)
 ----------------------------------------------------------------------------------
   access_ok: True
-  free CDSE OData/zipper route reached: 1 granule(s) selected, 1 reused, 0.0 MB downloaded this run.
+  free CDSE OData/zipper route reached: 4 granule(s) selected (4 reused, 0.00 GB new download); 4 overpass(es) with >= 30 QA-valid AOI pixels used.
   route: OData catalogue https://catalogue.dataspace.copernicus.eu/odata/v1/Products  +  zipper download https://zipper.dataspace.copernicus.eu/odata/v1/Products  (password-grant token; credentials by env-var name only, never logged)
 
-Spatial coherence over the steel cluster (benchmark-blind)
+SNR-vs-N scaling curve (source separation as overpasses are oversampled)
 ----------------------------------------------------------------------------------
-  QA-valid AOI pixels: 422  valid grid cells: 422  footprint cells: 154
-  effective wind (ERA5 10m): u=+4.94 v=+2.56 |U|=5.57 m/s calm=False (calm floor 1.0 m/s)
+  Flux-divergence averages the per-overpass flux (each with its own wind), then takes the divergence; field noise should fall ~1/sqrt(N). The decisive question is whether the co-located source SEPARATES (SNR rises toward the >=1.5 floor) or stays flat.
+
+    N    SNR      coloc_ratio   noise(MAD, mol m-2 s-1)   ~noise(1)/sqrt(N)
+    1      +0.27     2.06       3.618e-08            3.618e-08
+    2      +0.22     2.29       1.770e-08            2.558e-08
+    4      +0.27     1.80       1.068e-08            1.809e-08
+
+  Prior committed single-overpass baseline (T1 n=1, commit 8b61cf0): coloc_ratio=2.06, SNR=+0.27.
+  SNR trend: n=1 → all-N is FLAT (rising ⇒ source emerging with oversampling; flat ⇒ powered null).
+
+Most-powered (all-N) coherence over the steel cluster (benchmark-blind)
+----------------------------------------------------------------------------------
+  QA-valid AOI pixels (summed over overpasses): 3271  valid grid cells: 1085  footprint cells: 334
+  mean effective wind (ERA5 10m): u=+2.17 v=+1.21 |U|=2.48 m/s (per-overpass winds vary → advection dipoles cancel)
   fixed operators: resolution=5.0 km  tau=4.0 h  qa>=0.75  coloc_radius=15.0 km
-  source term E: footprint_median=+1.310e-08 background_median=+3.242e-09 noise(MAD)=3.618e-08 mol m-2 s-1
-  (a) hotspot co-location enrichment vs area: coloc_ratio=2.06 (GO>=1.5, degraded>=1.0)
+  source term E: footprint_median=+8.150e-09 background_median=+5.312e-09 noise(MAD)=1.068e-08 mol m-2 s-1
+  (a) hotspot co-location enrichment vs area: coloc_ratio=1.80 (GO>=1.5, degraded>=1.0)
   (b) footprint source vs field noise: SNR=+0.27 (GO>=3.0, degraded>=1.5)
 
 Q2 — MEASURED compute/storage profile (bounded run → full-run extrapolation)
 ----------------------------------------------------------------------------------
-  bounded run: 1 granule(s), 1 reused, 0.0 MB downloaded, wall_clock=1.4s, peak_mem=61 MB
-  per full-orbit granule ~609 MB (OData delivers the WHOLE orbit; the AOI window is clipped AFTER download — kept field here = 422 pixels)
-  ~1.2 AOI-intersecting granule(s)/day over the bounded window
-  EXTRAPOLATED full record (2795 days since 2019-01-01): ~2127 GB of DOWNLOAD transfer (kept AOI storage is far smaller after clipping). Fine oversampling+divergence over the full record is server-class; the bounded subset here is laptop-feasible.
+  bounded run: 4 granule(s) fetched, 4 used, 4 reused, 0.00 GB downloaded this run, wall_clock=2.1s, peak_mem=71 MB
+  per full-orbit granule ~607 MB (OData delivers the WHOLE orbit; the AOI window is clipped AFTER download — kept pixels here = 3271)
+  ~1.4 AOI-intersecting granule(s)/day over the bounded window
+  EXTRAPOLATED full record (2795 days since 2019-01-01): ~2303 GB of DOWNLOAD transfer (kept AOI storage is far smaller after clipping). Fine oversampling+divergence over the full record is server-class; the bounded subset here is laptop-feasible.
 
 Interpretation
 ----------------------------------------------------------------------------------
-  HONEST NULL. On the bounded real subset no coherent, spatially-localised source term co-locates with the plant footprints above the field noise — the expected-hard outcome for flux-divergence in high-background/complex-wind NE China. Per ERR-002 the build STOPS and escalates. A null here is a first-class, designed-for result (it closes the DL-A revisit condition), not a pipeline failure. NOTE: a single-overpass bounded probe has low power; a NO-GO warrants confirming on a few more overpasses before closing DL-A.
+  POWERED NULL. With oversampling across 4 overpasses (varied winds; noise averaging down), no coherent spatially-localised source term rises above the field noise over the plant footprints — and the SNR did NOT climb with N (flat), so this is not an n=1 artefact: it is a fair, powered NO-GO that closes the DL-A revisit condition decisively.
+  Per ERR-002 the build STOPS and escalates. A null here is a first-class, designed-for result for flux-divergence in high-background/complex-wind NE China, not a failure.
 
 Scale caveat: Tangshan is ~13% of national steel; this is a cluster signal, Hebei-provincial statistics preferred where available.

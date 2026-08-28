@@ -26,9 +26,13 @@ from noxus.data.tropomi_l2 import (
 )
 from noxus.fluxdiv.probe import (
     CoherenceEvidence,
+    ScalingPoint,
     assess_coherence,
+    assess_coherence_multi,
+    decide_powered_verdict,
     decide_verdict,
     probe,
+    scaling_curve,
 )
 
 
@@ -140,6 +144,81 @@ def test_background_only_field_yields_no_go():
     # No coherent local source: the footprint source does not rise meaningfully above the noise.
     assert ev.snr < cfg.snr_go
     assert decide_verdict(True, ev, cfg)[0] == "NO-GO"
+
+
+# -------------------------------------------------- multi-overpass SNR-vs-N scaling (powered gate)
+
+
+def _synthetic_overpasses(cfg, *, plant_lon, plant_lat, bump, n, noise=1.3e-5, speed=3.0, seed0=100):
+    """N synthetic overpasses with independent pixel noise and winds spread around the circle.
+
+    Winds spread over all directions have ~zero mean, so the advected-background dipole cancels under
+    oversampling while a persistent source (the bump's V/tau term) survives and its noise falls
+    ~1/sqrt(N) — exactly the separation the real method relies on.
+    """
+    aoi = tangshan_aoi(cfg.aoi_buffer_deg)
+    x0, y0, x1, y1 = aoi.as_bbox()
+    ops = []
+    for i in range(n):
+        rng = np.random.default_rng(seed0 + i)
+        npix = 4000
+        lon = rng.uniform(x0, x1, npix)
+        lat = rng.uniform(y0, y1, npix)
+        no2 = 8e-5 + rng.normal(0.0, noise, npix)
+        if bump:
+            dkm = np.hypot((lon - plant_lon) * 85.0, (lat - plant_lat) * 111.0)
+            no2 = no2 + 1.5e-4 * np.exp(-(dkm**2) / (2 * 10.0**2))
+        angle = 2 * np.pi * i / n
+        field = L2Field(lat=lat, lon=lon, no2=no2, overpass_utc=None, granule_name=f"op{i}")
+        ops.append((field, speed * np.cos(angle), speed * np.sin(angle)))
+    return ops
+
+
+def test_multi_overpass_oversampling_separates_source_as_noise_falls():
+    cfg = FluxDivergenceConfig()
+    aoi = tangshan_aoi(cfg.aoi_buffer_deg)
+    x0, y0, x1, y1 = aoi.as_bbox()
+    plant_lon, plant_lat = 0.5 * (x0 + x1), 0.5 * (y0 + y1)
+    facilities = np.array([[plant_lon, plant_lat]])
+    ops = _synthetic_overpasses(cfg, plant_lon=plant_lon, plant_lat=plant_lat, bump=True, n=8)
+
+    curve = scaling_curve(ops, facilities, cfg)
+    ns = [p.n for p in curve]
+    assert ns[0] == 1 and ns[-1] == 8  # N=1 baseline through all-N
+
+    # The decisive behaviour: field noise averages DOWN with N and the source SNR RISES with N.
+    assert curve[-1].e_noise < curve[0].e_noise
+    assert curve[-1].snr > curve[0].snr
+    ev = assess_coherence_multi(ops, facilities, cfg)
+    assert ev.coloc_ratio > 1.0
+
+
+def test_multi_overpass_background_only_stays_flat_and_powers_no_go():
+    cfg = FluxDivergenceConfig()
+    aoi = tangshan_aoi(cfg.aoi_buffer_deg)
+    x0, y0, x1, y1 = aoi.as_bbox()
+    plant_lon, plant_lat = 0.5 * (x0 + x1), 0.5 * (y0 + y1)
+    facilities = np.array([[plant_lon, plant_lat]])
+    ops = _synthetic_overpasses(cfg, plant_lon=plant_lon, plant_lat=plant_lat, bump=False, n=8)
+
+    curve = tuple(scaling_curve(ops, facilities, cfg))
+    ev = assess_coherence_multi(ops, facilities, cfg)
+    # No source: oversampling cannot manufacture one → a powered NO-GO (not an n=1 artefact).
+    assert ev.snr < cfg.snr_degraded
+    assert decide_powered_verdict(True, curve, ev, cfg)[0] == "NO-GO"
+
+
+def test_decide_powered_verdict_thresholds():
+    cfg = FluxDivergenceConfig()
+    curve = (
+        ScalingPoint(1, 0.3, 2.0, 3e-8, 400),
+        ScalingPoint(8, 3.5, 2.0, 1e-8, 3200),  # noise fell, SNR rose
+    )
+    assert decide_powered_verdict(True, curve, _evidence(3.5, 2.0), cfg) == ("GO", False)
+    assert decide_powered_verdict(True, curve, _evidence(2.0, 1.2), cfg)[0] == "GO-degraded"
+    assert decide_powered_verdict(True, curve, _evidence(0.3, 1.0), cfg) == ("NO-GO", True)
+    assert decide_powered_verdict(False, curve, _evidence(9.0, 9.0), cfg) == ("NO-GO-DATA", True)
+    assert decide_powered_verdict(True, (), None, cfg) == ("NO-GO", True)
 
 
 # ------------------------------------------------------------------------------- public-only guard

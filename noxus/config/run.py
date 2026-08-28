@@ -601,8 +601,19 @@ class FluxDivergenceConfig:
     # --- AOI + bounded subset window (laptop-feasible; never the full multi-year record) --------
     aoi_buffer_deg: float = DEFAULT_AOI_BUFFER_DEG
     subset_start: date = date(2023, 6, 1)
-    subset_end: date = date(2023, 6, 5)
-    max_probe_granules: int = 1  # bounded: download at most this many full granules for the gate
+    subset_end: date = date(2023, 6, 15)  # ~2-week window → enough daytime overpasses to power N
+    max_probe_granules: int = 1  # single-overpass baseline (retained for the n=1 comparison)
+
+    # --- Extended multi-overpass probe (powers the gate; noise should fall ~1/sqrt(N) with N) ----
+    # Default N=4 is what the committed artifact was produced from: the free CDSE zipper endpoint
+    # throttles sustained bulk pulls (~1.6-7 MB/s here), so the developer-approved 10-12 overpasses
+    # (~6-8 GB) were impractical in this environment; N=4 (~2.4 GB) already gives a decisive curve
+    # (noise averages down while SNR stays flat). Raise n_overpasses / download_budget_gb where
+    # bandwidth allows — the budget cap keeps the run laptop-feasible either way.
+    n_overpasses: int = 4  # cap on granules for the powered probe (~0.6 GB each → ~2.4 GB)
+    download_budget_gb: float = 3.0  # hard download cap (laptop-feasible; refuse to exceed)
+    one_per_day: bool = True  # one overpass per calendar day → varied winds cancel advection dipoles
+    scaling_ns: tuple[int, ...] = (1, 2, 4, 8)  # SNR-vs-N subset sizes (auto-clamped to available)
 
     # --- Oversampling + flux + divergence operators (fixed pre-outcome) ------------------------
     resolution_km: float = 5.0  # fine-grid spacing for the oversampled TVCD field

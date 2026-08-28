@@ -245,23 +245,41 @@ def _save_manifest(raw_dir: Path, manifest: dict) -> None:
 # ---------------------------------------------------------------------------------- bounded fetch
 
 
+def _one_per_day(granules: list[GranuleMeta]) -> list[GranuleMeta]:
+    """Keep the first granule per calendar day (varied daily winds cancel advection dipoles)."""
+    seen: set[str] = set()
+    out: list[GranuleMeta] = []
+    for g in granules:
+        day = g.content_date_start[:10] or g.name.split("L2__NO2____")[-1][:8]
+        if day not in seen:
+            seen.add(day)
+            out.append(g)
+    return out
+
+
 def fetch_l2(
     aoi: Region,
     cfg: FluxDivergenceConfig | None = None,
     fetcher: L2Fetcher | None = None,
     *,
     max_granules: int | None = None,
+    one_per_day: bool | None = None,
 ) -> FetchResult:
     """Bounded raw-L2 fetch: search the free CDSE catalogue over ``[subset_start, subset_end)`` and
-    download at most ``max_granules`` full granules into the gitignored store, resumably.
+    download up to ``max_granules`` full granules into the gitignored store, resumably.
 
     A granule already present with its catalogue ContentLength is reused (resume), not re-downloaded.
+    Downloading stops once ``cfg.download_budget_gb`` of NEW transfer would be exceeded (reused
+    granules are free) — a hard laptop-feasible cap. With ``one_per_day`` the selection is spread one
+    overpass per calendar day so the oversample sees varied wind directions.
+
     Raises :class:`L2AccessError` if the free route cannot be reached/authenticated (→ NO-GO-DATA at
     the gate) and :class:`PaidSourceError` if a non-free host is ever requested (ERR-005).
     """
     cfg = cfg or FluxDivergenceConfig()
     fetcher = fetcher or CDSEFetcher(cfg)
     limit = cfg.max_probe_granules if max_granules is None else max_granules
+    per_day = cfg.one_per_day if one_per_day is None else one_per_day
     raw_dir = Path(cfg.raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(raw_dir)
@@ -273,19 +291,23 @@ def fetch_l2(
             f"{cfg.subset_start}..{cfg.subset_end} on the free CDSE route."
         )
 
-    selected = found[: max(1, limit)]
+    ranked = _one_per_day(found) if per_day else found
+    selected = ranked[: max(1, limit)]
+    budget_bytes = cfg.download_budget_gb * 1e9
     paths: list[Path] = []
+    kept: list[GranuleMeta] = []
     downloaded = reused = 0
-    endpoint = "unknown"
-    if isinstance(fetcher, CDSEFetcher):
-        endpoint = cfg.zipper_url
+    endpoint = cfg.zipper_url if isinstance(fetcher, CDSEFetcher) else "unknown"
     for meta in selected:
         dest = raw_dir / meta.name
         if dest.exists() and (meta.size_bytes == 0 or dest.stat().st_size == meta.size_bytes):
             reused += 1
+        elif downloaded + (meta.size_bytes or 0) > budget_bytes:
+            break  # hard download-budget cap reached; stop before exceeding it
         else:
             downloaded += fetcher.download(meta, dest)
         paths.append(dest)
+        kept.append(meta)
         manifest["granules"][meta.name] = {
             "id": meta.id,
             "size_bytes": meta.size_bytes,
@@ -295,7 +317,7 @@ def fetch_l2(
         }
     _save_manifest(raw_dir, manifest)
     return FetchResult(
-        granules=tuple(selected),
+        granules=tuple(kept),
         paths=tuple(paths),
         downloaded_bytes=downloaded,
         reused=reused,
@@ -328,7 +350,8 @@ def read_l2_field(path: Path, aoi: Region, qa_threshold: float) -> L2Field:
         lon = np.asarray(ds["longitude"].values).reshape(-1)
         no2 = np.asarray(ds[NO2_VAR].values).reshape(-1)
         qa = np.asarray(ds[QA_VAR].values).reshape(-1)
-        overpass = _overpass_time(ds)
+        pixel_time = _pixel_time_utc(ds)  # per-pixel time_utc (broadcast over ground_pixel), or None
+        fallback_overpass = _overpass_time(ds)
     finally:
         ds.close()
 
@@ -341,6 +364,15 @@ def read_l2_field(path: Path, aoi: Region, qa_threshold: float) -> L2Field:
         & (qa >= qa_threshold)
         & np.isfinite(no2)
     )
+    # Overpass time OVER THE AOI (not the whole global orbit segment) → accurate per-overpass wind.
+    overpass = fallback_overpass
+    if pixel_time is not None and keep.any():
+        import pandas as pd
+
+        aoi_times = pd.to_datetime(pixel_time[keep], utc=True, errors="coerce").dropna()
+        if len(aoi_times):
+            mid = aoi_times[len(aoi_times) // 2]
+            overpass = mid.tz_convert("UTC").tz_localize(None).to_pydatetime()
     return L2Field(
         lat=lat[keep],
         lon=lon[keep],
@@ -348,6 +380,22 @@ def read_l2_field(path: Path, aoi: Region, qa_threshold: float) -> L2Field:
         overpass_utc=overpass,
         granule_name=path.name,
     )
+
+
+def _pixel_time_utc(ds) -> np.ndarray | None:
+    """Per-pixel ``time_utc`` broadcast to the (scanline, ground_pixel) grid, flattened; else None.
+
+    ``time_utc`` is stored per scanline; broadcasting to ground pixels lets the AOI-clip mask select
+    the timestamps of exactly the kept pixels, so the overpass time reflects the AOI, not the orbit.
+    """
+    if "time_utc" not in ds.variables:
+        return None
+    tu = ds["time_utc"].values  # (time=1, scanline)
+    arr = np.asarray(tu).reshape(tu.shape[-1])  # (scanline,)
+    ground = ds.sizes.get("ground_pixel")
+    if ground is None:
+        return arr
+    return np.repeat(arr[:, None], ground, axis=1).reshape(-1)
 
 
 def _overpass_time(ds) -> datetime:

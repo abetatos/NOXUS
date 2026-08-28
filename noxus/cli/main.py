@@ -92,14 +92,17 @@ def _cmd_flux_divergence(args: argparse.Namespace) -> int:
     v = probe(cfg)
     print(f"[noxus] T1 flux-divergence probe VERDICT={v.verdict} escalate={v.escalate}")
     print(f"[noxus]   Q1 free-CDSE access_ok={v.access_ok}: {v.access_note}")
+    if v.scaling:
+        curve = "  ".join(f"N={p.n}:SNR={p.snr:+.2f}/coloc={p.coloc_ratio:.2f}" for p in v.scaling)
+        print(f"[noxus]   SNR-vs-N: {curve}")
     if v.evidence is not None and v.compute is not None:
         e, c = v.evidence, v.compute
         print(
-            f"[noxus]   coherence: coloc_ratio={e.coloc_ratio:.2f} SNR={e.snr:+.2f} "
-            f"(pixels={e.n_pixels}, footprint_cells={e.n_footprint_cells})"
+            f"[noxus]   all-N coherence: coloc_ratio={e.coloc_ratio:.2f} SNR={e.snr:+.2f} "
+            f"(overpasses={c.n_overpasses_used}, pixels={e.n_pixels})"
         )
         print(
-            f"[noxus]   compute: {c.downloaded_bytes / 1e6:.1f} MB dl, "
+            f"[noxus]   compute: {c.downloaded_bytes / 1e9:.2f} GB dl, "
             f"~{c.per_granule_mb:.0f} MB/granule, wall={c.wall_clock_s:.1f}s, "
             f"extrapolated full download ~{c.extrapolated_full_download_gb:.0f} GB"
         )
