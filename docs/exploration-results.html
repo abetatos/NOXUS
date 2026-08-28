@@ -64,7 +64,8 @@
     <a href="#regime2023">10 · 2023 regime peak, resolved</a> ·
     <a href="#viirs">11 · VIIRS thermal triangulation</a> ·
     <a href="#nowcast">12 · Nowcast feasibility null</a> ·
-    <a href="#takeaways">13 · Takeaways</a></p>
+    <a href="#fluxdiv">13 · Flux-divergence attribution null</a> ·
+    <a href="#takeaways">14 · Takeaways</a></p>
 </div></header>
 
 <div class="wrap">
@@ -514,7 +515,74 @@
   Reproduce: <code>uv run python -c "from noxus.nowcast import probe; from noxus.config import NowcastConfig; probe(NowcastConfig())"</code>
   → <code>data/derived/nowcast_probe.txt</code> (the source of every number above; fixed seed 20260712).</p>
 
-  <h2 id="takeaways">13 · Takeaways &amp; next probes</h2>
+  <h2 id="fluxdiv">13 · Flux-divergence point-source attribution — no separable steel source — a fifth convergent null (NOX-005)</h2>
+  <p>NOX-005 mounted the <strong>root-cause attack</strong> on the finding that opened this arc: NOX-009's ≈0.93–0.95
+  regional common mode (§9), the DL-A revisit condition. Method — NO₂ <strong>flux divergence</strong> (Beirle et al.):
+  form the horizontal flux <em>flux = TVCD × ERA5 wind</em>, then take its divergence <em>∇·flux</em>, which isolates the
+  local source term and — in principle — separates the Tangshan steel source from the advected North-China-Plain
+  background that dominates the raw column. The build was gated behind a <strong>T1 feasibility spike</strong>
+  (single-overpass, then an EXTENDED multi-overpass SNR-vs-N scaling curve), run <strong>benchmark-blind</strong> on real
+  Sentinel-5P raw-L2 swath data fetched over the verified <em>free</em> CDSE OData path (4 one-per-day overpasses,
+  2023-06-01…06-04, 1.82 GB).</p>
+
+  <div class="callout warn">
+    <h3>Verdict: POWERED NO-GO — field noise fell 3.4× but the SNR stayed flat, so there is no separable source</h3>
+    <p>Flux divergence averages the per-overpass flux (each with its own wind, so advection dipoles cancel) then takes
+    the divergence; field noise should fall ~1/√N as overpasses are oversampled. The decisive question is whether the
+    co-located source <em>separates</em> (SNR climbs toward the ≥1.5 floor) or stays flat as noise falls:</p>
+    <table>
+      <thead><tr><th>N (overpasses)</th><th>SNR</th><th>coloc_ratio</th><th>noise (MAD, mol m⁻² s⁻¹)</th><th>~noise(1)/√N</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="pos">+0.27</td><td>2.06</td><td>3.618e-08</td><td>3.618e-08</td></tr>
+        <tr><td>2</td><td class="pos">+0.22</td><td>2.29</td><td>1.770e-08</td><td>2.558e-08</td></tr>
+        <tr><td>4</td><td class="pos">+0.27</td><td>1.80</td><td>1.068e-08</td><td>1.809e-08</td></tr>
+      </tbody>
+    </table>
+    <p>The field noise averaged <strong>down 3.4×</strong> (from 3.62e-08 to 1.07e-08 — <em>faster</em> than 1/√N, so the
+    oversampling+divergence machinery works exactly as theory predicts), yet the SNR stayed <strong>flat near +0.27</strong>.
+    A real localised source would hold the source-vs-background numerator constant while the noise fell, so the SNR would
+    climb ~√N; instead the numerator falls in lockstep with the noise (footprint source-term median
+    <code>E=8.15e-09</code> vs background <code>5.31e-09</code>, both far below the <code>1.07e-08</code> noise) — there is
+    <strong>no persistent steel source term above the background</strong>. High NO₂ does stay co-located with the plants
+    (coloc_ratio 1.8–2.3), but that is expected — the plants sit in the cluster's NO₂ core — and flux divergence cannot
+    turn co-location into a separable SOURCE here. Per ERR-002 the build STOPS and escalates; tasks T2–T14 were
+    intentionally not built (the spec-anticipated terminal state of a NO-GO gate). This <strong>closes the DL-A revisit
+    condition decisively.</strong></p>
+  </div>
+
+  <p style="color:var(--muted);font-size:14px"><strong>Honest limit (stated, not smoothed):</strong> only 4 of the
+  developer-authorised ~10–12 overpasses completed — the CDSE zipper endpoint throttled sustained pulls to ~1.6 MB/s.
+  N=4 is argued <em>decisive</em> because the SNR scales only ~√N and is already flat while the noise fell 3.4×; the
+  trend, not the absolute N, carries the verdict. No larger run was faked. The free CDSE raw-L2 OData path was verified
+  live (Q1); a full multi-year run means ~2.3 TB of download transfer (OData has no server-side spatial subset — whole
+  orbits are clipped after download), which is server-class and <strong>not justified by this null</strong> (Q2).</p>
+
+  <h3>The fifth convergent honest-null in the arc</h3>
+  <p>NOX-005 was the last open escape route — the root-cause method aimed directly at the regional common mode — and it
+  points the same way as its four predecessors:</p>
+  <ul>
+    <li><strong>NOX-009 (§9)</strong> — the steel-local <em>change-variance</em> share is ≈0 once the regional common
+    mode is removed.</li>
+    <li><strong>NOX-012 (§10)</strong> — the continuous coupling is weak/near-null and the 2023 peak is a scan-maximum
+    artefact.</li>
+    <li><strong>NOX-011 (§11)</strong> — no valid public physical proxy exists (FIRMS is crop-residue burning; VNF
+    Nightfire is pay-gated).</li>
+    <li><strong>NOX-013 (§12)</strong> — at fixed defaults, no NO₂ feature beats or leads the CREA incumbent.</li>
+    <li><strong>NOX-005 (this section)</strong> — even the root-cause flux-divergence method finds no separable point
+    source above the North-China-Plain background.</li>
+  </ul>
+  <p>Taken together across the arc: <strong>the public-data satellite-NO₂ approach cannot isolate the Tangshan steel
+  signal from the regional background.</strong> This is a first-class negative result, consistent with the prior four,
+  not a failed build. The T1 infrastructure (<code>noxus/fluxdiv/</code> + <code>noxus/data/tropomi_l2.py</code> + the
+  frozen <code>FluxDivergenceConfig</code> + the <code>flux-divergence --probe</code> CLI) stays in the tree as
+  <strong>dormant scaffolding</strong>: it re-arms only if a genuinely separable source is ever supplied, and it never
+  fabricates one.</p>
+  <p style="color:var(--muted);font-size:14px"><strong>Scale caveat (always stated):</strong> Tangshan is ~13% of
+  national steel — this is a cluster signal; Hebei-provincial statistics are preferred where available.
+  Reproduce: <code>uv run noxus flux-divergence --probe</code> (frozen <code>FluxDivergenceConfig</code>)
+  → <code>data/derived/fluxdiv/fluxdiv_probe.txt</code> (the source of every number above).</p>
+
+  <h2 id="takeaways">14 · Takeaways &amp; next probes</h2>
   <ul>
     <li><strong>No fixed lag exists</strong> — the offset is seasonal/unstable. The catalyst's symmetric
     match window is correct; report leads per regime.</li>
@@ -548,8 +616,14 @@
     r=−0.014 p<sub>perm</sub>=0.815; residual_activity r=+0.063 p<sub>perm</sub>=0.290; both CIs span zero, both
     lag CREA), and no valid physical proxy exists. Tasks T2–T14 were not built — the spec-anticipated terminal
     state. This is the <strong>fourth convergent honest-null</strong> (with §9, §10, §11): the continuous NO₂
-    residual is not an investment-grade nowcast for this cluster. Remaining levers stay flux divergence (NOX-005)
-    or a multi-overpass sensor (GEMS).</li>
+    residual is not an investment-grade nowcast for this cluster.</li>
+    <li><strong>Flux divergence finds no separable steel source (NOX-005, §13).</strong> The root-cause method
+    aimed at NOX-009's regional common mode returned a <strong>powered NO-GO</strong>: across N=1→4 real overpasses
+    the field noise fell 3.4× while the SNR stayed flat near +0.27 (footprint source-term ≈ background, both below
+    noise) — no persistent point source above the North-China-Plain background. This is the <strong>fifth convergent
+    honest-null</strong> and closes the DL-A revisit condition. It also closes flux divergence as a lever; the only
+    remaining avenue is a diurnal multi-overpass sensor (GEMS, NOX-007). Honest limit: 4 of ~12 authorised overpasses
+    (CDSE throttling), argued decisive on the flat SNR-vs-N trend.</li>
     <li><strong>Don't over-read −0.35</strong> — it's a whole-sample trend crossing, not intra-period
     inversion.</li>
     <li><strong>Economy link is below noise</strong> on partial data — revisit after the full fetch + the

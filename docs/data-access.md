@@ -82,6 +82,29 @@ uv run noxus fetch --start 2019-01-01                        # full record (resu
 AOI with the steel facilities overlaid (PNGs under `data/derived/verification/`), optionally with a
 Sentinel-2 optical thumbnail to confirm a plant is physically there.
 
+### Free CDSE raw-L2 OData swath path (NOX-005 flux divergence)
+
+`noxus fetch-l2` acquires the **raw Level-2 swath** product (`S5P_*_L2__NO2___` OFFL) — distinct from
+the gridded openEO path above. Flux divergence needs the native per-pixel column geometry, which the
+openEO gridded product does not preserve, so this route reaches the granules directly:
+
+- **catalogue** — `https://catalogue.dataspace.copernicus.eu/odata/v1/Products` (OData search over the
+  AOI + date window);
+- **download** — `https://zipper.dataspace.copernicus.eu/odata/v1/Products` with a short-lived
+  password-grant token (same `CDSE_USERNAME`/`CDSE_PASSWORD` account login as §1, `client_id=cdse-public`).
+
+The fetcher is **host-allowlisted** (it refuses any non-CDSE / paid endpoint) and references the account
+credentials **by variable name only** — values are never logged or committed. Important cost note:
+**OData has no server-side spatial subsetting** — it delivers the *whole orbit* (~0.6 GB per granule) and
+NOXUS clips to the AOI **after** download. A bounded probe window is laptop-feasible, but a full multi-year
+record is **download-heavy** (~2.3 TB of transfer, server-class); the flux-divergence T1 gate ran only a
+bounded subset (4 overpasses, 1.82 GB) and returned a powered NO-GO, so no full run was undertaken.
+
+```bash
+uv run noxus fetch-l2 --start 2023-06-01 --end 2023-06-04     # bounded raw-L2 swath subset → data/raw/tropomi_l2/
+uv run noxus flux-divergence --probe                          # T1 feasibility gate (NOX-005)
+```
+
 ## 2. ERA5 reanalysis (meteorology) — Copernicus Climate Data Store (CDS)
 
 Meteorology — 10 m wind components (`u10`, `v10`) and boundary-layer height (`blh`) — is the dominant

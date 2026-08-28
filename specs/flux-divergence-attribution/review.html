@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Flux-divergence point-source attribution (NOX-005)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Reviewer verdict — Flux-divergence point-source attribution (T1 gate)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-005</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-divergence-attribution</code></td></tr>
+          <tr><th>Reviewer</th>      <td>reviewer subagent (Claude Opus 4.8)</td></tr>
+          <tr><th>Date</th>          <td>2026-08-28</td></tr>
+          <tr><th>Commits reviewed</th><td><code>8b61cf0</code> (single-overpass gate), <code>8974efc</code> (extended multi-overpass probe)</td></tr>
+          <tr><th>Baseline</th>      <td><code>74cae87</code> (pre-implementation spec_ready)</td></tr>
+          <tr><th>Decision</th>      <td><span class="badge badge-ready">APPROVED — powered honest-null closeout (terminal NO-GO)</span></td></tr>
+          <tr><th>Documentation</th> <td><code>required: true</code> · <code>status: updated</code> (docs re-check CLEAR 2026-08-28 &mdash; see &sect;Documentation decision)</td></tr>
+        </tbody>
+      </table>
+    </header>
+
+    <main>
+
+    <section id="summary">
+      <h2>Summary</h2>
+      <p>
+        NOX-005 is approved to close as a first-class, spec-anticipated <strong>terminal honest-null</strong>.
+        The T1 feasibility gate (AT7, REQ-015) ran benchmark-blind on real bounded CDSE raw-L2 data and
+        returned a <strong>POWERED NO-GO</strong>: across an oversampled multi-overpass run the field noise
+        averaged down 3.4&times; while the source-vs-background SNR stayed flat near +0.27 &mdash; there is no
+        persistent, spatially-separable steel source above the North-China-Plain background. Per the spec's
+        ERR-002 stop-and-escalate rule a NO-GO stops the build, so tasks T2&ndash;T14 are intentionally
+        <em>not</em> implemented. This is the designed-for outcome, not an incomplete implementation.
+      </p>
+      <p>
+        The core validity question &mdash; is the null real or a mechanical artefact where numerator and
+        denominator move together regardless of a true source &mdash; is answered decisively: the SNR numerator
+        (footprint-vs-background location contrast) and denominator (background dispersion) are computed from
+        <strong>independent statistics</strong>, and a planted-source unit test shows the SNR <em>does</em> climb
+        with N when a source is present. The flat-SNR inference is sound.
+      </p>
+    </section>
+
+    <section id="traceability">
+      <h2>Requirement / gate traceability</h2>
+      <table class="req-table">
+        <thead><tr><th>Item</th><th>Spec anchor</th><th>Evidence</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Three-way verdict + data gate (GO / GO-degraded / NO-GO / NO-GO-DATA)</td>
+            <td>AT7, REQ-015, ERR-002</td>
+            <td><code>decide_verdict</code> / <code>decide_powered_verdict</code> (probe.py:382-421); all four branches unit-tested (test_probe.py:59-88, 211-221)</td>
+            <td>Met</td>
+          </tr>
+          <tr>
+            <td>Benchmark-blind coherence over the cluster (co-location + signal-vs-noise)</td>
+            <td>AT7, AT3, NFR-002</td>
+            <td><code>_coherence_from_e</code> (probe.py:177-251); no CREA reference anywhere in the fluxdiv path</td>
+            <td>Met</td>
+          </tr>
+          <tr>
+            <td>Verdict + evidence + measured compute profile written to artifact</td>
+            <td>AT7, AT8, NFR-008</td>
+            <td><code>data/derived/fluxdiv/fluxdiv_probe.txt</code>; Q2 extrapolation ~2303 GB, scale caveat present</td>
+            <td>Met</td>
+          </tr>
+          <tr>
+            <td>NO-GO stops the build (ERR-002 escalate)</td>
+            <td>AT7 negative expectation</td>
+            <td><code>escalate=True</code> on NO-GO/NO-GO-DATA; T2&ndash;T14 not implemented; CLI refuses the full run without a GO (main.py:81-82)</td>
+            <td>Met (terminal)</td>
+          </tr>
+          <tr>
+            <td>Free CDSE raw-L2 path (Q1) verified live; paid sources refused</td>
+            <td>REQ-001, AT-ERR-3, ERR-005, NFR-001</td>
+            <td><code>_assert_free_source</code> host allowlist (tropomi_l2.py:98-107); <code>PaidSourceError</code> test (test_probe.py:227-233)</td>
+            <td>Met</td>
+          </tr>
+          <tr>
+            <td>Bounded, laptop-feasible subset; no full download; NO-GO-DATA without heavy download</td>
+            <td>NFR-001, AT-ERR-3</td>
+            <td>download-budget cap; <code>test_probe_reports_no_go_data_without_heavy_download</code> (compute is None)</td>
+            <td>Met</td>
+          </tr>
+          <tr>
+            <td>Reused modules + relative-index pipeline unaffected</td>
+            <td>NFR-003/004/007, AT-REG-1</td>
+            <td>Empty diffs for all six reused modules vs baseline (see below)</td>
+            <td>Met</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="crux">
+      <h2>Validity of the powered-null argument (the crux)</h2>
+      <p>
+        The claim is: &ldquo;noise fell 3.4&times; while SNR stayed flat &rarr; no separable source.&rdquo; I checked
+        whether this could be a bug that moves numerator and denominator together mechanically.
+      </p>
+      <ul>
+        <li>
+          <strong>Numerator and denominator are independent statistics.</strong> In <code>_coherence_from_e</code>
+          (probe.py:216-221) the numerator is <code>median(E[footprint]) &minus; median(E[background])</code> &mdash;
+          a <em>location contrast</em> &mdash; while the denominator is <code>1.4826 &times; MAD(E[background])</code> &mdash;
+          a <em>dispersion</em> of a different quantity. They are not algebraically linked. A localized persistent
+          source raises the footprint median while the background dispersion falls under oversampling, so SNR
+          climbs ~&radic;N. A pure-noise field has a numerator that is itself a noise-scale quantity, so it falls
+          in lockstep with the denominator and SNR stays flat. This is exactly the observed behaviour.
+        </li>
+        <li>
+          <strong>Averaging genuinely reduces noise.</strong> <code>_mean_source_field</code> (probe.py:273-302)
+          averages the per-overpass <em>flux</em> fields (each with its own ERA5 wind) via <code>nanmean</code>, then
+          takes the divergence once. Divergence is linear, so independent per-overpass noise in the mean flux falls
+          ~1/&radic;N in E. The measured curve confirms it (noise 3.62e-08 &rarr; 1.07e-08 at N=4, even faster than
+          1/&radic;N as coverage gaps also fill).
+        </li>
+        <li>
+          <strong>A source-present control exists and genuinely discriminates.</strong>
+          <code>test_multi_overpass_oversampling_separates_source_as_noise_falls</code> (test_probe.py:177-193) plants
+          a real co-located Gaussian source over 8 synthetic overpasses with winds spread around the circle and asserts
+          <em>both</em> that noise falls (<code>curve[-1].e_noise &lt; curve[0].e_noise</code>) <em>and</em> that SNR
+          <em>rises</em> (<code>curve[-1].snr &gt; curve[0].snr</code>). Its twin
+          <code>test_multi_overpass_background_only_stays_flat_and_powers_no_go</code> (test_probe.py:196-208) uses the
+          same machinery with no bump and asserts a flat, NO-GO outcome. The pair confirms the diagnostic distinguishes
+          source-present from source-absent &mdash; so the real-data flat SNR is a true null, not an artefact.
+        </li>
+      </ul>
+      <p class="callout">
+        Conclusion: the powered-null inference is <strong>valid</strong>. The N=4 stop is honestly hedged in the
+        report (&ldquo;bounded budget&rdquo;) and is defensible because SNR scales only ~&radic;N and is already flat while
+        noise fell 3.4&times;.
+      </p>
+    </section>
+
+    <section id="antiphacking">
+      <h2>Anti-p-hacking</h2>
+      <ul>
+        <li><strong>Benchmark-blind:</strong> no <code>CREA</code> read anywhere in <code>noxus/fluxdiv/</code> or
+          <code>noxus/data/tropomi_l2.py</code>. The only matches are doc-string statements of blindness and a fixed
+          date constant (<code>_ERA_START</code>) used solely to extrapolate the Q2 compute cost.</li>
+        <li><strong>Frozen defaults:</strong> <code>FluxDivergenceConfig</code> is <code>@dataclass(frozen=True)</code>;
+          all verdict thresholds (<code>snr_go=3.0</code>, <code>snr_degraded=1.5</code>, <code>coloc_go=1.5</code>,
+          <code>coloc_degraded=1.0</code>, <code>hotspot_top_frac=0.05</code>) are fixed pre-outcome constants.</li>
+        <li><strong>No new estimator smuggled in:</strong> the T1 chain is the minimal Beirle oversample&rarr;flux&rarr;
+          divergence(+V/&tau;) with private helpers; the full T3/T4/T5 estimators are not present.</li>
+      </ul>
+    </section>
+
+    <section id="reuse">
+      <h2>Reused modules unchanged</h2>
+      <p><code>git diff 74cae87 HEAD -- &lt;file&gt;</code> is empty for every reused module:</p>
+      <ul>
+        <li><code>noxus/validation/robust.py</code> &mdash; 0 diff lines</li>
+        <li><code>noxus/validation/leadlag.py</code> &mdash; 0 diff lines</li>
+        <li><code>noxus/preprocess.py</code> &mdash; 0 diff lines</li>
+        <li><code>noxus/attribution/source.py</code> &mdash; 0 diff lines</li>
+        <li><code>noxus/data/era5.py</code> &mdash; 0 diff lines</li>
+        <li><code>noxus/data/tropomi.py</code> &mdash; 0 diff lines</li>
+      </ul>
+      <p>The relative-index pipeline is untouched; the change is purely additive (new
+        <code>noxus/fluxdiv/</code>, <code>noxus/data/tropomi_l2.py</code>, config surface, CLI subcommands, tests,
+        artifact). No file outside the design was modified without explanation.</p>
+    </section>
+
+    <section id="security">
+      <h2>Public/free + security</h2>
+      <ul>
+        <li><strong>No paid source:</strong> <code>_assert_free_source</code> rejects any host outside the CDSE
+          allowlist with <code>PaidSourceError</code> (ERR-005); asserted before token, search, and every download.</li>
+        <li><strong>Secrets by name only:</strong> credentials are read via <code>os.environ.get(cfg.env_username)</code>
+          / <code>env_password</code> (<code>CDSE_USERNAME</code>/<code>CDSE_PASSWORD</code>); values are never logged and
+          no <code>.env</code> file is opened by the code. Error messages reference variable names only.</li>
+        <li><strong>Raw granules gitignored:</strong> <code>git check-ignore data/raw/tropomi_l2/</code> confirms the
+          store is ignored; only the small text verdict artifact is committed.</li>
+        <li><strong>No data-loss / API-compat risk:</strong> additive package + subcommands; no destructive operations.</li>
+      </ul>
+    </section>
+
+    <section id="runverify">
+      <h2>Run-and-verify evidence (commands I ran)</h2>
+      <table class="req-table">
+        <thead><tr><th>Command</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>uv run pytest -q</code></td><td><strong>293 passed</strong> in 9.55s</td></tr>
+          <tr><td><code>uv run pytest tests/fluxdiv/test_probe.py -q</code></td><td><strong>13 passed</strong></td></tr>
+          <tr><td><code>uv run ruff check .</code></td><td><strong>All checks passed</strong></td></tr>
+          <tr><td><code>git diff 74cae87 HEAD -- &lt;6 reused modules&gt;</code></td><td>all empty</td></tr>
+          <tr><td><code>git diff --stat 74cae87 HEAD</code></td><td>only additive fluxdiv/tropomi_l2/config/cli/tests/artifact + tasks.json</td></tr>
+          <tr><td><code>git check-ignore data/raw/tropomi_l2/</code></td><td>ignored (confirmed)</td></tr>
+          <tr><td>grep for CREA/benchmark in fluxdiv path</td><td>no benchmark read (only blindness statements + Q2 date constant)</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Unverified item:</strong> the live CDSE network fetch was not re-exercised in this review (no
+        credentials in the review environment). The committed artifact records the developer's live run (4 granules,
+        1.82 GB); the same code path is covered offline by <code>test_probe_runs_end_to_end_on_a_real_granule_file</code>
+        (real on-disk L2-shaped granule, network stubbed).</p>
+    </section>
+
+    <section id="highrisk">
+      <h2>High-risk review record</h2>
+      <ul>
+        <li><strong>Categories touched:</strong> external dependency / API (new free CDSE OData raw-L2 access path;
+          credential handling). Not auth/payments/migrations/infra. Security-relevant only via credential handling.</li>
+        <li><strong>External dependencies &amp; freshness:</strong> CDSE OData catalogue + password-grant token + zipper
+          download, reusing the existing NOX-002a <code>CDSE_USERNAME</code>/<code>CDSE_PASSWORD</code> pattern; free
+          <code>cdse-public</code> client. Host allowlist pins the free endpoints. Evidence for the credential-handling
+          rung is recorded (env-name-only, no logging, no <code>.env</code> read, allowlist-guarded). Adequate for this
+          additive, read-only fetch.</li>
+        <li><strong>Escalation rungs run:</strong> standard review + a security-focused pass on the credential/allowlist
+          surface (rung 2). No adversarial second pass or paid deep-review mode was run &mdash; not warranted: the change
+          is read-only public-data acquisition with no secret exposure, no mutation, and a fully offline-tested code path.</li>
+        <li><strong>Security findings:</strong> none. <strong>Edge cases:</strong> calm-wind &rarr; (0,0) flagged not
+          fabricated; all-NaN cells &rarr; NaN not interpolated; insufficient pixels &rarr; NO-GO not a fabricated GO.</li>
+      </ul>
+    </section>
+
+    <section id="findings">
+      <h2>Findings</h2>
+      <h3>Blocking</h3>
+      <p><strong>None.</strong></p>
+
+      <h3>Non-blocking (resolve or record deferral before <code>done</code>)</h3>
+      <ol>
+        <li>
+          <strong>Honest-limit disclosure is in the commit + config comment but not in the committable artifact.</strong>
+          The commit message and <code>FluxDivergenceConfig</code> comment (run.py:608-612) clearly state that CDSE
+          throttling limited the run to 4 of the developer-authorized ~10&ndash;12 overpasses. The standalone artifact
+          <code>fluxdiv_probe.txt</code> presents N=4 as the plan without flagging that it is a throttled subset of the
+          authorization. For full standalone transparency, the throttling limitation should be stated in the artifact's
+          Interpretation block and/or in the new <code>exploration-results.html</code> section. Recommend the documenter
+          carries this; not blocking because the disclosure demonstrably exists in the commit record and config.
+        </li>
+        <li>
+          <strong>Minor (observation, no fix required):</strong> the real curve reached only N=4 (points at N=1,2,4)
+          while the discriminating unit test uses N=8, and <code>coloc_ratio</code> wobbles (2.06&rarr;2.29&rarr;1.80).
+          The report already hedges this correctly (&ldquo;bounded budget&rdquo;, &ldquo;a larger run could extend&rdquo;),
+          and the flat-SNR-while-noise-falls logic does not depend on reaching N=8. No change required.
+        </li>
+      </ol>
+    </section>
+
+    <section id="docdecision">
+      <h2>Documentation decision</h2>
+      <p><code>documentation_required: true</code> &middot; <code>documentation_status: pending</code>. The task must not
+        be marked <code>done</code> until these targets are updated (recommend invoking the <strong>documenter</strong>,
+        then a reviewer docs re-check). Targets:</p>
+      <ul>
+        <li><strong><code>docs/exploration-results.html</code></strong> &mdash; new section: NOX-005 flux-divergence as the
+          <strong>FIFTH convergent honest-null</strong> (the existing section 12 is the &ldquo;fourth convergent null&rdquo;;
+          place the new section before &sect;13 Takeaways and reconcile the &ldquo;fourth&rdquo;/&ldquo;fifth&rdquo; language).
+          Include the SNR-vs-N curve, the numerator-falls-in-lockstep interpretation, and the throttling honest-limit.</li>
+        <li><strong><code>history.html</code></strong> &mdash; summary entry for the NOX-005 T1 powered-null closeout
+          (insert after the <code>&lt;!-- INSERT-ENTRY-HERE --&gt;</code> marker).</li>
+        <li><strong><code>.claude/context/project-map.md</code></strong> &mdash; add the new <code>noxus/fluxdiv/</code>
+          package, <code>noxus/data/tropomi_l2.py</code>, the <code>flux-divergence --probe</code> and <code>fetch-l2</code>
+          CLI subcommands, and the <code>data/derived/fluxdiv/</code> artifact location.</li>
+        <li><strong><code>docs/data-access.md</code></strong> &mdash; document the new free CDSE raw-L2 OData path (catalogue
+          search + password-grant token + zipper download, host allowlist, ~0.6 GB whole-orbit granules, no server-side
+          spatial subset) and the <code>CDSE_USERNAME</code>/<code>CDSE_PASSWORD</code> credential names.</li>
+        <li><strong>Migration/API note:</strong> none beyond the above (additive; no user-facing breaking change).</li>
+      </ul>
+    </section>
+
+    <section id="declog">
+      <h2>Decision-log proposals (require developer approval &mdash; proposed only)</h2>
+      <ol>
+        <li>
+          <strong>Close DL-A decisively.</strong> Update <code>decisions/rejected-options.md</code> DL-A: the &ldquo;revisit
+          when a validated flux-divergence step lifts the steel-local change-variance share above 0&rdquo; condition is now
+          <em>resolved NO</em>. The powered T1 gate (multi-overpass oversampling, N=4, noise down 3.4&times;, SNR flat at
+          +0.27) shows flux-divergence cannot isolate a steel source above the North-China-Plain background over Tangshan.
+          The continuous-residual-only nowcast rejection therefore stands with its last open escape route closed.
+        </li>
+        <li>
+          <strong>New architecture decision:</strong> flux-divergence point-source attribution is a designed-for
+          <em>terminal honest-null</em> for the Tangshan cluster in high-background / complex-wind NE China; the measured
+          ~2.3 TB server-class full run is <strong>not justified</strong>. Record in
+          <code>decisions/architecture-decisions.md</code> with the SNR-vs-N evidence and the Q2 cost figure, and note the
+          rejected alternative (proceeding to the full multi-year run on n=1 co-location alone).
+        </li>
+      </ol>
+      <p>These are <em>proposals</em>; the reviewer does not write them. Trivial decisions are not flagged.</p>
+    </section>
+
+    <section id="docsrecheck">
+      <h2>Documentation re-check &mdash; final clearance (2026-08-28)</h2>
+      <p><code>documentation_status: pending &rarr; updated</code>. Lightweight docs-only re-check of the six
+        documenter targets against the probe evidence (<code>data/derived/fluxdiv/fluxdiv_probe.txt</code>) and
+        this review. <strong>Result: CLEAR to mark NOX-005 <code>done</code>.</strong></p>
+      <table class="req-table">
+        <thead><tr><th>Target</th><th>Check</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>docs/exploration-results.html</code></td>
+            <td>New &sect;13 &ldquo;fifth convergent null (NOX-005)&rdquo; present; SNR-vs-N table matches the probe
+              exactly (N=1 +0.27/2.06/3.618e-08; N=2 +0.22/2.29/1.770e-08; N=4 +0.27/1.80/1.068e-08); noise-fell-3.4&times;,
+              E=8.15e-09 vs 5.31e-09, &lt; 1.07e-08 noise, ~2.3 TB, 4 of ~10&ndash;12 overpasses, ~1.6 MB/s all match;
+              numerator-falls-in-lockstep interpretation, throttling honest-limit, dormant-scaffolding note all present.
+              Takeaways renumbered to &sect;14; TOC lists 14 items. NOX-013 correctly <em>remains</em> the &ldquo;fourth
+              convergent null&rdquo; (&sect;12 + takeaways); NOX-005 is the &ldquo;fifth&rdquo;. No stale &ldquo;&sect;13
+              Takeaways&rdquo; refs; no dangling section numbers.</td>
+            <td>CLEAR</td>
+          </tr>
+          <tr>
+            <td><code>history.html</code></td>
+            <td>NOX-005 closeout entry inserted immediately after <code>&lt;!-- INSERT-ENTRY-HERE --&gt;</code>, <code>done</code>
+              badge; numbers and fifth-convergent-null framing match &sect;13 and the probe; records finding-1 resolution.</td>
+            <td>CLEAR</td>
+          </tr>
+          <tr>
+            <td><code>.claude/context/project-map.md</code></td>
+            <td><code>noxus/fluxdiv/</code> package, <code>noxus/data/tropomi_l2.py</code>, <code>flux-divergence --probe</code>
+              + <code>fetch-l2</code> CLI verbs, <code>FluxDivergenceConfig</code>, and <code>data/derived/fluxdiv/</code>
+              artifact all added and described accurately.</td>
+            <td>CLEAR</td>
+          </tr>
+          <tr>
+            <td><code>docs/data-access.md</code></td>
+            <td>New &sect; documents the free CDSE raw-L2 OData path (<code>S5P_*_L2__NO2___</code> OFFL), explicitly distinct
+              from the NOX-002a openEO gridded path, no server-side spatial subset / download-heavy (~0.6 GB/orbit, ~2.3 TB
+              full run); <code>CDSE_USERNAME</code>/<code>CDSE_PASSWORD</code> referenced by <strong>name only</strong>.</td>
+            <td>CLEAR</td>
+          </tr>
+          <tr>
+            <td><code>data/derived/fluxdiv/fluxdiv_probe.txt</code></td>
+            <td>Non-blocking finding&nbsp;1 resolved: the honest-limit note (4 of ~10&ndash;12 overpasses, CDSE throttling,
+              flat-SNR-vs-N trend carries the verdict, no faked run) is appended to the Interpretation section. Artefact text
+              only; generator code untouched.</td>
+            <td>CLEAR</td>
+          </tr>
+          <tr>
+            <td><code>decisions/rejected-options.md</code></td>
+            <td>New 2026-08-28 entry &ldquo;DL-A revisit condition TESTED and resolved NO&rdquo; (newest-first, follows the
+              file's Rejected-in-favor-of / Reason / Revisit-when / Source format) + UPDATE annotation on the 2026-08-27 DL-A
+              entry. Numbers match the probe. <strong><code>decisions/architecture-decisions.md</code> was correctly NOT
+              modified</strong> (developer approved only the DL-A closure) &mdash; its absence is intended, confirmed via
+              <code>git status</code>.</td>
+            <td>CLEAR</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="callout"><strong>Final clearance:</strong> all six targets are consistent with the reviewed implementation
+        and the probe evidence; no numeric drift; no secret values anywhere (credential names only); no dangling TOC/section
+        references. Non-blocking finding&nbsp;1 is resolved; finding&nbsp;2 needed no action. <strong>CLEAR to mark NOX-005
+        <code>done</code></strong> (documenter already appended the <code>history.html</code> entry). Per remit I did not edit
+        <code>tasks.json</code> and did not commit.</p>
+    </section>
+
+    <section id="decision">
+      <h2>Final decision &amp; next state</h2>
+      <p>
+        <strong>APPROVED</strong> as a legitimate, traceable, disciplined powered honest-null closeout. NOX-005 is a
+        spec-anticipated terminal NO-GO; T2&ndash;T14 remain intentionally not implemented.
+      </p>
+      <p><strong>Next state:</strong> keep NOX-005 <code>in_progress</code> with
+        <code>documentation_required: true</code>, <code>documentation_status: pending</code>. Do <em>not</em> mark
+        <code>done</code> until: (a) the documentation targets above are updated and pass a reviewer docs re-check, and
+        (b) non-blocking finding&nbsp;1 (artifact honest-limit line) is resolved or explicitly deferred. On completion,
+        mark the T1 task item done in <code>tasks.html</code>, set status <code>done</code>, and append the
+        <code>history.html</code> entry.</p>
+      <p class="callout">Per this reviewer's remit I did <strong>not</strong> edit <code>tasks.json</code> status and did
+        <strong>not</strong> commit; the developer/orchestrator applies the state transition after documentation.</p>
+    </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

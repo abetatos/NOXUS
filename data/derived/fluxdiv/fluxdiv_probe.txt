@@ -46,4 +46,6 @@ Interpretation
   POWERED NULL. With oversampling across 4 overpasses (varied winds; noise averaging down), no coherent spatially-localised source term rises above the field noise over the plant footprints — and the SNR did NOT climb with N (flat), so this is not an n=1 artefact: it is a fair, powered NO-GO that closes the DL-A revisit condition decisively.
   Per ERR-002 the build STOPS and escalates. A null here is a first-class, designed-for result for flux-divergence in high-background/complex-wind NE China, not a failure.
 
+  HONEST LIMIT: only 4 of the ~10-12 developer-authorized overpasses completed — the CDSE zipper endpoint throttled sustained pulls to ~1.6 MB/s. N=4 is argued decisive because the SNR scales only ~sqrt(N) and is already FLAT (+0.27) while the field noise fell 3.4x: the flat SNR-vs-N TREND, not the absolute N, carries the verdict. No larger run was faked; the numbers above are the real 4-overpass result.
+
 Scale caveat: Tangshan is ~13% of national steel; this is a cluster signal, Hebei-provincial statistics preferred where available.
