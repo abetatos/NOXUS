@@ -3,7 +3,8 @@
 %     tectonic nox_convergent_nulls.tex
 % or with a TeX Live toolchain:
 %     pdflatex nox_convergent_nulls  (run twice)
-% Figures are drawn natively with pgfplots (no external image dependency).
+% Figures are drawn natively with pgfplots, except figures/wide_ring_sensitivity.png,
+% which ships alongside this file so the source directory is self-contained.
 \documentclass[11pt,a4paper]{article}
 
 \usepackage[utf8]{inputenc}
@@ -35,60 +36,61 @@
 \providecommand{\doi}[1]{DOI:~\href{https://doi.org/#1}{#1}}
 \providecommand{\ce}[1]{\ensuremath{\mathrm{#1}}}
 
+% Single point of truth for the reproducibility anchor. Update after committing the
+% derived artefacts enumerated in the Data and code availability section.
+\newcommand{\repocommit}{\texttt{b4c1dd7}}
+
 \definecolor{noxink}{HTML}{0F6B73}
 \definecolor{noxember}{HTML}{A8492C}
 \definecolor{noxgrey}{HTML}{6B6B6B}
 
-\title{\bfseries The limits of satellite \ce{NO_2} for tracking a single industrial
-cluster: five convergent null results over Tangshan, China}
+\title{\bfseries Non-separability of a single industrial cluster from its regional
+background in satellite \ce{NO_2}: a null result over Tangshan, China}
 
 \author[1]{A.~Betato}
 \affil[1]{Independent researcher --- \texttt{abetatos@gmail.com}}
-\date{28 August 2026}
+\date{31 August 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
 \noindent
-Tropospheric \ce{NO_2} from Sentinel-5P/TROPOMI is an established proxy for combustion
-activity and is increasingly proposed as a real-time economic nowcast. We test a deliberately
-harder, single-cluster case: whether a strictly public, free-data analysis can isolate the
-activity signal of \emph{one} industrial cluster --- the Tangshan blast-furnace (BF) complex in
-Hebei, China (39 located facilities, 26 active) --- and validate it against an independent
-physical benchmark, the BF operating rate published by the Centre for Research on Energy and
-Clean Air (CREA). We run five analyses, each targeting a different route by which the signal
-might be recovered, each computed blind to the validation benchmark and judged under
-autocorrelation-robust inference at parameters fixed before the benchmark was read. All five
-are negative. A change-variance decomposition attributes 93--95\% of the footprint's
-week-to-week variance to a regional common mode and the cluster-local share to $\approx\!0$. A
-hard-to-falsify thermal proxy (public NASA active-fire data) tracks neither \ce{NO_2} nor the
-benchmark, because it observes agricultural crop-residue burning rather than furnaces. The
-continuous coupling is near-null (weekly \rval{0.078}, $n=364$) and the encouraging 2023 peak in
-a rolling correlation reaches only \rval{0.276}, unsurprising under a rolling-window
-scan-maximum null ($p=0.325$). A forecasting-skill screen finds no \ce{NO_2} feature that adds
-information over the operational benchmark. Finally the physically motivated attribution method
---- \ce{NO_2} flux divergence \citep{beirle_2021,beirle_2023} --- resolves the measurement but
-not the source: across the four real overpasses we could obtain, field noise falls $3.4\times$
-while the source-to-background signal-to-noise ratio (SNR) stays near $+0.27$, so no separable
-point source is detected above the North China Plain background. A spatial-scale sweep confirms
-the null is not an artefact of one resolution. We are explicit that these five results are
-\emph{not} statistically independent: they share one \ce{NO_2} cube, one background ring and one
-benchmark, so their convergence is corroboration only against the failure modes they do
-\emph{not} share (Section~\ref{sec:shared}), and we enumerate those. Read that way, the
-interpretation is that at TROPOMI's spatial resolution the Tangshan cluster term is not
-separable from the regional background. We state which instrument could reopen the question
---- a geostationary, higher-contrast \ce{NO_2} sensor \citep{park_2025_gems_gan}. We also report two discriminating controls run against our own
-interpretation. Sweeping the background-ring radii past the plume-advection scale --- on a cube
-re-acquired over a $4.8\times$ larger area so the far rings are complete annuli --- shows the
-cluster-local variance share is \emph{ring-dependent} rather than a scale-free property of the
-cluster, and still rising at 150\,km; and scoring the same features against national steel activity shows they track the
-national target no better than Tangshan's own. Neither corroborates the spatial explanation, so we
-report it as the leading hypothesis rather than an established cause, and state precisely what
-would settle it.
+Tropospheric \ce{NO_2} from Sentinel-5P/TROPOMI is an established proxy for combustion activity
+and is increasingly proposed as a real-time economic nowcast. We test a deliberately harder,
+single-cluster case: whether a strictly public, free-data analysis can isolate the activity signal
+of \emph{one} industrial cluster --- the Tangshan blast-furnace (BF) complex in Hebei, China (39
+located facilities, 26 active) --- and validate it against an independent physical benchmark, the
+BF operating rate published by the Centre for Research on Energy and Clean Air (CREA). Five
+analyses, each targeting a different route by which the signal might be recovered, were computed
+blind to the benchmark at parameters fixed beforehand and judged under autocorrelation-robust
+inference. All five are negative. We report the outcome as an \emph{exclusion} rather than a
+failure to reject: at an effective sample size of $\approx289$ weeks, these data rule out any
+weekly linear coupling above \rval{0.17} (upper 95\% bootstrap bound), i.e.\ under 3\% of shared
+variance. A change-variance decomposition attributes 93--95\% of the footprint's week-to-week
+variance to a regional common mode. A hard-to-falsify thermal proxy (public NASA active-fire data)
+tracks neither \ce{NO_2} nor the benchmark, because it observes agricultural crop-residue burning
+rather than furnaces. The encouraging 2023 peak in a rolling correlation reaches only \rval{0.276}
+and is unremarkable under a rolling-window scan-maximum null ($p=0.325$). A forecasting-skill
+screen finds no \ce{NO_2} feature that adds information over the operational benchmark. Finally
+\ce{NO_2} flux divergence \citep{beirle_2021,beirle_2023} returns a non-detection at the four real
+overpasses we could obtain. The near-null is not an artefact of the target: the CREA Tangshan rate
+tracks a separately surveyed 247-mill national panel at \rval{0.76} in weekly changes, so
+measurement error in the benchmark cannot account for a feature correlation of $0.08$. We are
+explicit that the five results are \emph{not} statistically independent --- they share one
+\ce{NO_2} cube, one background ring and one benchmark --- so their convergence is corroboration
+only against the failure modes they do \emph{not} share (Section~\ref{sec:shared}), and we
+enumerate those. Two discriminating controls run against our own interpretation did not
+corroborate the spatial explanation: sweeping the background-ring radii to 150\,km on a
+$4.8\times$ larger cube shows the cluster-local variance share is \emph{ring-dependent} and still
+rising at the edge of the domain, and scoring the same features against national steel activity
+shows they track the national target no better than Tangshan's own. We therefore report spatial
+non-separability at TROPOMI's resolution as the leading hypothesis rather than an established
+cause, and state precisely what would settle it --- a geostationary, higher-contrast \ce{NO_2}
+sensor \citep{kim_2020_gems,park_2025_gems_gan}.
 
 \vspace{4pt}\noindent\textbf{Keywords:} tropospheric \ce{NO_2}; TROPOMI; economic nowcasting;
-iron and steel; null results; source attribution; flux divergence.
+iron and steel; null results; equivalence bounds; source attribution; flux divergence.
 \end{abstract}
 
 \section{Introduction}
@@ -139,7 +141,7 @@ Section~\ref{sec:shared}.}
 Analysis & What it tests & Key statistic & Finding \\
 \midrule
 Variance attribution & Cluster share of change-variance &
-regional 0.93--0.95; cluster-local $\approx0$ at 25--60\,km, $0.06$ at 90--150\,km &
+regional 0.93--0.95; cluster-local $\le0.014$ (95\% bd.) at 25--60\,km, $0.061$ at 90--150\,km &
 regional mode dominates; share is ring-dependent \\
 \addlinespace
 Thermal proxy & Independent thermal signature of furnaces &
@@ -147,10 +149,10 @@ Thermal proxy & Independent thermal signature of furnaces &
 proxy uninformative \\
 \addlinespace
 Regime stability & Robustness of the 2023 correlation peak &
-peak \rval{0.276}; scan-max $p=0.325$ & window artefact \\
+peak \rval{0.276}; scan-max $p=0.325$ & unremarkable under scan-max null \\
 \addlinespace
 Forecasting skill & Lead/skill over the operational benchmark &
-\rval{-0.014}\,/\,$+0.063$; neither significant & no incremental info \\
+\rval{-0.014}\,/\,$+0.063$; $|r|>0.17$ excluded & no incremental info \\
 \addlinespace
 Flux inversion & A separable point source above background &
 noise $\downarrow3.4\times$; SNR $\approx+0.27$ at $N{=}4$ & no source detected at $N{=}4$ \\
@@ -178,27 +180,34 @@ form a complete annulus beyond 63\,km.
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.60\linewidth, height=7.4cm,
+  width=0.66\linewidth, height=8.6cm,
   xlabel={longitude (\degree E)}, ylabel={latitude (\degree N)},
-  xmin=117.60, xmax=119.42, ymin=38.60, ymax=40.56,
+  xmin=116.55, xmax=120.45, ymin=37.55, ymax=41.60,
   axis equal image=false,
   tick label style={font=\footnotesize}, label style={font=\footnotesize},
   legend style={at={(1.03,0.5)},anchor=west,draw=none,font=\scriptsize,cells={anchor=west}},
   ymajorgrids, xmajorgrids, grid style={gray!18},
 ]
-% AOI rectangle: facility bounding box + 0.25 deg buffer.
+% Wide AOI re-acquired for the ring sweep: facility bbox + 1.25 deg.
+\addplot[black!45, thick, dash dot] coordinates
+  {(116.714,37.704) (120.297,37.704) (120.297,41.460) (116.714,41.460) (116.714,37.704)};
+\addlegendentry{wide AOI (bbox $+$ 1.25\degree)}
+% Committed AOI: facility bbox + 0.25 deg.
 \addplot[noxgrey, thick, dashed] coordinates
   {(117.714,38.704) (119.297,38.704) (119.297,40.460) (117.714,40.460) (117.714,38.704)};
-\addlegendentry{AOI (facility bbox $+$ 0.25\degree)}
-% Facility bounding box.
-\addplot[noxgrey, thin] coordinates
-  {(117.964,38.954) (119.047,38.954) (119.047,40.210) (117.964,40.210) (117.964,38.954)};
-\addlegendentry{facility bounding box}
-% Approximate 36 km advection scale drawn as a circle about the cluster centroid.
-\addplot[noxember, thick, dotted, domain=0:360, samples=120]
-  ({118.505+0.415*cos(x)}, {39.582+0.324*sin(x)});
-\addlegendentry{36\,km mean transport scale ($|U|\tau$)}
-\addplot[only marks, mark=*, mark size=1.7pt, noxink] coordinates {
+\addlegendentry{committed AOI ($+$ 0.25\degree)}
+% Committed background ring, 25--60 km.
+\addplot[noxink, thick, domain=0:360, samples=160] ({118.505+0.2914*cos(x)}, {39.582+0.2252*sin(x)});
+\addplot[noxink, thick, domain=0:360, samples=160] ({118.505+0.6993*cos(x)}, {39.582+0.5405*sin(x)});
+\addlegendentry{background ring 25--60\,km}
+% Outermost swept ring, 90--150 km.
+\addplot[noxember, thick, densely dashed, domain=0:360, samples=160] ({118.505+1.0490*cos(x)}, {39.582+0.8108*sin(x)});
+\addplot[noxember, thick, densely dashed, domain=0:360, samples=160] ({118.505+1.7483*cos(x)}, {39.582+1.3514*sin(x)});
+\addlegendentry{outermost swept ring 90--150\,km}
+% Mean advection scale |U|tau ~ 36 km: it falls INSIDE the committed ring.
+\addplot[black, thick, dotted, domain=0:360, samples=160] ({118.505+0.4196*cos(x)}, {39.582+0.3243*sin(x)});
+\addlegendentry{36\,km transport scale ($|U|\tau$)}
+\addplot[only marks, mark=*, mark size=1.3pt, noxink] coordinates {
 (118.503,38.954) (118.432,39.147) (118.430,39.160) (118.094,39.223) (119.034,39.258) (119.006,39.261)
 (119.025,39.268) (119.014,39.270) (119.047,39.293) (118.257,39.468) (118.272,39.497) (118.359,39.601)
 (118.475,39.611) (118.428,39.676) (118.625,39.748) (118.348,39.848) (118.559,39.881) (118.579,39.898)
@@ -206,20 +215,29 @@ form a complete annulus beyond 63\,km.
 (118.074,40.184) (118.221,40.210)
 };
 \addlegendentry{26 active BF facilities}
-\addplot[only marks, mark=o, mark size=1.7pt, noxgrey] coordinates {
+\addplot[only marks, mark=o, mark size=1.3pt, noxgrey] coordinates {
 (118.430,39.160) (118.900,39.193) (118.247,39.463) (118.716,39.518) (118.138,39.552) (118.212,39.649)
 (118.411,39.659) (118.213,39.699) (118.457,39.700) (118.468,39.731) (118.206,39.804) (118.037,39.861)
 (117.964,40.168)
 };
 \addlegendentry{13 retired/cancelled}
+% Confounders the outermost ring reaches.
+\addplot[only marks, mark=triangle*, mark size=2.6pt, black] coordinates {(117.20,39.13)};
+\addlegendentry{Tianjin urban plume}
+\node[font=\scriptsize, black!60, anchor=center, rotate=-20] at (axis cs:119.75,38.35) {Bohai Sea};
+\node[font=\scriptsize, black!60, anchor=center] at (axis cs:117.35,41.25) {Yanshan uplands};
 \end{axis}
 \end{tikzpicture}
-\caption{Study geometry. The analysis footprint is the union of 15\,km discs around the 26 active
-blast-furnace facilities (filled markers); the background reference is a 25--60\,km ring around
-that footprint. The dotted ellipse is the mean advection scale implied by the flux analysis
-(mean effective wind $|U|=2.48$\,m\,s$^{-1}$ times the assumed \ce{NO_2} lifetime $\tau=4$\,h,
-i.e.\ $\approx36$\,km), drawn as a circle in ground distance about the cluster centroid: it falls
-\emph{inside} the background ring. Section~\ref{sec:ringcaveat} treats the consequence.}
+\caption{Study geometry, and the geometric confound the ring sweep runs into. The analysis
+footprint is the union of 15\,km discs around the 26 active blast-furnace facilities (filled
+markers); the background reference of record is the 25--60\,km ring (teal). The dotted circle is
+the mean advection scale implied by the flux analysis (mean effective wind $|U|=2.48$\,m\,s$^{-1}$
+times the assumed \ce{NO_2} lifetime $\tau=4$\,h, i.e.\ $\approx36$\,km): it falls \emph{inside}
+the background ring, which is the self-subtraction concern of Section~\ref{sec:ringcaveat}(i).
+The outermost ring the sweep could form (ember, 90--150\,km; Section~\ref{sec:ringsweep}) escapes
+the advection scale but no longer samples the same air mass --- it spans the Bohai Sea to the
+south-east and reaches the Tianjin urban plume to the west. That trade-off, not computation, is
+why the sweep stops at 150\,km. Rings are drawn in ground distance about the cluster centroid.}
 \label{fig:map}
 \end{figure}
 
@@ -297,15 +315,51 @@ statistic is computed from \ce{NO_2}, meteorology and background alone; the CREA
 only at the final scoring step. No parameter anywhere in the feature path is tuned to the
 benchmark. This guards against selecting a signal into existence.
 
+\paragraph{The three \ce{NO_2} features, and how they differ.} Three derived series appear in this
+paper, and because two of them are scored at the same $n$ against the same benchmark we define all
+three here rather than let the reader infer them from context.
+
+\begin{enumerate}[leftmargin=1.6em,itemsep=0.2em,label=(\roman*)]
+  \item \textbf{Background-corrected residual} (\texttt{no2\_corrected}): the footprint column
+  minus the concentric background-ring column, period by period. This is the raw spatial contrast,
+  with no temporal model applied.
+  \item \textbf{\ce{NO_2} activity index} (\texttt{index\_value}): the background-corrected
+  residual after removing an annual harmonic, a heating-season structural term and a linear
+  meteorological control (10\,m winds, wind speed, boundary-layer height). This is the feature of
+  record for the coupling tests.
+  \item \textbf{Intensity-decomposition covariate} (\texttt{residual\_activity}): the activity
+  component of the intensity decomposition. It is the \emph{same series} as the activity index up
+  to a fixed scale factor --- their correlation is $0.999993$ --- and we say so plainly, because
+  earlier drafts reported the two as though they were independent features.
+\end{enumerate}
+
+\noindent It follows that the two headline weekly correlations against the benchmark, $+0.078$ and
+$+0.063$, are one feature under two screens, not two features: $+0.078$ ($n=364$) applies the
+$0.25$ valid-coverage screen, $+0.063$ ($n=379$) does not. Only (i), at $-0.014$ ($n=364$), is a
+genuinely different quantity. All three are reproduced by
+\texttt{analysis/benchmark\_reliability.py} from the committed series.
+
 \paragraph{Autocorrelation-robust inference.} Both series are strongly serially correlated (for
-the weekly activity index against the benchmark, effective sample size $n_{\text{eff}}\approx286$
+the weekly activity index against the benchmark, effective sample size $n_{\text{eff}}=288.7$
 of $n=364$), so the naive Pearson $p$ overstates significance. All coupling tests report,
 alongside the naive $r$: an effective sample size $n_{\text{eff}}=n(1-ab)/(1+ab)$ (with $a,b$ the
-lag-1 autocorrelations) and a Newey--West variant; a moving-block bootstrap 95\% confidence
-interval (CI) for $r$; a block-permutation null $p$; and a Benjamini--Hochberg
-false-discovery-rate (FDR) correction across the test family \citep{morris_zhang_2019}. A single
-implementation of this inference is applied unchanged across all five analyses --- which is
-convenient for consistency and is also, as Section~\ref{sec:shared} notes, a shared failure mode.
+lag-1 autocorrelations) and a Newey--West heteroskedasticity- and autocorrelation-consistent
+variant \citep{newey_west_1987}; a moving-block bootstrap 95\% confidence interval (CI) for $r$
+\citep{kunsch_1989}; a block-permutation null $p$; and a Benjamini--Hochberg false-discovery-rate
+(FDR) correction across the test family \citep{benjamini_hochberg_1995}. A single implementation of
+this inference is applied unchanged across all five analyses --- which is convenient for
+consistency and is also, as Section~\ref{sec:shared} notes, a shared failure mode.
+
+\paragraph{Reporting nulls as exclusions, not as failures to reject.} A non-significant $p$ is not
+a result; the quantity that is, is the largest effect the data can rule out. For every coupling
+test we therefore report the upper bound of the moving-block bootstrap CI on $|r|$ and the share of
+common variance it implies, alongside the minimum detectable correlation
+$1.96/\sqrt{n_{\text{eff}}-3}$ that the design could have called significant. Across the three
+features of the preceding paragraph the widest such bound is $0.167$ (activity index, screened;
+CI $[-0.024,+0.167]$, $n_{\text{eff}}=288.7$, minimum detectable $|r|=0.116$). The citable form of
+this paper's central null is therefore \emph{an observed weekly coupling of $+0.078$ with any
+coupling above $|r|=0.17$ excluded at 95\% confidence --- under 2.8\% of shared variance} --- and
+not ``no significant relationship was found''. Table~\ref{tab:equivalence} collects the bounds.
 
 \paragraph{Fixed-parameter, benchmark-blind screens.} Each analysis begins with a low-cost screen
 computed blind to the benchmark. Where a screen returns a null, the more elaborate model it would
@@ -335,9 +389,36 @@ why, for this geometry, that distinction is not cosmetic.
 
 Before the decompositions, the plain result (Fig.~\ref{fig:ts}). At the matched weekly cadence
 the deseasonalised, meteorology-controlled \ce{NO_2} activity index tracks the BF rate at
-\rval{0.078} ($n=364$, block-permutation $p=0.21$, bootstrap 95\% CI $[-0.023,+0.169]$);
+\rval{0.078} ($n=364$, block-permutation $p=0.21$, bootstrap 95\% CI $[-0.024,+0.167]$);
 monthly, \rval{0.157} ($n=90$, $p=0.24$, CI $[-0.079,+0.325]$). Neither is significant under any
-of the robust criteria.
+of the robust criteria. Stated as an exclusion rather than a non-rejection
+(Section~\ref{sec:methods}): these data rule out any weekly linear coupling above $|r|=0.17$,
+i.e.\ more than $2.8\%$ of shared variance, at 95\% confidence
+(Table~\ref{tab:equivalence}).
+
+\begin{table}[t]
+\centering
+\caption{Equivalence bounds for every \ce{NO_2} feature scored against the CREA benchmark, weekly.
+``excl.\ $|r|>$'' is the larger absolute end of the moving-block bootstrap 95\% CI --- the
+smallest coupling the data are able to rule out --- and $r^2$ is the share of common variance it
+corresponds to. ``MDC'' is the minimum detectable correlation $1.96/\sqrt{n_{\text{eff}}-3}$ at
+the autocorrelation-adjusted effective sample size, i.e.\ the smallest $|r|$ this design could
+have called significant. Features (i)--(iii) are defined in Section~\ref{sec:methods}; rows two
+and four are the same series under two coverage screens. Reproduced by
+\texttt{analysis/benchmark\_reliability.py}.}
+\label{tab:equivalence}
+\small
+\begin{tabular}{@{}lrrrcrr@{}}
+\toprule
+Feature & $n$ & $n_{\text{eff}}$ & $r$ & boot 95\% CI & excl.\ $|r|>$ & MDC \\
+\midrule
+Background-corrected residual (i)          & 364 & 295.1 & $-0.0138$ & $[-0.120,+0.081]$ & 0.120 & 0.115 \\
+\ce{NO_2} activity index (ii), screened    & 364 & 288.7 & $+0.0778$ & $[-0.024,+0.167]$ & 0.167 & 0.116 \\
+\ce{NO_2} activity index (ii), unscreened  & 379 & 291.3 & $+0.0624$ & $[-0.049,+0.157]$ & 0.157 & 0.115 \\
+Intensity-decomp.\ covariate (iii)         & 379 & 291.3 & $+0.0625$ & $[-0.049,+0.157]$ & 0.157 & 0.115 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{On the ``decoupling''.} The raw footprint \ce{NO_2} \emph{level} correlates negatively
 with the BF rate over the whole record (monthly \rval{-0.276}, $n=90$), and an earlier partial
@@ -609,25 +690,38 @@ Section~\ref{sec:regime} shows is unremarkable under a scan-maximum null.}
 \label{fig:ts}
 \end{figure}
 
-\section{No robust coupling at any spatial scale}
+\section{Results}
+\label{sec:results}
+
+\subsection{No robust coupling at any spatial scale}
 \label{sec:scale}
 
 A single-scale null invites the concern that a different AOI extent or grid resolution would
 rescue it \citep{parubets_naito_2025}. We swept AOI extent (0.25\,\degree{} vs a strict
-0.10\,\degree{} clip) $\times$ grid resolution (native vs block-averaged
-$\sim$0.1\,\degree/0.25\,\degree, by aggregation only, never interpolation) and re-judged every
-cell under the same robust\,$+$\,FDR standard. Of the 16 scale\,$\times$\,variant cells,
-\textbf{none} is significant at lag 0 and \textbf{none} of the peak-lag selections (scanned over
-17 lags) survives the block-permutation/FDR test; the sign of the levels relationship is itself
-unstable across scale, and the coarsest grid cannot resolve a source/background contrast at all.
-The tighter AOI does not rescue the signal ($\Delta|r|\approx0.02$--$0.05$). This is a
-cross-cutting robustness check on the AOI and grid parameters rather than a sixth analysis, and
-it strengthens the conclusion from ``no signal at one scale'' to ``no robust coupling at any
-reasonable scale''. Note what it does \emph{not} sweep: the background ring radii, which are held
-at 25--60\,km in every cell (Section~\ref{sec:ringcaveat}).
+0.10\,\degree{} clip) $\times$ grid resolution (native, and block-averaged to
+$\sim$0.10\,\degree, $\sim$0.15\,\degree{} and $\sim$0.25\,\degree, by aggregation only, never
+interpolation), giving 8 scale cells. Each was evaluated at two cadences (weekly, monthly)
+$\times$ four detrending variants (level, year-on-year, STL, intensity-model), i.e.\ 64 lag-0
+tests, each also re-evaluated at its selected peak lag over a 17-lag scan --- 128 tests in all ---
+and re-judged under the same robust\,$+$\,FDR standard.
 
-\section{Results}
-\label{sec:results}
+\textbf{No cell survives.} Two of the 64 lag-0 tests are nominally significant on the naive
+Pearson $p$ (the 0.10\,\degree/0.15\,\degree{} level cells: weekly \rval{-0.132},
+$p_{\text{naive}}=0.011$, block-permutation $p=0.034$; monthly \rval{-0.229},
+$p_{\text{naive}}=0.030$, $p=0.088$), and \textbf{neither survives the Benjamini--Hochberg
+correction across the family} ($p_{\text{adj}}=0.996$ for both). None of the peak-lag selections
+survives it either. We report the two nominal hits rather than the summary ``none is significant'',
+which an earlier draft carried: a family of 128 tests producing two naive-$p$ hits is exactly what
+the null predicts, and concealing them would misrepresent the sweep. The largest $|r|$ anywhere at
+lag 0 is $0.229$. The sign of the levels relationship is itself unstable across scale, and the
+coarsest grid cannot resolve a source/background contrast at all. The tighter AOI does not rescue
+the signal ($\Delta|r|\approx0.02$--$0.05$).
+
+This is a cross-cutting robustness check on the AOI and grid parameters rather than a sixth
+analysis, and it strengthens the conclusion from ``no signal at one scale'' to ``no robust
+coupling at any reasonable scale''. Note what it does \emph{not} sweep: the background ring radii,
+which are held at 25--60\,km in every cell (Section~\ref{sec:ringcaveat}).
+
 
 \subsection{The cluster-local change-variance share is $\approx0$}
 \label{sec:variance}
@@ -677,13 +771,14 @@ deseason $\cdot$ daily    & 2003 & 0.944 & 0.003 & $-0.0003$ & 0.000 & 0.052 & 0
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.86\linewidth, height=5.4cm,
-  ybar stacked, bar width=15pt,
+  name=vfull,
+  width=0.46\linewidth, height=5.4cm,
+  ybar stacked, bar width=11pt,
   ymin=0, ymax=1,
   ylabel={share of change-variance},
+  title={\footnotesize (a) full budget},
   symbolic x coords={fd$\cdot$W, ds$\cdot$W, fd$\cdot$D, ds$\cdot$D},
   xtick=data,
-  legend style={at={(1.02,0.5)},anchor=west,draw=none,font=\footnotesize},
   tick label style={font=\footnotesize},
   label style={font=\footnotesize},
   every axis plot/.append style={draw=none},
@@ -692,14 +787,41 @@ deseason $\cdot$ daily    & 2003 & 0.944 & 0.003 & $-0.0003$ & 0.000 & 0.052 & 0
 \addplot+[fill=gray!55]  coordinates {(fd$\cdot$W,0.005)(ds$\cdot$W,0.002)(fd$\cdot$D,0.005)(ds$\cdot$D,0.003)};
 \addplot+[fill=noxember] coordinates {(fd$\cdot$W,0.000)(ds$\cdot$W,0.006)(fd$\cdot$D,0.000)(ds$\cdot$D,0.000)};
 \addplot+[fill=black!25]  coordinates {(fd$\cdot$W,0.051)(ds$\cdot$W,0.040)(fd$\cdot$D,0.062)(ds$\cdot$D,0.052)};
-\legend{regional, meteo, cluster-local, noise}
+\end{axis}
+% Panel (b): the same non-regional remainder on an axis that can actually resolve it.
+\begin{axis}[
+  name=vzoom, at=(vfull.right of south east), anchor=left of south west,
+  width=0.46\linewidth, height=5.4cm,
+  ybar stacked, bar width=11pt,
+  ymin=0, ymax=0.08,
+  ylabel={}, title={\footnotesize (b) non-regional remainder, magnified},
+  symbolic x coords={fd$\cdot$W, ds$\cdot$W, fd$\cdot$D, ds$\cdot$D},
+  xtick=data,
+  legend style={at={(-0.12,-0.16)},anchor=north,draw=none,font=\footnotesize,legend columns=3},
+  tick label style={font=\footnotesize},
+  label style={font=\footnotesize},
+  ymajorgrids, grid style={gray!20},
+  every axis plot/.append style={draw=none},
+]
+\addplot+[fill=gray!55]  coordinates {(fd$\cdot$W,0.005)(ds$\cdot$W,0.002)(fd$\cdot$D,0.005)(ds$\cdot$D,0.003)};
+\addplot+[fill=noxember] coordinates {(fd$\cdot$W,0.000)(ds$\cdot$W,0.006)(fd$\cdot$D,0.000)(ds$\cdot$D,0.000)};
+\addplot+[fill=black!25]  coordinates {(fd$\cdot$W,0.051)(ds$\cdot$W,0.040)(fd$\cdot$D,0.062)(ds$\cdot$D,0.052)};
+\legend{meteo, cluster-local, noise}
+% Upper 95% bootstrap bound on the cluster-local share, the quantity the null actually excludes.
+\addplot[only marks, mark=-, mark size=5pt, thick, noxember, forget plot]
+  coordinates {(fd$\cdot$W,0.0000)(ds$\cdot$W,0.0138)(fd$\cdot$D,0.0000)(ds$\cdot$D,0.0030)};
 \end{axis}
 \end{tikzpicture}
 \caption{Change-variance budget per cell (W: weekly, D: daily; fd: first-difference, ds:
-deseasonalised). The regional common mode fills the bar; the cluster-local slice (ember) is a
-hairline, and in three of four cells its raw incremental $R^2$ is slightly \emph{negative}
-(Table~\ref{tab:variance}). Once the ring and meteorology are removed, no cluster-specific
-variance in the \emph{changes} is recoverable by this partition.}
+deseasonalised). (a) The regional common mode fills the bar, which is the finding but also makes
+everything else unreadable. (b) The same bars with the regional term removed and the axis
+magnified $12.5\times$, so the terms that are actually in contention can be seen: the
+cluster-local slice (ember) is a hairline against noise, and in three of four cells its raw
+incremental $R^2$ is slightly \emph{negative} (Table~\ref{tab:variance}). Ember tick marks in (b)
+are the upper 95\% moving-block bootstrap bounds on the cluster-local share --- the quantity the
+null excludes rather than the point estimate it reports, at most $0.014$ (weekly deseason) and
+indistinguishable from zero elsewhere. All values are at the 25--60\,km ring;
+Section~\ref{sec:ringsweep} shows they move with it.}
 \label{fig:variance}
 \end{figure}
 
@@ -817,7 +939,7 @@ Ring (km) & cells & deseason\,$\cdot$\,W & deseason\,$\cdot$\,D & first-diff (W 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{../docs/figures/exploration/wide_ring_sensitivity.png}
+\includegraphics[width=\linewidth]{figures/wide_ring_sensitivity.png}
 \caption{Left: cluster-local change-variance share against ring geometry on the $1.25\degree$ cube;
 dotted lines are the equal-octant-weighted variant. The shaded band marks the rings the
 $0.25\degree$ AOI could not form. The deseason basis rises monotonically and is still rising at the
@@ -874,22 +996,27 @@ about steel. We ran it (Table~\ref{tab:scalecontrast}).
 \begin{table}[t]
 \centering
 \caption{Scale contrast, full record, benchmark-blind features scored unchanged against targets
-ordered by spatial scale. ``Contrast'' is the paired difference $r(\text{target}) -
+ordered by spatial scale. All four targets are shown; the appendix (Table~\ref{tab:scalecontrast-full})
+reports the complete family of 24 pairings including the two sub-period splits, over which the
+BH-FDR correction is computed. ``Contrast'' is the paired difference $r(\text{target}) -
 r(\text{Tangshan})$ with a moving-block bootstrap CI on the \emph{common} sample --- not two
-marginal intervals compared by eye. BH-FDR is applied across the whole family of 24 pairings.
-\emph{Nothing in the family is robust-significant.}}
+marginal intervals compared by eye; $\dagger$ marks a contrast whose CI excludes zero.
+\emph{No pairing is robust-significant after FDR correction.}}
 \label{tab:scalecontrast}
 \small
 \begin{tabular}{@{}llcrrrr@{}}
 \toprule
 Feature & Target (scale) & cad. & $n$ & $r$ & BH $p$ & contrast vs Tangshan [95\% CI] \\
 \midrule
-intensity & Tangshan BF (cluster) & W & 379 & $+0.063$ & 0.466 & --- (baseline) \\
-intensity & national BF rate & W & 382 & $-0.094$ & 0.366 & $-0.165\;[-0.300,-0.018]$ \\
-intensity & national crude steel & M & 89  & $-0.222$ & 0.366 & $-0.360\;[-0.647,+0.034]$ \\
+intensity & Tangshan BF (cluster) & W & 379 & $+0.062$ & 0.466 & --- (baseline) \\
+intensity & national BF rate & W & 382 & $-0.094$ & 0.366 & $-0.165\;[-0.300,-0.018]$$^{\dagger}$ \\
+intensity & national crude steel & ME & 89 & $-0.222$ & 0.366 & $-0.360\;[-0.647,+0.034]$ \\
+intensity & national pig iron & ME & 89 & $-0.154$ & 0.419 & $-0.292\;[-0.532,+0.055]$ \\
+\addlinespace
 residual & Tangshan BF (cluster) & W & 364 & $-0.014$ & 0.864 & --- (baseline) \\
-residual & national BF rate & W & 367 & $-0.090$ & 0.366 & $-0.082\;[-0.233,+0.080]$ \\
-residual & national crude steel & M & 89  & $-0.120$ & 0.523 & $-0.103\;[-0.446,+0.379]$ \\
+residual & national BF rate & W & 367 & $-0.090$ & 0.366 & $-0.082\;[-0.233,+0.079]$ \\
+residual & national crude steel & ME & 89 & $-0.120$ & 0.523 & $-0.103\;[-0.446,+0.379]$ \\
+residual & national pig iron & ME & 89 & $-0.110$ & 0.554 & $-0.093\;[-0.376,+0.333]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -899,6 +1026,25 @@ too, and the paired contrast is negative throughout --- the national targets are
 anything, slightly worse than Tangshan's own. Under the pre-registered rule the outcome is
 \emph{pipeline-suspect}: no national pairing reaches $|r|=0.20$ on the primary target (best
 $0.094$), far below the $0.5$--$0.75$ range the national-scale nowcasting literature reports.
+
+One contrast is worth stating rather than absorbing into the summary. For the intensity feature
+against the national BF rate the paired difference is $-0.165\;[-0.300,-0.018]$, and that interval
+\emph{excludes zero}: the national target is tracked measurably \emph{worse} than Tangshan's own,
+not merely no better. The direction is the opposite of what the spatial reading predicts --- a
+Tangshan column dominated by a regionally coherent component should proxy the wider aggregate at
+least as well as the local one. We do not over-read a single contrast in a family of 24 whose FDR
+correction leaves nothing significant, but describing the family as uniformly null would omit its
+one directional result, and that result runs against our own interpretation.
+
+The complete family, including the two sub-period splits, is in
+Table~\ref{tab:scalecontrast-full}. We report all 24 rather than the eight full-record rows
+because three of the hidden cells reach nominal significance on the block-permutation test
+(intensity\,$\times$\,national crude steel, 2019--2021, \rval{-0.392}, $p=0.036$;
+residual\,$\times$\,national pig iron, 2022--2026, \rval{+0.306}, $p=0.037$;
+intensity\,$\times$\,national pig iron, 2019--2021, \rval{-0.365}, $p=0.059$), and all three die
+under the family-wide correction. Showing only the rows that agree with the summary, while
+computing the correction over rows the reader cannot see, would be the same scan-selection error
+that Section~\ref{sec:regime} exists to diagnose.
 
 \paragraph{Read this carefully in both directions.} It does \emph{not} establish that the pipeline
 is broken. Our feature is a Tangshan-AOI window --- $\sim$13\% of national steel, under
@@ -950,6 +1096,27 @@ furnaces run year-round and are winter-\emph{curtailed}, so a genuine furnace th
 peak in winter. The active-fire product does not detect the furnaces; the product that could
 (Nightfire) is behind a paywall. This is an informative proxy-validity result, not a claim that
 \ce{NO_2} is weak.
+
+\paragraph{The benchmark is not the weak link, and this is measurable.} The thermal route was
+meant to arbitrate feature against target and could not. A cheaper bound is available and we
+report it, because ``perhaps the trader survey is simply noisy'' would otherwise remain an
+unexamined escape from every result in this paper. CREA publishes, in the same release, a
+separately surveyed national panel --- the blast-furnace starting rate across 247 mills. Over the
+study window the Tangshan rate tracks that panel at \rval{+0.76} in weekly \emph{changes}
+($n=376$, moving-block bootstrap 95\% CI $[+0.51,+0.85]$), and at \rval{+0.26} in levels. A series
+whose week-to-week movement is $76\%$ correlated with an independently surveyed national panel is
+not dominated by survey noise. Under the usual attenuation argument its reliability is bounded
+below by that figure, so measurement error in the target caps the attainable correlation at
+$\sqrt{0.76}\approx0.87$ --- an order of magnitude above the $0.17$ this study excludes
+(Table~\ref{tab:equivalence}). The near-null cannot be explained by a noisy benchmark.
+
+We are careful about what this does not do. Both series are published by CREA from WIND inputs, so
+this bounds the target's \emph{reliability} --- its reproducibility as a measurement --- and not
+its \emph{validity}: a shared survey-methodology artefact would move the Tangshan and national
+panels together and be invisible to this test. Closing that gap needs an independent publisher,
+which Section~\ref{sec:scalecontrast} reports was gated on a probe that returned NO-GO. What the
+test removes is the specific and otherwise untestable objection that the benchmark carries too
+little signal to correlate with anything.
 
 \subsection{The continuous coupling is near-null; the 2023 peak is a scan-maximum artefact}
 \label{sec:regime}
@@ -1072,8 +1239,12 @@ The remaining route attacks the regional background directly: \ce{NO_2} \emph{fl
 $\nabla\!\cdot\!\mathbf{F}$, which isolates the local source term and should separate a Tangshan
 source from the advected background. Averaging many overpasses (each with its own wind, so
 advection dipoles cancel) should drive field noise down $\sim\!1/\sqrt{N}$. The decisive question
-is whether the co-located source \emph{separates} --- SNR climbing toward the $\ge1.5$ detection
-floor --- or stays flat as the noise falls (Table~\ref{tab:flux}, Fig.~\ref{fig:snr}).
+is whether the co-located source \emph{separates} --- SNR climbing toward the detection
+thresholds --- or stays flat as the noise falls (Table~\ref{tab:flux}, Fig.~\ref{fig:snr}). The
+pipeline fixes two such thresholds in advance: $\mathrm{SNR}\ge3.0$ for a clean detection
+(\texttt{snr\_go}) and $\ge1.5$ for a partial-but-usable one (\texttt{snr\_degraded}). Both are
+compiled-in constants, set before any real swath was processed. Figures below are referenced
+against the \emph{lower} of the two, which is the more generous test.
 
 \begin{table}[t]
 \centering
@@ -1130,14 +1301,14 @@ $N$ & SNR & co-location ratio & noise (MAD) & $1/\sqrt{N}$ noise ref. & SNR if s
 \node[font=\footnotesize, noxink,  anchor=west] at (axis cs:2.05,1.15) {noise $\downarrow3.4\times$};
 \node[font=\footnotesize, noxember,anchor=west] at (axis cs:2.05,0.34) {observed SNR};
 \node[font=\scriptsize, noxember!70,anchor=west] at (axis cs:2.6,0.68) {constant-source ref.};
-\node[font=\scriptsize, noxember,anchor=east] at (axis cs:4.25,1.58) {detection floor 1.5};
+\node[font=\scriptsize, noxember,anchor=east] at (axis cs:4.25,1.58) {degraded floor 1.5};
 \end{axis}
 \end{tikzpicture}
 \caption{Signal-to-noise ratio versus averaging depth $N$ over the four real overpasses obtained.
 Field noise (teal, left axis) falls $3.4\times$ from $N{=}1$ to $N{=}4$, which is
 \emph{faster} than the $1/\sqrt{N}$ reference (grey dashed) --- see the text: this is not the
 confirmation of theory it may appear to be. The observed SNR (solid ember, right axis) stays near
-$+0.27$, well below both the 1.5 detection floor and the dash-dotted reference showing where the
+$+0.27$, well below both the 1.5 degraded-detection floor and the dash-dotted reference showing where the
 SNR would sit if a constant source term were divided by an ideal $1/\sqrt{N}$ noise. Three points,
 one realisation each, no error bars: the figure is a description, not a test.}
 \label{fig:snr}
@@ -1157,10 +1328,23 @@ the access API offers no server-side spatial subsetting, so a full-record invers
 $\sim$2.3\,TB of transfer. Four is two to three orders of magnitude below the operating point of
 the method we are applying: the published TROPOMI point-source catalogues are built from two to
 three years of near-daily coverage, i.e.\ of order $10^2$--$10^3$ usable overpasses per location
-\citep{beirle_2021,beirle_2023}. Our own scaling argument makes the gap concrete: if SNR grows as
-$\sqrt{N}$, lifting $0.27$ to the $1.5$ floor needs $N\approx124$ from $N{=}4$ (or $N\approx31$
-from $N{=}1$) --- weeks to months of acquisition, not the full 2.3\,TB record. The throttling
-explains why we stopped at four; it does not make four sufficient.
+\citep{beirle_2021,beirle_2023}. The throttling explains why we stopped at four; it does not make
+four sufficient.
+
+We had previously offered a scaling extrapolation --- ``if SNR grows as $\sqrt{N}$, lifting $0.27$
+to the floor needs $N\approx124$ from $N{=}4$, or $N\approx31$ from $N{=}1$'' --- as an
+acquisition estimate. It is withdrawn as such, for two reasons. First, the two figures are
+mutually inconsistent under a single model, which is the signature of an extrapolation whose
+premise does not hold: $\sqrt{N}$ growth from $N{=}1$ predicts $\mathrm{SNR}(4)=0.54$, and the
+measured value is $0.27$. The data in Table~\ref{tab:flux} therefore \emph{falsify} the premise of
+the extrapolation over the only range in which we can check it. Second, the target is misstated.
+The $1.5$ threshold is the pipeline's \texttt{snr\_degraded} level --- ``partial but usable'' ---
+whereas a clean detection is defined at \texttt{snr\_go}~$=3.0$; reaching that from $0.27$ under
+the same (falsified) $\sqrt{N}$ assumption would need $N\approx494$. The defensible statement is
+conditional and we leave it in that form: \emph{if} the flat SNR over $N=1$--$4$ is sampling noise
+around a genuine $\sqrt{N}$ growth, then order $10^2$ overpasses would be required to reach even
+the degraded threshold; if it is not, no achievable $N$ helps. Four overpasses cannot distinguish
+the two cases, which is precisely the point of this subsection.
 
 An earlier draft argued that the \emph{flatness} of the SNR trend, rather than the absolute $N$,
 carried the verdict. We weaken that argument to what it can support. Three points with one
@@ -1334,21 +1518,43 @@ important one.
   was not assembled. No event-level dates were imputed.
   \item \textbf{Benchmark provenance.} The CREA rate is a commercial trader survey.
   Section~\ref{sec:viirs} attempted to arbitrate feature versus target with an external physical
-  proxy; it failed for instrument reasons, so the ambiguity is reduced by the benchmark-blind
-  variance and flux results (Sections~\ref{sec:variance},~\ref{sec:flux}) rather than eliminated.
+  proxy and failed for instrument reasons. What we can now bound is the target's
+  \emph{reliability}: it tracks a separately surveyed 247-mill national panel at \rval{0.76} in
+  weekly changes, so measurement error in the benchmark caps the attainable correlation near
+  $0.87$ and cannot account for the near-null (Section~\ref{sec:viirs}). Its \emph{validity}
+  remains open, because both panels share a publisher; only an independent publisher closes that,
+  and the NBS arm returned NO-GO.
   \item \textbf{Processor-version inhomogeneity.} Declared in Section~\ref{sec:data}. It
   invalidates secular-trend statements, which we have withdrawn; correlation and variance-share
   results between two series on the same cube are largely insulated from it.
 \end{itemize}
 
-\subsection{Discriminating controls: two run, five outstanding}
+\subsection{Discriminating controls: three run, five outstanding, four specified}
 \label{sec:notrun}
 
 Each of the following would discriminate between our interpretation and a live alternative. C1 and
 C2 have since been run and are reported in Sections~\ref{sec:ringsweep}
 and~\ref{sec:scalecontrast}; neither corroborated the spatial reading, and both are summarised here
-with what they leave open. C3--C7 have not been performed, and we do not claim the corresponding
-alternatives are excluded.
+with what they leave open. The benchmark-reliability bound of Section~\ref{sec:viirs} has also been
+run and does discharge one alternative --- that the target is too noisy to correlate with anything.
+C3--C7 have not been performed, and we do not claim the corresponding alternatives are excluded.
+
+We add one control the earlier list did not contain, and place it first because it is the one whose
+absence most weakens the paper.
+
+\begin{enumerate}[leftmargin=1.6em,itemsep=0.3em,label=\textbf{C0.}]
+  \item \textbf{Pipeline positive control --- \emph{not run, and the most consequential omission}.}
+  Every result in this paper is a null, which means a defective feature path and a genuinely absent
+  steel signal are observationally identical here. Nothing in the study currently distinguishes
+  them, and Section~\ref{sec:scalecontrast}'s \emph{pipeline-suspect} verdict is the direct
+  consequence. The discriminating test is cheap and needs no new data: run the identical
+  footprint-minus-ring pipeline against \ce{NO_2} perturbations over this same AOI that are large,
+  externally documented and not in dispute --- the February 2020 control period, the Spring
+  Festival cycle, the 2022 Winter Olympics controls. If the pipeline recovers them, the null in
+  this paper is a statement about the steel signal. If it does not, the paper's central claim is
+  not interpretable. We state plainly that we have not run it, and that until it is run the results
+  here should be read as conditional on the pipeline being sound.
+\end{enumerate}
 
 \begin{enumerate}[leftmargin=1.6em,itemsep=0.3em,label=\textbf{C\arabic*.}]
   \item \textbf{Background-ring radius sensitivity --- \emph{run}, Section~\ref{sec:ringsweep}.}
@@ -1394,7 +1600,12 @@ alternatives are excluded.
   emissions, suppress exactly the signal we are looking for at the time of year it should be
   strongest. Testing this requires a multiplicative (log-space) or explicitly
   lifetime-weighted formulation, which we did not run. This is not addressed anywhere in the
-  analyses above, and it is a plausible route by which a real signal could have been cancelled.
+  analyses above, and it is a plausible route by which a real signal could have been cancelled ---
+  the only one we have identified that could \emph{reverse} the null rather than merely qualify it.
+  The decisive step in any such test is a synthetic control in the opposite direction to the usual
+  one: inject a known seasonal \emph{multiplicative} gain and confirm that the additive estimator
+  loses it. Without that step a negative result from the multiplicative arm would be
+  uninterpretable.
   \item \textbf{Processor-version harmonisation.} Re-acquire with per-overpass processor version
   recorded, and apply the published inter-version corrections, before making any claim
   about secular change (Section~\ref{sec:data}).
@@ -1403,14 +1614,22 @@ alternatives are excluded.
 \section{What could reopen the question}
 \label{sec:reopen}
 
-\paragraph{Within this dataset.} C1 and C2 have been run and did not corroborate the spatial
-reading (Sections~\ref{sec:ringsweep},~\ref{sec:scalecontrast}). What each leaves open is now the
-priority: an independent-publisher benchmark, so the CREA/WIND provenance gap closes. The wider
-cube that C1 asked for has since been acquired and swept, and it closed the computational question
-without closing the physical one --- the share does not plateau by 150\,km, and past that radius the
-ring is no longer the same air mass. Pushing the ring further is not a route we recommend. Of the remainder, C3 and C4 are what would make
-Section~\ref{sec:flux} a powered result, and C6 is the one physical mechanism we identify that
-could plausibly have cancelled a real signal.
+\paragraph{Within this dataset.} The priority is C0. Until the pipeline is shown to recover a
+\ce{NO_2} perturbation it ought to recover, every other control refines the interpretation of a
+result whose validity is unestablished, and Section~\ref{sec:scalecontrast}'s
+\emph{pipeline-suspect} verdict stands undischarged. It is also the cheapest of the eight: it needs
+no acquisition and no new estimator.
+
+C1 and C2 have been run and did not corroborate the spatial reading
+(Sections~\ref{sec:ringsweep},~\ref{sec:scalecontrast}). What each leaves open is an
+independent-publisher benchmark, so the CREA/WIND provenance gap closes --- noting that the
+reliability half of that concern is now bounded (Section~\ref{sec:viirs}) and only the validity
+half remains. The wider cube that C1 asked for has since been acquired and swept, and it closed the
+computational question without closing the physical one --- the share does not plateau by
+150\,km, and past that radius the ring is no longer the same air mass. Pushing the ring further is
+not a route we recommend. Of the remainder, C3 and C4 are what would make Section~\ref{sec:flux} a
+powered result, and C6 is the one physical mechanism we identify that could plausibly have
+cancelled a real signal outright.
 
 \paragraph{Unlikely to help.} Additional TROPOMI overpasses under the current processing, finer
 de-seasonalisation of the additive kind, de-weathering (bounded to $\sim$0.4\% of change-variance
@@ -1437,6 +1656,15 @@ Plain regional background, and shows no demonstrable skill over the operational 
 analyses along five different recovery routes return the same answer. That much is robust: it does
 not depend on the background ring, the choice of target, or any single change basis.
 
+Stated as the exclusion it is rather than as a failure to reject: at an effective sample size of
+$\approx289$ weeks, these data rule out any weekly linear coupling above $|r|=0.17$ --- under
+$2.8\%$ of shared variance --- between a public-data Tangshan \ce{NO_2} feature and the
+cluster's blast-furnace operating rate (Table~\ref{tab:equivalence}). That bound is the falsifiable
+content of this paper, and it is not a statement about the benchmark's quality: the CREA Tangshan
+rate tracks a separately surveyed 247-mill national panel at \rval{0.76} in weekly changes
+(Section~\ref{sec:viirs}), so its own measurement error caps the attainable correlation near
+$0.87$, five times the bound we exclude.
+
 What we cannot do is name the cause with confidence. The most economical account --- that the
 binding constraint is spatial, the cluster and its background being inseparable at TROPOMI's
 resolution --- had two cheap, discriminating predictions, and we tested both. Neither came back in
@@ -1453,20 +1681,131 @@ the instrument and the data that would settle the question. Well-characterised n
 a measurement discipline learns where its instruments stop; a null whose own weak points are left
 unstated is not one of them.
 
+
+\appendix
+
+\section{Complete scale-contrast family}
+\label{app:scalecontrast}
+
+\begin{table}[h]
+\centering
+\caption{All 24 feature\,$\times$\,target\,$\times$\,sub-period pairings over which the
+Benjamini--Hochberg correction of Section~\ref{sec:scalecontrast} is computed. ``nom.'' marks a
+pairing significant at $\alpha=0.05$ on the block-permutation test \emph{before} correction.
+Three pairings are nominally significant; none survives the correction, and none of them is a
+Tangshan pairing. Monthly (ME) rows carry $n\le89$ and are correspondingly weak.}
+\label{tab:scalecontrast-full}
+\footnotesize
+\begin{tabular}{@{}llllrrrcr@{}}
+\toprule
+Feature & Target & Period & cad. & $n$ & $r$ & $p$ (perm) & nom. & BH $p$ \\
+\midrule
+intensity & Tangshan BF (cluster) & 2019-2021 & W & 152 & $+0.068$ & 0.439 & -- & 0.554 \\
+intensity & Tangshan BF (cluster) & 2022-2026 & W & 226 & $+0.057$ & 0.410 & -- & 0.554 \\
+intensity & Tangshan BF (cluster) & full & W & 379 & $+0.062$ & 0.291 & -- & 0.466 \\
+\addlinespace
+intensity & national BF rate & 2019-2021 & W & 152 & $-0.142$ & 0.144 & -- & 0.383 \\
+intensity & national BF rate & 2022-2026 & W & 229 & $+0.024$ & 0.764 & -- & 0.864 \\
+intensity & national BF rate & full & W & 382 & $-0.094$ & 0.105 & -- & 0.366 \\
+\addlinespace
+intensity & national crude steel & 2019-2021 & ME & 36 & $-0.392$ & 0.036 & yes & 0.366 \\
+intensity & national crude steel & 2022-2026 & ME & 53 & $+0.065$ & 0.657 & -- & 0.789 \\
+intensity & national crude steel & full & ME & 89 & $-0.222$ & 0.062 & -- & 0.366 \\
+\addlinespace
+intensity & national pig iron & 2019-2021 & ME & 36 & $-0.365$ & 0.059 & -- & 0.366 \\
+intensity & national pig iron & 2022-2026 & ME & 53 & $+0.188$ & 0.182 & -- & 0.401 \\
+intensity & national pig iron & full & ME & 89 & $-0.154$ & 0.227 & -- & 0.419 \\
+\addlinespace
+residual & Tangshan BF (cluster) & 2019-2021 & W & 145 & $+0.098$ & 0.291 & -- & 0.466 \\
+residual & Tangshan BF (cluster) & 2022-2026 & W & 218 & $-0.016$ & 0.828 & -- & 0.864 \\
+residual & Tangshan BF (cluster) & full & W & 364 & $-0.014$ & 0.825 & -- & 0.864 \\
+\addlinespace
+residual & national BF rate & 2019-2021 & W & 145 & $-0.125$ & 0.200 & -- & 0.401 \\
+residual & national BF rate & 2022-2026 & W & 221 & $-0.005$ & 0.943 & -- & 0.943 \\
+residual & national BF rate & full & W & 367 & $-0.090$ & 0.107 & -- & 0.366 \\
+\addlinespace
+residual & national crude steel & 2019-2021 & ME & 36 & $-0.343$ & 0.103 & -- & 0.366 \\
+residual & national crude steel & 2022-2026 & ME & 53 & $+0.200$ & 0.186 & -- & 0.401 \\
+residual & national crude steel & full & ME & 89 & $-0.120$ & 0.349 & -- & 0.523 \\
+\addlinespace
+residual & national pig iron & 2019-2021 & ME & 36 & $-0.328$ & 0.122 & -- & 0.366 \\
+residual & national pig iron & 2022-2026 & ME & 53 & $+0.306$ & 0.037 & yes & 0.366 \\
+residual & national pig iron & full & ME & 89 & $-0.110$ & 0.415 & -- & 0.554 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section*{Data and code availability}
 All inputs are public and free: TROPOMI tropospheric \ce{NO_2} from the Copernicus Data Space
 Ecosystem (\texttt{SENTINEL\_5P\_L2} via openEO, and the OData/zipper route for Level-2 swaths),
 ERA5 reanalysis from the Copernicus Climate Data Store, NASA active-fire detections, and the CREA
 blast-furnace operating-rate benchmark
 (\url{https://energyandcleanair.org/}; the pinned CSV export is cited in
-\citealp{crea_steel_benchmark}). Analysis code, the derived series and every result file quoted in
-this paper are in the project repository at \url{https://github.com/abetatos/NOXUS}; the results
-reported here correspond to commit \texttt{ffe3aa9}. \textbf{A citable archived snapshot with a
-DOI has not yet been minted}; until one is, the commit hash above is the reproducibility anchor,
-and we note that a bare repository URL is a weaker guarantee than a versioned archive. All
-stochastic procedures use fixed random seeds with 5{,}000 bootstrap/permutation draws. The single
-candidate dataset requiring a licence (VIIRS Nightfire) was deliberately excluded to preserve
-reproducibility.
+\citealp{crea_steel_benchmark}). Analysis code and the derived result tables quoted here are in
+the project repository at \url{https://github.com/abetatos/NOXUS}, at commit \repocommit; the
+three intermediate \ce{NO_2} series marked below are regenerable but not redistributed.
+
+\paragraph{Artefact-to-result map.} So that no number in this paper is unanchored, every result
+section names the file it is computed from. Paths are relative to \texttt{data/derived/} unless
+marked otherwise.
+
+\smallskip
+\noindent\begin{tabular}{@{}p{0.30\linewidth}p{0.66\linewidth}@{}}
+\toprule
+Section & Artefact \\
+\midrule
+\ref{sec:scale} scale sweep          & \texttt{scale\_sensitivity.csv} \\
+\ref{sec:variance} variance          & \texttt{variance\_decomposition.csv} \\
+\ref{sec:ringsweep} ring sweep       & \texttt{wide\_ring\_sensitivity.csv}; \texttt{ring\_sensitivity.csv} (superseded first pass) \\
+\ref{sec:scalecontrast} + App.~\ref{app:scalecontrast} & \texttt{scale\_contrast.csv} \\
+\ref{sec:viirs} thermal proxy        & \texttt{viirs\_triangulation.csv} \\
+\ref{sec:viirs} benchmark reliability & \texttt{benchmark\_reliability.json} \\
+\ref{sec:regime} regime stability    & \texttt{regime\_study.csv}; \texttt{regime\_event\_study.csv} \\
+\ref{sec:nowcast} forecasting skill  & \texttt{nowcast\_probe.txt}; \texttt{catalyst\_results.json} \\
+\ref{sec:flux} flux divergence       & \texttt{fluxdiv/} \\
+\ref{sec:baseline}, Table~\ref{tab:equivalence} & \texttt{no2/steel\_activity\_index.parquet};
+\texttt{no2/steel\_footprint\_signal.parquet};
+\texttt{no2/steel\_intensity\_decomposition.parquet} \; ($\ast$) \\
+\bottomrule
+\end{tabular}
+\smallskip
+
+\noindent ($\ast$) These three series are \emph{not} committed. They are intermediate products of
+the downloaded \ce{NO_2} record, and the project's data policy publishes derived \emph{statistics}
+rather than redistributing reprocessed Copernicus holdings. They are regenerated from the public
+archive by \texttt{noxus fetch}, \texttt{noxus grid}, \texttt{noxus deseason} and
+\texttt{noxus attribute} at the committed configuration; the acquisition step needs free CDSE
+credentials. Every other artefact in the table is committed. We state this rather than let
+``in the repository'' cover a file that is not there: a reader checking
+Table~\ref{tab:equivalence} must run four commands first, and should know that before starting.
+
+\smallskip
+\begin{sloppypar}
+\noindent Table~\ref{tab:equivalence} and the benchmark-reliability result are then reproduced by
+\texttt{uv run python analysis/\allowbreak benchmark\_reliability.py}.
+\end{sloppypar}
+
+We flag one stale artefact rather than leave a reader to trip over it:
+\texttt{steel\_validation\_\allowbreak summary.txt} records an earlier run at a 5\,km
+facility
+footprint radius and reports \rval{0.072} at $n=358$. The footprint of record in this paper is
+15\,km (Section~\ref{sec:data}), giving \rval{0.078} at $n=364$; the older file is retained for
+history and is not the source of any number quoted here.
+
+\paragraph{On what ``fixed-parameter'' can be verified against.} Section~\ref{sec:methods} claims
+that every parameter was fixed before the benchmark was read, and declines to call this
+preregistration. The verifiable substitute is the repository's own history: each compiled-in
+default lives in \texttt{noxus/config/run.py} and its introducing commit carries an author
+timestamp that precedes the commit introducing the corresponding validation call. That is a
+weaker guarantee than a registry entry --- a determined author can rewrite history --- but it is
+checkable by a third party, which a bare assertion is not, and we prefer to point at it than to
+ask for trust.
+
+\textbf{A citable archived snapshot with a DOI has not yet been minted}; until one is, the commit
+above is the reproducibility anchor, and we note that a bare repository URL is a weaker guarantee
+than a versioned archive. All stochastic procedures use fixed random seeds with 5{,}000
+bootstrap/permutation draws. The single candidate dataset requiring a licence (VIIRS Nightfire)
+was deliberately excluded to preserve reproducibility.
 
 \section*{Declarations}
 \textbf{Funding.} None. \quad \textbf{Competing interests.} None declared. \quad
@@ -1474,6 +1813,19 @@ reproducibility.
 
 \begin{thebibliography}{99}
 \setlength{\itemsep}{0.15em}
+
+\bibitem[Benjamini and Hochberg(1995)]{benjamini_hochberg_1995}
+Y.~Benjamini and Y.~Hochberg.
+\newblock Controlling the false discovery rate: a practical and powerful approach to multiple
+testing.
+\newblock \emph{J. R. Stat. Soc. B}, 57(1):289--300, 1995.
+\newblock \doi{10.1111/j.2517-6161.1995.tb02031.x}.
+
+\bibitem[Beirle et al.(2011)]{beirle_2011}
+S.~Beirle, K.~F. Boersma, U.~Platt, M.~G. Lawrence, and T.~Wagner.
+\newblock Megacity emissions and lifetimes of nitrogen oxides probed from space.
+\newblock \emph{Science}, 333(6050):1737--1739, 2011.
+\newblock \doi{10.1126/science.1207824}.
 
 \bibitem[Beirle et al.(2021)]{beirle_2021}
 S.~Beirle, C.~Borger, S.~Dörner, A.~Li, Z.~Hu, F.~Liu, Y.~Wang, and T.~Wagner.
@@ -1494,6 +1846,20 @@ Copernicus Climate Change Service (C3S), Climate Data Store.
 (\texttt{reanalysis-era5-single-levels}), 2026.
 \newblock Copernicus Climate Data Store, \url{https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels}.
 \newblock \doi{10.24381/cds.adbb2d47}. Accessed 2026-06-13.
+
+\bibitem[de Foy et al.(2015)]{de_foy_2015}
+B.~de~Foy, Z.~Lu, D.~G. Streets, L.~N. Lamsal, and B.~N. Duncan.
+\newblock Estimates of power plant \ce{NO_x} emissions and lifetimes from OMI \ce{NO_2} satellite
+retrievals.
+\newblock \emph{Atmos. Environ.}, 116:1--11, 2015.
+\newblock \doi{10.1016/j.atmosenv.2015.05.056}.
+
+\bibitem[Eskes et al.(2021)]{eskes_2021_pal}
+H.~J. Eskes, J.~van Geffen, F.~Boersma, K.-U. Eichmann, A.~Apituley, M.~Pedergnana, M.~Sneep,
+J.~P. Veefkind, and D.~Loyola.
+\newblock Sentinel-5P TROPOMI \ce{NO_2} data products: readme and PAL reprocessing.
+\newblock S5P-KNMI-L2-0021-MA, Royal Netherlands Meteorological Institute, 2021.
+\newblock \url{https://sentiwiki.copernicus.eu/web/s5p-products}.
 
 \bibitem[CREA(2026)]{crea_steel_benchmark}
 Centre for Research on Energy and Clean Air.
@@ -1522,6 +1888,27 @@ H.~Hersbach et al.
 \newblock \emph{Q. J. R. Meteorol. Soc.}, 146(730):1999--2049, 2020.
 \newblock \doi{10.1002/qj.3803}.
 
+\bibitem[Goldberg et al.(2019)]{goldberg_2019}
+D.~L. Goldberg, Z.~Lu, D.~G. Streets, B.~de~Foy, D.~Griffin, C.~A. McLinden, L.~N. Lamsal,
+N.~A. Krotkov, and H.~Eskes.
+\newblock Enhanced capabilities of TROPOMI \ce{NO_2}: estimating \ce{NO_X} from North American
+cities and power plants.
+\newblock \emph{Environ. Sci. Technol.}, 53(21):12594--12601, 2019.
+\newblock \doi{10.1021/acs.est.9b04488}.
+
+\bibitem[Kim et al.(2020)]{kim_2020_gems}
+J.~Kim et al.
+\newblock New era of air quality monitoring from space: Geostationary Environment Monitoring
+Spectrometer (GEMS).
+\newblock \emph{Bull. Am. Meteorol. Soc.}, 101(1):E1--E22, 2020.
+\newblock \doi{10.1175/BAMS-D-18-0013.1}.
+
+\bibitem[K\"unsch(1989)]{kunsch_1989}
+H.~R. K\"unsch.
+\newblock The jackknife and the bootstrap for general stationary observations.
+\newblock \emph{Ann. Stat.}, 17(3):1217--1241, 1989.
+\newblock \doi{10.1214/aos/1176347265}.
+
 \bibitem[Li and Zheng(2023)]{li_zheng_2023}
 H.~Li and B.~Zheng.
 \newblock TROPOMI \ce{NO_2} shows a fast recovery of China's economy in the first quarter of 2023.
@@ -1548,6 +1935,13 @@ the 100 most populous global cities.
 \newblock \emph{J. Appl. Remote Sens.}, 12(4):042607, 2018.
 \newblock \doi{10.1117/1.JRS.12.042607}.
 
+\bibitem[Lorente et al.(2019)]{lorente_2019}
+A.~Lorente, K.~F. Boersma, K.~Yu, S.~Safieddine, and J.~P. Veefkind.
+\newblock Quantification of nitrogen oxides emissions from build-up of pollution over Paris with
+TROPOMI.
+\newblock \emph{Sci. Rep.}, 9:20033, 2019.
+\newblock \doi{10.1038/s41598-019-56428-5}.
+
 \bibitem[Morris and Zhang(2019)]{morris_zhang_2019}
 S.~D. Morris and J.~Zhang.
 \newblock Validating China's output data using satellite observations.
@@ -1566,6 +1960,21 @@ S.~Parubets and H.~Naito.
 data: evidence from local economic indicators in Japan.
 \newblock \emph{PLOS ONE}, 20(12):e0337901, 2025.
 \newblock \doi{10.1371/journal.pone.0337901}.
+
+\bibitem[Newey and West(1987)]{newey_west_1987}
+W.~K. Newey and K.~D. West.
+\newblock A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent
+covariance matrix.
+\newblock \emph{Econometrica}, 55(3):703--708, 1987.
+\newblock \doi{10.2307/1913610}.
+
+\bibitem[van Geffen et al.(2022)]{van_geffen_2022}
+J.~van Geffen, H.~Eskes, S.~Compernolle, G.~Pinardi, T.~Verhoelst, J.-C. Lambert, M.~Sneep,
+M.~ter Linden, A.~Ludewig, K.~F. Boersma, and J.~P. Veefkind.
+\newblock Sentinel-5P TROPOMI \ce{NO_2} retrieval: impact of version v2.2 improvements and
+comparisons with ground-based and other satellite data.
+\newblock \emph{Atmos. Meas. Tech.}, 15:2037--2060, 2022.
+\newblock \doi{10.5194/amt-15-2037-2022}.
 
 \bibitem[Wen et al.(2024)]{wen_2024}
 W.~Wen, Z.~Deng, X.~Ma, Y.~Xing, C.~Pan, Y.~Liu, H.~Zhang, W.~A.~N.~D. Tharaka, T.~Hua, and
