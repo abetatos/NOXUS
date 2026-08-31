@@ -1,0 +1,28 @@
+Benchmark reliability floor and equivalence bounds (paper critique B3/B4)
+==============================================================================
+Fixed parameters: seed=20260712 n_boot=5000 cadence=W coverage_screen>=0.25
+
+B3 -- Does the TARGET carry real signal?
+------------------------------------------------------------------------------
+  CREA Tangshan BF rate vs China: Blast Furnace Starting Rate (247)
+  window 2019-01-01+   n=376
+  levels          r = +0.258
+  weekly changes  r = +0.760 (block bootstrap 95% CI [+0.514, +0.850], block=7)
+
+  Read: the Tangshan series shares most of its week-to-week movement with a separately
+  surveyed 247-mill national panel, so it is not dominated by survey noise. Measurement
+  error in the target therefore cannot explain an observed feature correlation of ~0.08.
+  CAVEAT: both series are published by CREA from WIND inputs, so this bounds the target's
+  RELIABILITY, not its VALIDITY -- a shared methodology artefact would move both together.
+
+B4 -- What does the null EXCLUDE?
+------------------------------------------------------------------------------
+  feature                                 n  n_eff       r             95% CI  excl |r|>      r2    MDC
+  activity index (screened)             364  288.7 +0.0778    [-0.024,+0.167]      0.167  0.0280  0.116
+  activity index (unscreened)           379  291.3 +0.0624    [-0.049,+0.157]      0.157  0.0246  0.115
+  background-corrected residual         364  295.1 -0.0138    [-0.120,+0.081]      0.120  0.0144  0.115
+  intensity-decomposition covariate     379  291.3 +0.0625    [-0.049,+0.157]      0.157  0.0246  0.115
+
+  Overall exclusion (widest bound across features): |r| > 0.17 is ruled out at 95%,
+  i.e. the weekly coupling shares less than 2.8% of its variance with the
+  benchmark. This is the citable form of the null: an exclusion, not a failure to reject.

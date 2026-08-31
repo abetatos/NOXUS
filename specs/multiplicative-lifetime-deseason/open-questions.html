@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-020</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>multiplicative-lifetime-deseason</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B6 (2026-08-31); listed in the paper as outstanding control C6, the one identified mechanism that could have cancelled a real signal.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p><strong>1</strong> blocking question(s). Blocking questions must be answered before implementation begins; each carries a spec default so that silence is not a deadlock.</p>
+      </section>
+      <section id="questions">
+        <h2>Questions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Kind</th><th>Question</th><th>Recommendation / spec default</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td><span class='badge badge-pending'>blocking</span></td><td>If the log-space arm raises |r| but only in the heating season, is that <code>additive-artefact</code> or a seasonal sub-sample selection?</td><td>Recommendation: report it as <code>additive-artefact</code> only if the full-record statistic clears the bar; a heating-season-only improvement is a sub-period selection of exactly the kind Section 7.3 warns against, and must be reported as exploratory. The spec default is the full-record rule.</td></tr>
+            <tr><td>Q2</td><td><span class='badge badge-draft'>non-blocking</span></td><td>Should the lifetime factor vary with the meteorological covariates already in the model rather than by month alone?</td><td>Recommendation: not in this pass. It adds free parameters to an arm whose value depends on having none.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

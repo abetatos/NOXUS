@@ -1,0 +1,79 @@
+{
+  "reliability": {
+    "window_start": "2019-01-01",
+    "n": 376,
+    "panel": "China: Blast Furnace Starting Rate (247)",
+    "r_level": 0.25830485242508816,
+    "r_change": 0.7601279775953625,
+    "r_change_ci": [
+      0.5140376376517486,
+      0.8503833497615126
+    ],
+    "block": 7,
+    "reliability_floor": 0.7601279775953625,
+    "max_attainable_r": 0.8718531858032994,
+    "shared_publisher": true
+  },
+  "equivalence": [
+    {
+      "feature": "activity index (screened)",
+      "screened": true,
+      "n": 364,
+      "n_eff": 288.6510849748379,
+      "r": 0.07778488503342094,
+      "ci": [
+        -0.02383450873265291,
+        0.16737642089491783
+      ],
+      "block": 7,
+      "excluded_above_abs_r": 0.16737642089491783,
+      "excluded_above_r2": 0.028014866271592685,
+      "min_detectable_r": 0.115967990667963
+    },
+    {
+      "feature": "activity index (unscreened)",
+      "screened": false,
+      "n": 379,
+      "n_eff": 291.26821423166564,
+      "r": 0.062395409764500656,
+      "ci": [
+        -0.04929579192174933,
+        0.15673919367790548
+      ],
+      "block": 7,
+      "excluded_above_abs_r": 0.15673919367790548,
+      "excluded_above_r2": 0.024567174834799966,
+      "min_detectable_r": 0.11544036533104608
+    },
+    {
+      "feature": "background-corrected residual",
+      "screened": true,
+      "n": 364,
+      "n_eff": 295.07917617878434,
+      "r": -0.013781521600750536,
+      "ci": [
+        -0.11998488755833475,
+        0.08142024475828044
+      ],
+      "block": 7,
+      "excluded_above_abs_r": 0.11998488755833475,
+      "excluded_above_r2": 0.014396373242386233,
+      "min_detectable_r": 0.11468477684305614
+    },
+    {
+      "feature": "intensity-decomposition covariate",
+      "screened": false,
+      "n": 379,
+      "n_eff": 291.2700264692028,
+      "r": 0.062478434596781804,
+      "ci": [
+        -0.04907560592290002,
+        0.15695969012700975
+      ],
+      "block": 7,
+      "excluded_above_abs_r": 0.15695969012700975,
+      "excluded_above_r2": 0.024636344324766923,
+      "min_detectable_r": 0.11544000246693786
+    }
+  ]
+}

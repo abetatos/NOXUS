@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions &mdash; Subset resampling for the flux-divergence SNR curve</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions &mdash; Subset resampling for the flux-divergence SNR curve</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-019</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-subset-uncertainty</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B5 (2026-08-31): the paper concedes its flux figure is &ldquo;a description, not a test&rdquo;.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p><strong>0</strong> blocking question(s). Blocking questions must be answered before implementation begins; each carries a spec default so that silence is not a deadlock.</p>
+      </section>
+      <section id="questions">
+        <h2>Questions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Kind</th><th>Question</th><th>Recommendation / spec default</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td><span class='badge badge-draft'>non-blocking</span></td><td>Should the wind-rotated composite (paper control C4) be folded into this task?</td><td>Recommendation: no. C4 changes the estimator and could change the verdict; this task deliberately changes nothing but the presentation of uncertainty. Keeping them separate preserves the ability to attribute any change to one cause.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

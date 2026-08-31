@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-018</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>placebo-aoi-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B2 (2026-08-31): the study reports a near-zero share without an empirical null distribution to read it against.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The paper's load-bearing number is a cluster-local change-variance share of &asymp;&nbsp;0, and its ring sweep shows that number moves with the background geometry. What is missing is a scale for it: <em>what share does this estimator return over a footprint with no blast furnaces at all?</em> Without that, &ldquo;&asymp;&nbsp;0&rdquo; and &ldquo;0.061 at 90&ndash;150&nbsp;km&rdquo; are numbers without a null distribution. This task runs the identical pipeline over a set of matched placebo footprints elsewhere on the North China Plain that contain no BF facilities, producing the empirical distribution of the cluster-local share and of the benchmark correlation under a known-absent signal. It is the calibration that turns the paper's central statistic into an interpretable one. Unlike NOX-017 and NOX-020 it requires new acquisition, so it is gated on a feasibility probe.</p>
+      </section>
+      <section id="approach">
+        <h2>Approach</h2>
+        <h3>Gate first</h3>
+        <p>T1 is a feasibility probe and nothing else: it measures the openEO transfer volume for one placebo AOI over the full record and extrapolates. The NOX-005 precedent (a throttled portal turning a planned inversion into an N = 4 non-detection) is the reason this task does not begin with acquisition.</p>
+        <h3>Placement</h3>
+        <p>New module <code>noxus/validation/placebo_aoi.py</code>; the variance decomposition and inference stack are imported unchanged, which is the whole point &mdash; a placebo run through a different code path would test nothing.</p>
+        <h3>Why eight</h3>
+        <p>Eight placebos give a usable 5th&ndash;95th percentile range without turning a calibration into a survey. The number is fixed in advance so that it cannot be extended until the distribution says what we want.</p>
+        <h3>What a null result here means</h3>
+        <p><code>signal-indistinguishable</code> is the expected outcome and is <em>not</em> a failure: it establishes that &asymp;&nbsp;0 is what this estimator returns when there is nothing to find, which is precisely the calibration the paper currently lacks. It would also sharpen NOX-016's <em>pipeline-suspect</em> verdict, since a pipeline that returns the same answer for Tangshan and for empty plain is one whose null is uninformative about steel.</p>
+      </section>
+      <section id="external-dependencies-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Reuses the pinned dependency set in <code>pyproject.toml</code>; no version change is required by this task.</p>
+      </section>
+      <section id="risks">
+        <h2>Risks</h2>
+        <ul>
+          <li>The verdict rule must be committed before the first scoring run, or the result is a chosen verdict rather than a pre-registered one &mdash; the defect NOX-015 recorded in its own first pass.</li>
+          <li>Any deviation from the committed estimator would make the comparison to the paper's published numbers invalid; the design imports rather than reimplements.</li>
+        </ul>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

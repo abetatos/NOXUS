@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p><strong>1</strong> blocking question(s). Blocking questions must be answered before implementation begins; each carries a spec default so that silence is not a deadlock.</p>
+      </section>
+      <section id="questions">
+        <h2>Questions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Kind</th><th>Question</th><th>Recommendation / spec default</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td><span class='badge badge-pending'>blocking</span></td><td>If the COVID window is recovered in the <em>raw footprint level</em> but not in the background-corrected contrast, is that <code>pipeline-valid</code> or <code>pipeline-suspect</code>?</td><td>Recommendation: <code>pipeline-degraded</code>, reported explicitly. It would mean the estimator is sound but the ring subtraction removes region-wide events &mdash; which is exactly the self-subtraction concern of Section 6.2(i), and would be a substantive finding in its own right rather than a pipeline failure. The spec default is <code>pipeline-degraded</code>; confirm or override before implementation.</td></tr>
+            <tr><td>Q2</td><td><span class='badge badge-draft'>non-blocking</span></td><td>Should a fifth window be added for the 2021 Q4 power-rationing episode?</td><td>Recommendation: no. Its NO<sub>2</sub> signature is confounded with the simultaneous steel curtailment we are trying to measure, so it cannot serve as an independent control.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

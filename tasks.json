@@ -694,6 +694,119 @@
         "note": "Wide cube acquired in full at buffer 1.25 deg: 92 batches, 2741 overpasses, 0 failed batches, 204 MB, 79.5 min; grid 66x109 at the committed step. All seven rings are COMPLETE ANNULI (0 empty octants), which the 0.25-deg AOI could not form beyond 63 km. VERDICT domain-limited: the weekly deseason share rises monotonically 0.0070 -> 0.0612 (x8.7) with a bootstrap CI excluding zero from 40-80 km outward, the regional share falls 0.95 -> 0.76, and at the outermost ring the weekly deseason cell clears BOTH pre-registered materiality thresholds for the first time (level 0.0612, rise +0.0542) -- but alone, where the quorum is 2 of 4, and the share is STILL CLIMBING (+0.0123 vs a 0.01 plateau tolerance). The first-difference basis is a clamped zero at every radius. Net: quadrupling the AOI area and pushing the ring to 150 km did NOT produce convergence, so the ring radius does not settle over any domain this geography allows; past ~120 km the ring spans the Bohai Sea and the Tianjin plume, so a wider cube would confound the test rather than settle it. Two defects recorded and handled honestly: (1) the plateau rule was revised from a quorum to 'every measurable cell' after a pilot on 8 of 89 months showed clamped-at-zero cells satisfy a quorum by construction -- revised BEFORE the full run, disclosed with its provenance, and in the direction that makes domain-limited MORE reachable; (2) spec assumptions A2/A3 were false as written (wide grid offset sub-cell: 447 footprint cells not 448), tested rather than assumed via a registration check that reproduces every committed share to within 0.0035. 360 tests pass; ruff clean; paper 21 pp., 0 overfull."
       },
       "follow_ups": "Ring sweep closed as far as this geography allows; a still-wider cube is explicitly NOT recommended (past ~120 km the ring is a different air mass). Separating 'the ring escapes the plume' from 'the ring changes air mass' needs a directional/sectoral background, a different design. CREA/WIND provenance gap (NOX-016) stays open; C3-C7 unrun."
+    },
+    {
+      "id": "NOX-018",
+      "title": "Placebo AOI control (empirical null for the cluster-local variance share)",
+      "slug": "placebo-aoi-control",
+      "description": "SPEC_READY 2026-08-31 (full spec set authored; awaiting human approval). Paper critique B2. The paper's load-bearing number is a cluster-local change-variance share of ~0, reported against zero rather than against an empirical null. This runs the committed decomposition over >=8 matched North-China-Plain footprints containing no BF facility, giving the distribution of the share and of weekly |r| under a known-absent signal, and locates Tangshan within it as a percentile rank. signal-indistinguishable is the EXPECTED and useful outcome: it calibrates what ~0 means. Requires new acquisition over the free openEO route, so T1 is a transfer-volume feasibility gate (NOX-005 precedent). Limitation stated up front: no BF facility != no NO2 source on the North China Plain.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": [
+        "NOX-001",
+        "NOX-009",
+        "NOX-015"
+      ],
+      "spec_path": "specs/placebo-aoi-control/",
+      "approval": {
+        "human_approved": false,
+        "approved_by": null,
+        "approved_at": null,
+        "notes": "Awaiting developer approval. Do not implement."
+      },
+      "origin": "Paper review (2026-08-31): improvements proposed against paper/nox_convergent_nulls.tex.",
+      "created": "2026-08-31",
+      "spec_ready_at": "2026-08-31",
+      "open_questions_blocking": 2,
+      "documentation_required": true,
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html"
+      ]
+    },
+    {
+      "id": "NOX-019",
+      "title": "Subset resampling for the flux-divergence SNR curve",
+      "slug": "flux-subset-uncertainty",
+      "description": "SPEC_READY 2026-08-31 (full spec set authored; awaiting human approval). Paper critique B5. Section 9 reports SNR at N=1,2,4 as three points with one realisation each and no error bars, and concedes the figure is 'a description, not a test'. Avoidable at zero acquisition cost: four retained overpasses give 4 subsets of size 1 and 6 of size 2, so exhaustive enumeration yields a measured spread at N=1 and N=2 and shows whether the N=2 dip (0.22 vs 0.27) and the co-location non-monotonicity (2.06->2.29->1.80) are anything but subset noise. Presentational only -- REQ-004 forbids re-issuing the detection verdict. Prerequisite for C3 (realistic-amplitude injection). Gated on the four granules still being cached; refuses rather than silently re-downloading.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": [
+        "NOX-005"
+      ],
+      "spec_path": "specs/flux-subset-uncertainty/",
+      "approval": {
+        "human_approved": false,
+        "approved_by": null,
+        "approved_at": null,
+        "notes": "Awaiting developer approval. Do not implement."
+      },
+      "origin": "Paper review (2026-08-31): improvements proposed against paper/nox_convergent_nulls.tex.",
+      "created": "2026-08-31",
+      "spec_ready_at": "2026-08-31",
+      "open_questions_blocking": 0,
+      "documentation_required": true,
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html"
+      ]
+    },
+    {
+      "id": "NOX-020",
+      "title": "Multiplicative (log-space) deseasonalisation and lifetime weighting",
+      "slug": "multiplicative-lifetime-deseason",
+      "description": "SPEC_READY 2026-08-31 (full spec set authored; awaiting human approval). Paper critique B6, listed in the paper as outstanding control C6 -- the ONE identified mechanism that could REVERSE the null. NO2 lifetime is 2-3x longer in winter; BF curtailment is also winter-concentrated; the paper's deseasonalisation is additive and cannot remove an interaction between two seasonal cycles, so the harmonic fit may be absorbing the response along with the emissions, at exactly the season the signal should be strongest. Adds deseason_mode = additive|log|lifetime to the existing estimator (not a fork) and rescores everything. The decisive step is AC-004: a synthetic injection confirming the additive estimator LOSES a known seasonal multiplicative gain that the log estimator recovers -- without it a null-robust verdict is uninterpretable. Needs no new data.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": [
+        "NOX-003.1",
+        "NOX-009"
+      ],
+      "spec_path": "specs/multiplicative-lifetime-deseason/",
+      "approval": {
+        "human_approved": false,
+        "approved_by": null,
+        "approved_at": null,
+        "notes": "Awaiting developer approval. Do not implement."
+      },
+      "origin": "Paper review (2026-08-31): improvements proposed against paper/nox_convergent_nulls.tex.",
+      "created": "2026-08-31",
+      "spec_ready_at": "2026-08-31",
+      "open_questions_blocking": 1,
+      "documentation_required": true,
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html"
+      ]
+    },
+    {
+      "id": "NOX-021",
+      "title": "Pipeline positive control (does the pipeline recover a signal it should?)",
+      "slug": "pipeline-positive-control",
+      "description": "SPEC_READY 2026-08-31 (requirements/design/tasks/assumptions/open-questions/acceptance-tests authored; awaiting human approval). Paper critique B1. NOX-016 returned pipeline-suspect and NOTHING in the study can currently discharge it: every result is a null, so a broken feature path and a genuinely absent steel signal are observationally identical. This runs the IDENTICAL footprint-minus-ring pipeline against NO2 perturbations over the same AOI that are large, externally documented and not in dispute -- COVID Feb-2020, Spring Festival, the 2022 Winter Olympics controls, and the sourced heating-season windows. pipeline-valid converts NOX-016's verdict into a statement about SCALE rather than about CORRECTNESS; pipeline-suspect means the paper's central claim is not interpretable and must be withdrawn. Needs NO acquisition: runs on the committed cube and derived series. This is the highest-value outstanding control in the study.",
+      "sdd": true,
+      "status": "spec_ready",
+      "depends_on": [
+        "NOX-003.1",
+        "NOX-009",
+        "NOX-016"
+      ],
+      "spec_path": "specs/pipeline-positive-control/",
+      "approval": {
+        "human_approved": false,
+        "approved_by": null,
+        "approved_at": null,
+        "notes": "Awaiting developer approval. Do not implement."
+      },
+      "origin": "Paper review (2026-08-31): improvements proposed against paper/nox_convergent_nulls.tex.",
+      "created": "2026-08-31",
+      "spec_ready_at": "2026-08-31",
+      "open_questions_blocking": 1,
+      "documentation_required": true,
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html"
+      ]
     }
   ]
 }

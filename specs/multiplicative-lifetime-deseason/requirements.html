@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-020</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>multiplicative-lifetime-deseason</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B6 (2026-08-31); listed in the paper as outstanding control C6, the one identified mechanism that could have cancelled a real signal.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The tropospheric NO<sub>2</sub> lifetime is roughly two to three times longer in winter than in summer, so the column-to-emission relationship is multiplicative and seasonal. Blast-furnace curtailment is <em>also</em> seasonal and concentrated in the heating season &mdash; precisely the season of maximum column sensitivity per unit emission. The paper's deseasonalisation is additive (an annual harmonic removed from the level, plus a linear meteorological control), and an additive removal does not remove an interaction between two seasonal cycles. If the harmonic fit absorbs the seasonal component of the <em>response</em> along with the seasonal component of the emissions, it suppresses exactly the signal the study is looking for, at the time of year it should be strongest. This is the one mechanism the paper identifies that could <em>reverse</em> its null, and it needs no new data.</p>
+      </section>
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the multiplicative arm runs, the system shall recompute the weekly and monthly coupling between the NO<sub>2</sub> activity index and the CREA benchmark with the deseasonalisation performed in log space, so that a seasonally varying multiplicative gain is removed rather than a seasonally varying additive offset.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>The system shall additionally compute a lifetime-weighted variant in which the column is divided by a seasonal lifetime factor before deseasonalisation, using a fixed published seasonal lifetime climatology declared in the config, not fitted to the data.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>Both variants shall be scored against the benchmark under the same robust-inference stack, the same coverage screen and the same equivalence-bound reporting as the additive arm, so that the additive and multiplicative results are directly comparable row for row.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>The system shall re-run the change-variance decomposition on the log-space basis, adding a third change basis alongside first-difference and deseasonalised, at the committed 25&ndash;60&nbsp;km ring and at the 90&ndash;150&nbsp;km ring.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>The system shall emit a two-way verdict fixed before the run: <code>additive-artefact</code> when a multiplicative variant raises the weekly |r| above the study's 0.17 exclusion bound with block-permutation p &lt; 0.05 surviving BH-FDR across the variant family; <code>null-robust</code> otherwise.</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>The system shall write <code>data/derived/multiplicative_deseason.csv</code> and a text summary, and shall report the additive baseline in the same table rather than in prose.</span></div>
+      </section>
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span>No new acquisition. Runs on the committed weekly and daily cubes.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span>The seasonal lifetime climatology is a compiled-in constant with a literature citation in the config comment, fixed before the run.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span>Seed 20260712, 5,000 draws, matching the rest of the study.</span></div>
+      </section>
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>Log space is undefined for non-positive values. The background-corrected residual is signed and frequently negative, so the log transform applies to the <em>footprint</em> and <em>ring</em> columns separately, and the contrast is formed as a log ratio &mdash; that is the correct multiplicative analogue of the additive difference, and it must be implemented as such rather than by clipping.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Weeks whose footprint or ring column is non-positive after QA screening are refused with a reason and counted in the artefact, never clipped or imputed.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>The lifetime climatology is monthly; weekly periods spanning a month boundary take the coverage-weighted mean of the two factors.</span></div>
+      </section>
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If clipping or imputation would be required to take a logarithm, refuse the period and record it. Silent clipping would manufacture the very signal the arm is testing for.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If the verdict is <code>additive-artefact</code>, stop and escalate: that outcome overturns the paper's central null and must not be written up unattended.</span></div>
+      </section>
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The artefact carries the additive baseline, the log-space variant and the lifetime-weighted variant with identical inference columns, so the comparison is a table read rather than a prose claim.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The verdict rule is a compiled-in constant whose introducing commit predates the first scoring run.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The paper's outstanding-control C6 is replaced by a reported result with a verdict, in either direction.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The log-ratio contrast is unit-tested against a synthetic series with a known multiplicative seasonal gain, confirming that the additive estimator misses the injected signal and the multiplicative one recovers it.</span></div>
+      </section>
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> &mdash; this feature has no browser UI.</p>
+      </section>
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code>.</p>
+      </section>
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <p><code>None</code> &mdash; runs entirely on committed artefacts.</p>
+      </section>
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> &mdash; a reported result replaces an outstanding control.</li>
+          <li><code>history.html</code> &mdash; summary entry.</li>
+          <li><code>.claude/context/project-map.md</code> &mdash; only if a new top-level module or CLI verb is added.</li>
+        </ul>
+      </section>
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entry: the verdict rule and why it was fixed before the run. Proposed at review time, not written without approval.</p>
+      </section>
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class='req-id'>REQ-001</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-002</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-003</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-004</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-005</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-006</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

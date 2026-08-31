@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design &mdash; Subset resampling for the flux-divergence SNR curve</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design &mdash; Subset resampling for the flux-divergence SNR curve</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-019</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-subset-uncertainty</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B5 (2026-08-31): the paper concedes its flux figure is &ldquo;a description, not a test&rdquo;.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Section 9 of the paper reports SNR at N = 1, 2 and 4 as three points with one realisation each and no uncertainty, and says so. That is avoidable at zero acquisition cost. From four retained overpasses there are four distinct subsets of size 1 and six of size 2; computing the estimator over <em>all</em> of them gives a genuine spread at N = 1 and N = 2 and shows whether the dip at N = 2 (0.22 against 0.27) is anything but subset noise. The same resampling applies to the co-location ratio, whose non-monotonicity (2.06 &rarr; 2.29 &rarr; 1.80) the paper currently flags without being able to quantify. This does not make N = 4 a powered result &mdash; nothing can &mdash; but it replaces an admitted description with a measured spread, and it is a prerequisite for the realistic-amplitude injection of C3.</p>
+      </section>
+      <section id="approach">
+        <h2>Approach</h2>
+        <h3>Placement</h3>
+        <p>Extends the existing flux-divergence module with an exhaustive-subset driver; the estimator itself is untouched, which is the point &mdash; the same code path produces every subset.</p>
+        <h3>Why exhaustive rather than bootstrap</h3>
+        <p>With four granules the subset space is small enough to enumerate completely (4 + 6 + 4 + 1 = 15 subsets across sizes 1&ndash;4). Enumeration is exact and needs no seed; a bootstrap here would add sampling noise to an already tiny sample for no gain.</p>
+        <h3>What this does not buy</h3>
+        <p>The subsets share granules, so the spread understates true sampling variability, and no amount of resampling four overpasses produces power against a Tangshan-magnitude source. The task's honest framing is presentational, and the requirements say so (REQ-004). Power comes from C3 (realistic-amplitude injection), which this task is a prerequisite for rather than a substitute.</p>
+      </section>
+      <section id="external-dependencies-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Reuses the pinned dependency set in <code>pyproject.toml</code>; no version change is required by this task.</p>
+      </section>
+      <section id="risks">
+        <h2>Risks</h2>
+        <ul>
+          <li>The verdict rule must be committed before the first scoring run, or the result is a chosen verdict rather than a pre-registered one &mdash; the defect NOX-015 recorded in its own first pass.</li>
+          <li>Any deviation from the committed estimator would make the comparison to the paper's published numbers invalid; the design imports rather than reimplements.</li>
+        </ul>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

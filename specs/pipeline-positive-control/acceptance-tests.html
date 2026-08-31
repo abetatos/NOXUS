@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance tests &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance tests &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Acceptance tests, one per acceptance criterion, plus the regression bar.</p>
+      </section>
+      <section id="tests">
+        <h2>Tests</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Verifies</th><th>Procedure</th><th>Pass condition</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AT-001</td><td><span class='req-id ac'>AC-001</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The three-way verdict, the per-event effect sizes and the footprint-versus-ring contrast are all present in the committed artefact.</td></tr>
+            <tr><td>AT-002</td><td><span class='req-id ac'>AC-002</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The verdict rule is readable in &lt;code&gt;noxus/config/run.py&lt;/code&gt; as compiled-in constants, with its introducing commit predating the first scoring run.</td></tr>
+            <tr><td>AT-003</td><td><span class='req-id ac'>AC-003</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The paper gains a subsection reporting the verdict, and Section 8.2 (scale contrast) cross-references it, because &lt;code&gt;pipeline-valid&lt;/code&gt; is what converts NOX-016's&hellip;</td></tr>
+            <tr><td>AT-004</td><td><span class='req-id ac'>AC-004</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>Every existing test still passes and the new module carries unit tests for the verdict rule at each of its three branches.</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section id="regression">
+        <h2>Regression bar</h2>
+        <p><code>uv run pytest</code> and <code>uv run ruff check .</code> pass, and every number already published in the paper is unchanged except where this task's requirements say it changes.</p>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

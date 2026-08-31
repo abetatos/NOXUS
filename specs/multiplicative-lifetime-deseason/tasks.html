@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Tasks &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-020</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>multiplicative-lifetime-deseason</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B6 (2026-08-31); listed in the paper as outstanding control C6, the one identified mechanism that could have cancelled a real signal.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Implementation tasks. None may start before <code>human_approved</code> is recorded in <code>tasks.json</code>.</p>
+      </section>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Task</th><th>Traces to</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>T1</td><td>Add the seasonal lifetime climatology and the deseason-mode switch to the config as compiled-in constants.</td><td>REQ-002, NFR-002</td></tr>
+            <tr><td>T2</td><td>Implement the log-ratio contrast with explicit refusal on non-positive columns.</td><td>REQ-001, EDGE-001, EDGE-002</td></tr>
+            <tr><td>T3</td><td>Synthetic-injection unit test: additive estimator misses, multiplicative recovers.</td><td>AC-004</td></tr>
+            <tr><td>T4</td><td>Implement the lifetime-weighted variant.</td><td>REQ-002</td></tr>
+            <tr><td>T5</td><td>Re-run coupling and variance decomposition on all three bases; emit the artefact.</td><td>REQ-003, REQ-004, REQ-006</td></tr>
+            <tr><td>T6</td><td>Verdict rule and escalation path.</td><td>REQ-005, ERR-002</td></tr>
+            <tr><td>T7</td><td>Replace the paper's C6 entry with the reported result.</td><td>AC-003</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

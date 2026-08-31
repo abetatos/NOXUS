@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-020</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>multiplicative-lifetime-deseason</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B6 (2026-08-31); listed in the paper as outstanding control C6, the one identified mechanism that could have cancelled a real signal.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Assumption</th><th>If it does not hold</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A1</td><td>A fixed published seasonal lifetime climatology is an adequate stand-in for the AOI's actual seasonal lifetime.</td><td>Coarse, but the alternative (fitting it) is disqualifying. Recorded as a limitation whichever way the verdict falls.</td></tr>
+            <tr><td>A2</td><td>The log ratio of footprint to ring is a meaningful activity proxy.</td><td>Standard in the plume literature; it is the enhancement ratio.</td></tr>
+            <tr><td>A3</td><td>Non-positive columns after QA screening are rare enough that refusing them does not materially change n.</td><td>Verified in T2 and reported in the artefact; if n falls materially the comparison to the additive arm is confounded and must be stated.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

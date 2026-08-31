@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-016 (scale contrast) returned the verdict <strong>pipeline-suspect</strong>: the benchmark-blind NO<sub>2</sub> features track national steel activity no better than they track Tangshan's own rate, which is the opposite of what the paper's spatial explanation predicts. That verdict cannot currently be discharged, because <em>the study has never demonstrated that its pipeline recovers any signal at all</em>. Every result is a null, so a broken feature path and a genuinely absent steel signal are observationally identical. This task supplies the missing positive control: run the <em>identical</em> footprint-minus-ring pipeline against NO<sub>2</sub> perturbations over the same AOI that are large, externally documented and not in dispute. If the pipeline recovers them, the null becomes a statement about the steel signal; if it does not, the paper's central claim is not interpretable and must be withdrawn.</p>
+      </section>
+      <section id="approach">
+        <h2>Approach</h2>
+        <h3>Placement</h3>
+        <p>New module <code>noxus/validation/positive_control.py</code>, a sibling of <code>scale_contrast.py</code> and <code>paired_corr.py</code>, reusing their robust-inference helpers unchanged. New CLI verb <code>noxus positive-control</code>. New exploratory figure script <code>analysis/positive_control.py</code>.</p>
+        <h3>Estimator</h3>
+        <p>For each window <em>W</em>, form the standardised difference between the in-window mean of the deseasonalised, meteorology-controlled footprint series and the mean over a matched baseline built from the same calendar positions in the other years of the record. The matched-baseline construction is what keeps the seasonal cycle from being mistaken for an event response, and it is the same harmonic-plus-heating-season model the paper already uses.</p>
+        <h3>Why footprint <em>and</em> ring</h3>
+        <p>A COVID-scale response appears in both the footprint and the regional ring. Reporting only the footprint would let a purely regional response count as a pipeline success. The discriminating quantity is whether the footprint-minus-ring contrast moves, which is the same quantity the whole paper rests on, so the control tests the estimator the paper actually uses rather than a more forgiving one.</p>
+        <h3>Why this cannot be tuned</h3>
+        <p>The event windows are calendar facts fixed by external sources, and the verdict thresholds are compiled-in before the run. There is no free parameter between the data and the verdict.</p>
+        <h3>Reference magnitudes</h3>
+        <p>Published TROPOMI analyses of the February 2020 Chinese control period report tropospheric NO<sub>2</sub> column reductions of order 20&ndash;40% over the North China Plain. The rule does not threshold on that magnitude &mdash; our quantity is a background-corrected contrast, not a column level &mdash; but the artefact records it alongside the measured shift so a reader can judge the scale.</p>
+      </section>
+      <section id="external-dependencies-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Reuses the pinned dependency set in <code>pyproject.toml</code>; no version change is required by this task.</p>
+      </section>
+      <section id="risks">
+        <h2>Risks</h2>
+        <ul>
+          <li>The verdict rule must be committed before the first scoring run, or the result is a chosen verdict rather than a pre-registered one &mdash; the defect NOX-015 recorded in its own first pass.</li>
+          <li>Any deviation from the committed estimator would make the comparison to the paper's published numbers invalid; the design imports rather than reimplements.</li>
+        </ul>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

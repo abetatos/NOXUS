@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-016 (scale contrast) returned the verdict <strong>pipeline-suspect</strong>: the benchmark-blind NO<sub>2</sub> features track national steel activity no better than they track Tangshan's own rate, which is the opposite of what the paper's spatial explanation predicts. That verdict cannot currently be discharged, because <em>the study has never demonstrated that its pipeline recovers any signal at all</em>. Every result is a null, so a broken feature path and a genuinely absent steel signal are observationally identical. This task supplies the missing positive control: run the <em>identical</em> footprint-minus-ring pipeline against NO<sub>2</sub> perturbations over the same AOI that are large, externally documented and not in dispute. If the pipeline recovers them, the null becomes a statement about the steel signal; if it does not, the paper's central claim is not interpretable and must be withdrawn.</p>
+      </section>
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the positive control runs, the system shall score the committed weekly and daily footprint-minus-ring series against a fixed, pre-registered set of externally documented NO<sub>2</sub> perturbation windows over the Tangshan AOI, using the same deseasonalisation, meteorological control and robust-inference stack as Section 6 of the paper.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>The pre-registered event set shall be, and shall be fixed in code before any effect size is computed: (a) the COVID-19 control period 2020-02-01 to 2020-03-15; (b) the annual Spring Festival window, day-of-year aligned, 2019&ndash;2026; (c) the 2022 Winter Olympics air-quality control period 2022-01-30 to 2022-02-20; (d) the annual heating-season restriction windows already sourced in the 21-event curtailment calendar.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>For each event the system shall report the standardised mean shift of the footprint series inside the window against a matched out-of-window baseline, its moving-block bootstrap 95% CI, a block-permutation p, and the same statistics for the <em>background ring</em> series so that a regional-only response is distinguishable from a footprint-specific one.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>The system shall emit a three-way verdict under a rule fixed before the run: <code>pipeline-valid</code> when the COVID window (a) is recovered with the correct sign at block-permutation p &lt; 0.05 and a CI excluding zero; <code>pipeline-degraded</code> when (a) is recovered with correct sign but not significantly, while at least two of (b)&ndash;(d) are; <code>pipeline-suspect</code> otherwise.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>The system shall write a committed artefact <code>data/derived/pipeline_positive_control.csv</code> plus a human-readable <code>.txt</code> summary, following the convention of the existing sweep artefacts.</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>The run shall be blind to the CREA benchmark: no CREA series may be read anywhere in the feature or scoring path.</span></div>
+      </section>
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span>Reuses the committed cube and the committed derived series. No new data acquisition, no network access, no credentials.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span>All stochastic procedures use the project seed 20260712 with 5,000 bootstrap and permutation draws, matching every other analysis in the paper.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span>Runtime under two minutes on the committed artefacts, so the control can be re-run as a regression check on any future pipeline change.</span></div>
+      </section>
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>A pre-registered window falling in a period with no QA-valid coverage &mdash; report the window as <code>refused</code> with its reason and exclude it from the quorum, never silently drop it.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>The Spring Festival window moves by up to three weeks in the Gregorian calendar; alignment is by the published lunar date per year, fixed in a committed table, not by a fixed day-of-year.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>The COVID window overlaps the 2020 Spring Festival. Both are reported, and the rule keys on (a) alone precisely because the two cannot be disentangled; the overlap is stated in the artefact rather than corrected for.</span></div>
+      </section>
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the committed footprint series is absent, refuse with a message naming the missing parquet. Never regenerate it as a side effect of this task.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If any CREA series is opened anywhere in the feature path, abort: the blindness guarantee is structural, not advisory.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If the verdict is <code>pipeline-suspect</code>, stop and escalate to the developer per ERR-002. That outcome invalidates the paper's central interpretation and is not a result to write up unattended.</span></div>
+      </section>
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The three-way verdict, the per-event effect sizes and the footprint-versus-ring contrast are all present in the committed artefact.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The verdict rule is readable in <code>noxus/config/run.py</code> as compiled-in constants, with its introducing commit predating the first scoring run.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The paper gains a subsection reporting the verdict, and Section 8.2 (scale contrast) cross-references it, because <code>pipeline-valid</code> is what converts NOX-016's <em>pipeline-suspect</em> into a statement about scale rather than about correctness.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>Every existing test still passes and the new module carries unit tests for the verdict rule at each of its three branches.</span></div>
+      </section>
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> &mdash; this feature has no browser UI.</p>
+      </section>
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code>.</p>
+      </section>
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <p><code>None</code> &mdash; runs entirely on committed artefacts.</p>
+      </section>
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> &mdash; a reported result replaces an outstanding control.</li>
+          <li><code>history.html</code> &mdash; summary entry.</li>
+          <li><code>.claude/context/project-map.md</code> &mdash; only if a new top-level module or CLI verb is added.</li>
+        </ul>
+      </section>
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entry: the verdict rule and why it was fixed before the run. Proposed at review time, not written without approval.</p>
+      </section>
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class='req-id'>REQ-001</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-002</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-003</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-004</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-005</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-006</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-018</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>placebo-aoi-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B2 (2026-08-31): the study reports a near-zero share without an empirical null distribution to read it against.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Assumption</th><th>If it does not hold</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A1</td><td>Eight qualifying footprints exist on the North China Plain under the exclusion mask.</td><td>Verified in T2 before any acquisition; ERR-002 governs the shortfall case.</td></tr>
+            <tr><td>A2</td><td>Placebo footprints are exchangeable with Tangshan for the purpose of calibrating the estimator.</td><td>Only approximately &mdash; they differ in emission mix and terrain. This is the task's main limitation and is why the verdict is framed as a percentile rank rather than a significance test.</td></tr>
+            <tr><td>A3</td><td>The free openEO route can deliver eight additional cubes within the declared ceiling.</td><td>This is precisely what T1 measures; the task assumes nothing before the probe reports.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

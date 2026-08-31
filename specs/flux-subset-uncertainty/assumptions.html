@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions &mdash; Subset resampling for the flux-divergence SNR curve</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions &mdash; Subset resampling for the flux-divergence SNR curve</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-019</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-subset-uncertainty</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B5 (2026-08-31): the paper concedes its flux figure is &ldquo;a description, not a test&rdquo;.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Assumption</th><th>If it does not hold</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A1</td><td>The four retained granules are still cached locally.</td><td>Checked first in T1; if false the task is gated on a bounded four-granule re-acquisition.</td></tr>
+            <tr><td>A2</td><td>A descriptive range over overlapping subsets is worth reporting despite not being a confidence interval.</td><td>Yes, and only if labelled as such &mdash; which EDGE-002 and AC-002 enforce.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

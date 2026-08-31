@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance tests &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance tests &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-018</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>placebo-aoi-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B2 (2026-08-31): the study reports a near-zero share without an empirical null distribution to read it against.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Acceptance tests, one per acceptance criterion, plus the regression bar.</p>
+      </section>
+      <section id="tests">
+        <h2>Tests</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Verifies</th><th>Procedure</th><th>Pass condition</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AT-001</td><td><span class='req-id ac'>AC-001</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The placebo distribution and Tangshan's percentile rank within it are in the committed artefact at both ring geometries.</td></tr>
+            <tr><td>AT-002</td><td><span class='req-id ac'>AC-002</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The selection mask, seed and separation rule are compiled-in constants introduced before the first placebo cube is read.</td></tr>
+            <tr><td>AT-003</td><td><span class='req-id ac'>AC-003</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The paper reports the cluster-local share against its empirical null rather than against zero.</td></tr>
+            <tr><td>AT-004</td><td><span class='req-id ac'>AC-004</span></td><td>Run the feature's CLI verb on the committed artefacts and inspect the emitted table.</td><td>The &amp;ldquo;no BF facility &amp;ne; no NO&lt;sub&gt;2&lt;/sub&gt; source&amp;rdquo; limitation appears in the paper text, not only in the code.</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section id="regression">
+        <h2>Regression bar</h2>
+        <p><code>uv run pytest</code> and <code>uv run ruff check .</code> pass, and every number already published in the paper is unchanged except where this task's requirements say it changes.</p>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

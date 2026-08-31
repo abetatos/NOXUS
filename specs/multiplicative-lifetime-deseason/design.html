@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design &mdash; Multiplicative (log-space) deseasonalisation and lifetime weighting</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-020</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>multiplicative-lifetime-deseason</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B6 (2026-08-31); listed in the paper as outstanding control C6, the one identified mechanism that could have cancelled a real signal.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The tropospheric NO<sub>2</sub> lifetime is roughly two to three times longer in winter than in summer, so the column-to-emission relationship is multiplicative and seasonal. Blast-furnace curtailment is <em>also</em> seasonal and concentrated in the heating season &mdash; precisely the season of maximum column sensitivity per unit emission. The paper's deseasonalisation is additive (an annual harmonic removed from the level, plus a linear meteorological control), and an additive removal does not remove an interaction between two seasonal cycles. If the harmonic fit absorbs the seasonal component of the <em>response</em> along with the seasonal component of the emissions, it suppresses exactly the signal the study is looking for, at the time of year it should be strongest. This is the one mechanism the paper identifies that could <em>reverse</em> its null, and it needs no new data.</p>
+      </section>
+      <section id="approach">
+        <h2>Approach</h2>
+        <h3>Placement</h3>
+        <p>Extends <code>noxus/signal/</code> with a <code>deseason_mode</code> of <code>additive</code> | <code>log</code> | <code>lifetime</code> rather than forking the estimator, so the three arms provably share the rest of the path. New CLI flag on the existing verb.</p>
+        <h3>Why a log ratio, not a log difference</h3>
+        <p>The additive contrast is footprint minus ring. Its multiplicative analogue is log(footprint) &minus; log(ring) = log(footprint/ring), a dimensionless enhancement ratio. This is well-defined wherever both columns are positive and is the standard form in the plume literature.</p>
+        <h3>The decisive test is the synthetic one</h3>
+        <p>AC-004 is the requirement that gives this task its power. Injecting a known seasonal multiplicative gain into a synthetic series and confirming that the additive estimator loses it establishes that the concern is real before we ask whether it bit on the real data. Without that step a <code>null-robust</code> verdict would be uninterpretable.</p>
+        <h3>Lifetime climatology</h3>
+        <p>A fixed monthly factor, winter-to-summer ratio in the 2&ndash;3 range, declared in config with its source. It is deliberately not fitted: fitting a seasonal gain to data that also contains a seasonal target is how a spurious coupling would be manufactured.</p>
+      </section>
+      <section id="external-dependencies-freshness">
+        <h2>External dependencies and freshness</h2>
+        <p>Reuses the pinned dependency set in <code>pyproject.toml</code>; no version change is required by this task.</p>
+      </section>
+      <section id="risks">
+        <h2>Risks</h2>
+        <ul>
+          <li>The verdict rule must be committed before the first scoring run, or the result is a chosen verdict rather than a pre-registered one &mdash; the defect NOX-015 recorded in its own first pass.</li>
+          <li>Any deviation from the committed estimator would make the comparison to the paper's published numbers invalid; the design imports rather than reimplements.</li>
+        </ul>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

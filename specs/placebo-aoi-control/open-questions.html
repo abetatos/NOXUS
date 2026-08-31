@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-018</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>placebo-aoi-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B2 (2026-08-31): the study reports a near-zero share without an empirical null distribution to read it against.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p><strong>2</strong> blocking question(s). Blocking questions must be answered before implementation begins; each carries a spec default so that silence is not a deadlock.</p>
+      </section>
+      <section id="questions">
+        <h2>Questions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Kind</th><th>Question</th><th>Recommendation / spec default</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Q1</td><td><span class='badge badge-pending'>blocking</span></td><td>What transfer ceiling should trigger NO-GO at T1?</td><td>Recommendation: the wide-AOI re-acquisition of NOX-015 is the natural yardstick &mdash; it moved 2,741 overpasses over a 1.25&deg; buffer successfully. Propose a ceiling of eight times that volume, with NO-GO above it. Confirm or set a different figure before T1 runs.</td></tr>
+            <tr><td>Q2</td><td><span class='badge badge-pending'>blocking</span></td><td>Should placebos be matched on total NO<sub>2</sub> loading as well as on cell count and latitude?</td><td>Recommendation: no. Matching on loading would select placebos by a quantity downstream of the signal we are calibrating, which risks matching away the very contrast under test. Match on geometry only, and report loading per placebo as a covariate.</td></tr>
+            <tr><td>Q3</td><td><span class='badge badge-draft'>non-blocking</span></td><td>Should a positive-control placebo (a footprint over a different known large point source) be included?</td><td>Recommendation: valuable but out of scope here; it overlaps NOX-017 and would be better as a follow-up once that task reports.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

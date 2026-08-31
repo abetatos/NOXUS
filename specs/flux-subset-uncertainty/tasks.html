@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks &mdash; Subset resampling for the flux-divergence SNR curve</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Tasks &mdash; Subset resampling for the flux-divergence SNR curve</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-019</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-subset-uncertainty</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B5 (2026-08-31): the paper concedes its flux figure is &ldquo;a description, not a test&rdquo;.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Implementation tasks. None may start before <code>human_approved</code> is recorded in <code>tasks.json</code>.</p>
+      </section>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Task</th><th>Traces to</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>T1</td><td>Cache check: verify the four retained granules are present; refuse with names if not.</td><td>REQ-005, ERR-001</td></tr>
+            <tr><td>T2</td><td>Exhaustive subset driver over the existing estimator.</td><td>REQ-001</td></tr>
+            <tr><td>T3</td><td>Artefact writer with per-size counts and the single-realisation flag at N = 4.</td><td>REQ-002, EDGE-001</td></tr>
+            <tr><td>T4</td><td>Re-render the SNR figure with spread; update the caption's honesty statement.</td><td>REQ-003, AC-002</td></tr>
+            <tr><td>T5</td><td>Update the paper's Section 9 text where it currently says the spread is unquantifiable.</td><td>AC-003</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

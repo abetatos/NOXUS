@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="assumptions">
+        <h2>Assumptions</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Assumption</th><th>If it does not hold</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>A1</td><td>The February 2020 control period produced a NO<sub>2</sub> perturbation over this AOI large enough to be detectable in a background-corrected contrast.</td><td>If false, the control is uninformative rather than negative &mdash; a <code>pipeline-suspect</code> verdict would then be ambiguous. This is the main threat to the task's value and is recorded as Q1.</td></tr>
+            <tr><td>A2</td><td>The committed deseasonalisation can represent an event that is itself partly seasonal.</td><td>Shared with the paper's own additive-deseason limitation; NOX-020 tests it directly.</td></tr>
+            <tr><td>A3</td><td>The matched-baseline construction is not itself absorbing the event when the event recurs annually (Spring Festival, heating season).</td><td>Handled by keying the verdict on the non-recurring COVID window, with the recurring windows as corroboration only.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

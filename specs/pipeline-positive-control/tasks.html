@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Tasks &mdash; Pipeline positive control (does the pipeline recover a signal it should?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-021</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>pipeline-positive-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B1 (2026-08-31): NOX-016 returned <em>pipeline-suspect</em> and nothing in the study can currently discharge it.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Implementation tasks. None may start before <code>human_approved</code> is recorded in <code>tasks.json</code>.</p>
+      </section>
+      <section id="tasks">
+        <h2>Tasks</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Task</th><th>Traces to</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>T1</td><td>Fix the event table (windows, lunar-aligned Spring Festival dates, sources) as a committed constant.</td><td>REQ-002</td></tr>
+            <tr><td>T2</td><td>Implement the matched-baseline shift estimator with the existing robust-inference stack.</td><td>REQ-001, REQ-003</td></tr>
+            <tr><td>T3</td><td>Implement the three-way verdict rule as compiled-in constants.</td><td>REQ-004</td></tr>
+            <tr><td>T4</td><td>Wire the CLI verb and the artefact writers.</td><td>REQ-005</td></tr>
+            <tr><td>T5</td><td>Unit tests: estimator on synthetic step, verdict rule at all three branches, blindness guard.</td><td>REQ-006, AC-004</td></tr>
+            <tr><td>T6</td><td>Figure script and paper subsection; cross-reference from the scale-contrast section.</td><td>AC-003</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

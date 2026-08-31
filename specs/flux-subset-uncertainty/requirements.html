@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements &mdash; Subset resampling for the flux-divergence SNR curve</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements &mdash; Subset resampling for the flux-divergence SNR curve</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-019</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>flux-subset-uncertainty</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B5 (2026-08-31): the paper concedes its flux figure is &ldquo;a description, not a test&rdquo;.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Section 9 of the paper reports SNR at N = 1, 2 and 4 as three points with one realisation each and no uncertainty, and says so. That is avoidable at zero acquisition cost. From four retained overpasses there are four distinct subsets of size 1 and six of size 2; computing the estimator over <em>all</em> of them gives a genuine spread at N = 1 and N = 2 and shows whether the dip at N = 2 (0.22 against 0.27) is anything but subset noise. The same resampling applies to the co-location ratio, whose non-monotonicity (2.06 &rarr; 2.29 &rarr; 1.80) the paper currently flags without being able to quantify. This does not make N = 4 a powered result &mdash; nothing can &mdash; but it replaces an admitted description with a measured spread, and it is a prerequisite for the realistic-amplitude injection of C3.</p>
+      </section>
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When the subset analysis runs, the system shall compute the divergence estimator over every distinct subset of each achievable size from the retained Level-2 overpasses, and report the mean, minimum and maximum of SNR, field noise (MAD) and co-location ratio at each size.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>The system shall report the number of subsets contributing at each size, and shall state explicitly that the N = 4 point has exactly one realisation and therefore no spread.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>The system shall render the SNR figure with the measured spread at N = 1 and N = 2 as error bars, superseding the current three-point line, and shall retain the 1/&radic;N reference and both pre-registered thresholds.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>The system shall not re-issue a detection verdict: the existing non-detection at N = 4 stands unchanged, and this task adds uncertainty to its presentation only.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>If the retained Level-2 swaths are no longer cached, the system shall refuse with a message naming the missing granules rather than silently re-downloading.</span></div>
+      </section>
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span>No new acquisition if the four swaths remain cached. If they do not, re-acquisition is four granules over the free CDSE route &mdash; bounded and small, unlike the 2.3&nbsp;TB full-record inversion.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span>Deterministic: subset enumeration is exhaustive, not sampled, so no seed is involved and the result is exactly reproducible.</span></div>
+      </section>
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>At N = 4 there is one subset. Report it as a point with no error bar and label it as such; drawing a zero-width bar would imply a measured spread of zero.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Subsets are not independent &mdash; they reuse the same four granules &mdash; so the spread is a descriptive range, not a confidence interval, and every artefact and caption must say so.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>If fewer than four swaths survive QA, the achievable sizes shrink accordingly and the artefact records which granules were dropped and why.</span></div>
+      </section>
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>Refuse rather than re-download when the cache is cold (REQ-005): a silent multi-gigabyte pull is exactly the failure mode the free-data rule exists to prevent.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>Refuse if any granule resolves to a host outside the declared free-host allowlist.</span></div>
+      </section>
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The artefact carries per-size mean, min, max and subset count for SNR, noise and co-location.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The paper's flux figure shows spread at N = 1 and N = 2, and its caption states that the range is descriptive and the subsets overlapping.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The paper's claim that the N = 2 dip and the co-location non-monotonicity are unquantifiable is replaced by the measured ranges, or retained with the ranges as evidence.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>No verdict changes anywhere in the paper.</span></div>
+      </section>
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> &mdash; this feature has no browser UI.</p>
+      </section>
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code>.</p>
+      </section>
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <p>Copernicus Data Space Ecosystem (openEO / OData), ERA5 via the Climate Data Store, and the committed CREA benchmark export. No new third-party dependency is introduced.</p>
+      </section>
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> &mdash; a reported result replaces an outstanding control.</li>
+          <li><code>history.html</code> &mdash; summary entry.</li>
+          <li><code>.claude/context/project-map.md</code> &mdash; only if a new top-level module or CLI verb is added.</li>
+        </ul>
+      </section>
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entry: the verdict rule and why it was fixed before the run. Proposed at review time, not written without approval.</p>
+      </section>
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class='req-id'>REQ-001</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-002</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-003</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-004</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-005</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>

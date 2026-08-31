@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents">
+    <p class="sidebar-title">Contents</p>
+    <div id="toc-list"></div>
+  </nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements &mdash; Placebo AOI control (what does &ldquo;cluster-local share &asymp; 0&rdquo; mean?)</h1>
+      <table class="meta-table">
+        <tbody>
+          <tr><th>Task ID</th>       <td><code>NOX-018</code></td></tr>
+          <tr><th>Feature slug</th>  <td><code>placebo-aoi-control</code></td></tr>
+          <tr><th>Status</th>        <td><span class="badge badge-ready">spec_ready</span></td></tr>
+          <tr><th>Author</th>        <td>spec-author</td></tr>
+          <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+          <tr><th>Origin</th>        <td>Paper critique B2 (2026-08-31): the study reports a near-zero share without an empirical null distribution to read it against.</td></tr>
+        </tbody>
+      </table>
+    </header>
+    <main>
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The paper's load-bearing number is a cluster-local change-variance share of &asymp;&nbsp;0, and its ring sweep shows that number moves with the background geometry. What is missing is a scale for it: <em>what share does this estimator return over a footprint with no blast furnaces at all?</em> Without that, &ldquo;&asymp;&nbsp;0&rdquo; and &ldquo;0.061 at 90&ndash;150&nbsp;km&rdquo; are numbers without a null distribution. This task runs the identical pipeline over a set of matched placebo footprints elsewhere on the North China Plain that contain no BF facilities, producing the empirical distribution of the cluster-local share and of the benchmark correlation under a known-absent signal. It is the calibration that turns the paper's central statistic into an interpretable one. Unlike NOX-017 and NOX-020 it requires new acquisition, so it is gated on a feasibility probe.</p>
+      </section>
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>The system shall select at least eight placebo footprints on the North China Plain, matched to the Tangshan footprint on cell count and approximate latitude, and verified to contain no facility from the committed steel-facility table nor any facility within one footprint radius of their boundary.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>Placebo selection shall be deterministic from a fixed seed and a declared exclusion mask, and shall be fixed before any NO<sub>2</sub> data are read for the placebo AOIs.</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>For each placebo footprint the system shall run the committed variance decomposition at the committed 25&ndash;60&nbsp;km ring geometry and at 90&ndash;150&nbsp;km, and shall score the resulting activity index against the CREA Tangshan benchmark under the same inference stack.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>The system shall report the empirical distribution &mdash; median, interquartile range, and the 5th and 95th percentiles &mdash; of the cluster-local share and of the weekly |r| across placebos, and shall locate the real Tangshan values within those distributions as percentile ranks.</span></div>
+        <div class="req-row"><span class="req-id">REQ-005</span><span>The system shall emit a two-way verdict fixed before the run: <code>signal-indistinguishable</code> when Tangshan's cluster-local share sits below the 95th percentile of the placebo distribution at both ring geometries; <code>signal-elevated</code> otherwise.</span></div>
+        <div class="req-row"><span class="req-id">REQ-006</span><span>Acquisition shall use the free openEO CDSE route only, and the task shall be gated behind a T1 feasibility probe reporting the transfer volume and wall-clock estimate before any bulk pull begins.</span></div>
+      </section>
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-001</span><span>Free-data rule: no licence-gated or paywalled source, and no host outside the declared allowlist.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-002</span><span>The placebo cubes are gitignored like every other raw acquisition; only derived series and the results table are committed.</span></div>
+        <div class="req-row nfr"><span class="req-id nfr">NFR-003</span><span>The T1 probe must report an estimated transfer volume before the bulk pull, and the task stops if it exceeds a declared ceiling.</span></div>
+      </section>
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row edge"><span class="req-id edge">EDGE-001</span><span>The North China Plain is densely industrialised; a &ldquo;no BF facility&rdquo; footprint is not a &ldquo;no NO<sub>2</sub> source&rdquo; footprint. The control tests for a <em>blast-furnace</em> signal specifically, and every artefact and the paper text must state that limitation plainly rather than let the word &ldquo;placebo&rdquo; overclaim.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-002</span><span>Placebo footprints must not overlap each other or the Tangshan footprint's background rings, or the draws are not independent; enforce a minimum separation and record it.</span></div>
+        <div class="req-row edge"><span class="req-id edge">EDGE-003</span><span>A placebo whose 90&ndash;150&nbsp;km ring falls substantially over open sea is not comparable to Tangshan's; record the sea fraction per placebo and report the distribution both with and without the sea-dominated ones.</span></div>
+      </section>
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row err"><span class="req-id err">ERR-001</span><span>If the T1 probe returns a transfer estimate above the declared ceiling, return NO-GO and stop, per the NOX-005 precedent.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-002</span><span>If placebo selection cannot find eight qualifying footprints under the exclusion mask, report how many it found and refuse rather than relaxing the mask &mdash; relaxing it after seeing the shortfall would make the selection outcome-dependent.</span></div>
+        <div class="req-row err"><span class="req-id err">ERR-003</span><span>If the verdict is <code>signal-elevated</code>, escalate: it would mean the Tangshan footprint carries something the placebos do not, which reframes the paper's null and must not be written up unattended.</span></div>
+      </section>
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row ac"><span class="req-id ac">AC-001</span><span>The placebo distribution and Tangshan's percentile rank within it are in the committed artefact at both ring geometries.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-002</span><span>The selection mask, seed and separation rule are compiled-in constants introduced before the first placebo cube is read.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-003</span><span>The paper reports the cluster-local share against its empirical null rather than against zero.</span></div>
+        <div class="req-row ac"><span class="req-id ac">AC-004</span><span>The &ldquo;no BF facility &ne; no NO<sub>2</sub> source&rdquo; limitation appears in the paper text, not only in the code.</span></div>
+      </section>
+      <section id="ui-acceptance-criteria">
+        <h2>UI acceptance criteria</h2>
+        <p><code>None</code> &mdash; this feature has no browser UI.</p>
+      </section>
+      <section id="visual-evidence">
+        <h2>Visual evidence</h2>
+        <p><code>None</code>.</p>
+      </section>
+      <section id="external-dependencies">
+        <h2>External dependencies and APIs</h2>
+        <p>Copernicus Data Space Ecosystem (openEO / OData), ERA5 via the Climate Data Store, and the committed CREA benchmark export. No new third-party dependency is introduced.</p>
+      </section>
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> &mdash; a reported result replaces an outstanding control.</li>
+          <li><code>history.html</code> &mdash; summary entry.</li>
+          <li><code>.claude/context/project-map.md</code> &mdash; only if a new top-level module or CLI verb is added.</li>
+        </ul>
+      </section>
+      <section id="memory-decision-implications">
+        <h2>Memory and decision implications</h2>
+        <p>Candidate decision-log entry: the verdict rule and why it was fixed before the run. Proposed at review time, not written without approval.</p>
+      </section>
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Expected test(s)</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class='req-id'>REQ-001</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-002</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-003</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-004</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-005</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+            <tr><td><span class='req-id'>REQ-006</span></td><td>unit + artefact assertion</td><td>Verdict-rule requirements are tested at every branch.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div><!-- /.main-content -->
+</div><!-- /.page-wrap -->
+<script src="spec.js"></script>
+</body>
+</html>
