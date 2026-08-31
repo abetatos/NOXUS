@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Requirements</th><td><a href='requirements.html'>requirements.html</a></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>The NOX-009 decomposition already separates <em>series construction</em> from
+        <em>partitioning</em>: <code>_level_series_for_cube()</code> builds the footprint/ring/meteo
+        level series, and <code>decompose_from_levels()</code> partitions them. The ring radii are
+        currently read from a freshly constructed <code>SignalConfig()</code>
+        <em>inside</em> <code>_level_series_for_cube</code>, which is what makes them un-sweepable.</p>
+        <p>The change is therefore small and structural: <strong>lift the ring radii out of the hard-coded
+        <code>SignalConfig()</code> and into the sweep config</strong>, defaulting to the present values,
+        then loop the existing decomposition over a ring grid. No estimator, mask or partition
+        algorithm is edited. The new surface is one module, one config dataclass and one CLI
+        subcommand, mirroring how NOX-008's <code>scale-sweep</code> wraps the same machinery over an
+        AOI/resolution grid.</p>
+        <p class="claude-note">Design constraint that decides the shape: the current default must keep
+        producing byte-identical output (NFR-003). That rules out changing
+        <code>_level_series_for_cube</code>'s signature incompatibly; the ring parameter is added as an
+        <em>optional</em> argument whose <code>None</code> default preserves the existing
+        <code>SignalConfig</code> lookup exactly.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+        <svg viewBox="0 0 860 300" width="100%" role="img" aria-label="Ring sweep data flow">
+          <defs><marker id="ar" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#0F6B73"/></marker></defs>
+          <g font-family="system-ui,sans-serif" font-size="12">
+            <rect x="8" y="20" width="140" height="52" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="78" y="41" text-anchor="middle">no2_cube_w / _d</text>
+            <text x="78" y="58" text-anchor="middle" font-size="10">(committed, unchanged)</text>
+
+            <rect x="8" y="96" width="140" height="52" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="78" y="117" text-anchor="middle">facilities CSV</text>
+            <text x="78" y="134" text-anchor="middle" font-size="10">26 active</text>
+
+            <rect x="8" y="172" width="140" height="52" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="78" y="193" text-anchor="middle">ERA5 snapshot</text>
+            <text x="78" y="210" text-anchor="middle" font-size="10">meteo covariates</text>
+
+            <rect x="196" y="86" width="168" height="72" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="280" y="108" text-anchor="middle" font-weight="600">ring grid (NEW)</text>
+            <text x="280" y="126" text-anchor="middle" font-size="10">(25,60) (40,80) (50,90)</text>
+            <text x="280" y="141" text-anchor="middle" font-size="10">(60,100) (60,120)</text>
+
+            <rect x="404" y="86" width="176" height="72" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="492" y="107" text-anchor="middle">background_ring()</text>
+            <text x="492" y="124" text-anchor="middle">footprint_mask()</text>
+            <text x="492" y="143" text-anchor="middle" font-size="10">REUSED UNCHANGED</text>
+
+            <rect x="620" y="20" width="200" height="72" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="720" y="42" text-anchor="middle">decompose_from_levels()</text>
+            <text x="720" y="60" text-anchor="middle" font-size="10">basis &#215; resolution</text>
+            <text x="720" y="76" text-anchor="middle" font-size="10">REUSED UNCHANGED</text>
+
+            <rect x="620" y="118" width="200" height="52" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="720" y="139" text-anchor="middle" font-weight="600">ring_sensitivity.csv</text>
+            <text x="720" y="156" text-anchor="middle" font-size="10">ring &#215; basis &#215; res &#215; weighting</text>
+
+            <rect x="620" y="196" width="200" height="52" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="720" y="217" text-anchor="middle" font-weight="600">verdict (REQ-031)</text>
+            <text x="720" y="234" text-anchor="middle" font-size="10">ring-robust | self-subtraction</text>
+
+            <g stroke="#0F6B73" fill="none" marker-end="url(#ar)">
+              <path d="M148 46 H 180 V 110 H 194"/>
+              <path d="M148 122 H 194"/>
+              <path d="M148 198 H 180 V 134 H 194"/>
+              <path d="M364 122 H 402"/>
+              <path d="M580 110 H 600 V 56 H 618"/>
+              <path d="M580 134 H 600 V 144 H 618"/>
+              <path d="M720 170 V 194"/>
+            </g>
+          </g>
+        </svg>
+        </div>
+        <p>The only new node in the graph is the ring grid. Everything downstream is existing code
+        called in a loop.</p>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table class="meta-table"><thead><tr><th>File</th><th>Change</th><th>Why</th></tr></thead><tbody>
+          <tr><th><code>noxus/signal/variance.py</code></th><td><strong>Modify (minimal).</strong> <code>_level_series_for_cube(cube, cfg, resolution, ring=None)</code> — when <code>ring</code> is <code>None</code>, behave exactly as today (<code>SignalConfig</code> radii); when given <code>(inner, outer)</code>, pass those to <code>background_ring</code>. Optionally accept an octant-weighting flag for REQ-013.</td><td>The single change that makes the ring sweepable. Default preserved &rArr; NFR-003.</td></tr>
+          <tr><th><code>noxus/signal/ring_sweep.py</code></th><td><strong>New.</strong> <code>sweep_rings(cfg)</code> loops the ring grid &#215; basis &#215; resolution &#215; weighting, calls <code>decompose_from_levels</code>, assembles the tidy frame, applies the REQ-031 verdict rule, writes CSV + findings.</td><td>All new logic lives here; nothing else grows.</td></tr>
+          <tr><th><code>noxus/config/run.py</code></th><td><strong>Add.</strong> <code>RingSweepConfig</code> dataclass: <code>ring_grid</code>, <code>wind_ms = 2.48</code>, <code>tau_h = 4.0</code>, <code>weightings</code>, <code>self_subtraction_threshold = 0.05</code>, <code>min_cells_agreeing = 2</code>, paths, and reuse of the NOX-009 seed/bootstrap knobs.</td><td>Every knob fixed in code before results are seen (NFR-001).</td></tr>
+          <tr><th><code>noxus/cli.py</code></th><td><strong>Add.</strong> <code>noxus ring-sweep</code> subcommand, wired like <code>noxus variance</code> / <code>noxus scale-sweep</code>.</td><td>REQ-042. Existing subcommands untouched.</td></tr>
+          <tr><th><code>analysis/ring_sensitivity.py</code></th><td><strong>New.</strong> Figure generation (share vs inner radius, advection scale marked), mirroring <code>analysis/variance_decomposition.py</code>.</td><td>REQ-041; keeps plotting out of the library.</td></tr>
+          <tr><th><code>tests/signal/test_ring_sweep.py</code></th><td><strong>New.</strong> AT1&ndash;AT7, AT-REG-1, AT-ERR-1.</td><td>Requirement-to-test mapping.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files <em>not</em> to change</h2>
+        <table class="meta-table"><thead><tr><th>File</th><th>Why it must stay untouched</th></tr></thead><tbody>
+          <tr><th><code>noxus/attribution/source.py</code></th><td><code>background_ring</code>, <code>footprint_mask</code>, <code>footprint_signal</code> are the reused primitives. Editing them would invalidate the NFR-003 regression and every prior result.</td></tr>
+          <tr><th><code>noxus/signal/variance.py</code> &mdash; partition internals</th><td><code>_partition_arrays</code>, <code>partition_change_variance</code>, <code>decompose_from_levels</code>, <code>implied_change_ceiling</code>: the sweep must vary <em>only</em> the ring, so the partition must be bit-identical to NOX-009.</td></tr>
+          <tr><th><code>noxus/validation/robust.py</code></th><td>Shared inference stack; changing it would silently move every other result in the project.</td></tr>
+          <tr><th><code>data/derived/variance_decomposition.csv</code></th><td>The NOX-009 result of record. The sweep writes a <em>separate</em> file so the prior result remains auditable.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="interfaces">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <div class="tab-bar">
+            <button class="tab-btn" data-tab="py">Python</button>
+            <button class="tab-btn" data-tab="cli">CLI</button>
+            <button class="tab-btn" data-tab="csv">CSV schema</button>
+          </div>
+          <div class="tab-panel" data-tab="py"><pre><code>@dataclass(frozen=True)
+class RingSweepConfig:
+    # Swept ring radii (km). Fixed BEFORE any result is viewed (NFR-001).
+    ring_grid: tuple[tuple[float, float], ...] = (
+        (25.0, 60.0),   # current default -- straddles the advection scale
+        (40.0, 80.0), (50.0, 90.0), (60.0, 100.0), (60.0, 120.0),
+    )
+    # NOX-005 advection scale: |U| * tau. Recorded, not fitted.
+    wind_ms: float = 2.48
+    tau_h: float = 4.0
+    # Equal-octant ring weighting alongside the plain ring mean (REQ-013).
+    weightings: tuple[str, ...] = ("plain", "octant")
+    # Pre-registered verdict rule (REQ-031).
+    self_subtraction_threshold: float = 0.05
+    min_cells_agreeing: int = 2
+    # Inherited unchanged from VarianceDecompConfig.
+    bases: tuple[str, ...] = ("first-diff", "deseason")
+    resolutions: tuple[str, ...] = ("W", "D")
+    n_boot: int = 5000
+    seed: int = 20260706
+    out_dir: Path = Path("data/derived")
+    results_name: str = "ring_sensitivity.csv"
+
+
+def sweep_rings(cfg: RingSweepConfig | None = None) -&gt; pd.DataFrame:
+    # Ring-radius sensitivity of the NOX-009 change-variance decomposition.
+    # Takes NO benchmark argument (NFR-001, ERR-004): the CREA series is
+    # structurally unreachable from this call.
+    ...</code></pre></div>
+          <div class="tab-panel" data-tab="cli"><pre><code># Full sweep at fixed defaults (the run of record)
+uv run noxus ring-sweep
+
+# Reproduce the NOX-009 baseline row only
+uv run noxus ring-sweep --rings 25,60
+
+# Existing command -- output must be unchanged (NFR-003)
+uv run noxus variance</code></pre></div>
+          <div class="tab-panel" data-tab="csv"><pre><code>ring_inner_km, ring_outer_km, realised_max_km, ring_cells,
+octant_counts, octant_imbalance, beyond_advection, weighting,
+basis, resolution, n, block,
+share_regional, share_meteo, share_steel_local, share_noise,
+dr2_regional, dr2_meteo, dr2_local,            # dr2_local RAW (unclamped)
+share_lo, share_hi,                            # block-bootstrap CI
+change_ceiling, flags, verdict</code></pre></div>
+        </div>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <table class="meta-table"><thead><tr><th>ID</th><th>Test</th><th>Method</th></tr></thead><tbody>
+          <tr><th>AT1</th><td>Ring grid swept; advection flag correct</td><td>Run on a small synthetic cube; assert one row per (ring &#215; basis &#215; res &#215; weighting) and that <code>beyond_advection</code> is <code>False</code> only for (25,60).</td></tr>
+          <tr><th>AT2</th><td>Benchmark-blind</td><td>Assert <code>sweep_rings</code> has no benchmark parameter (<code>inspect.signature</code>) and that a monkeypatched benchmark loader is never called.</td></tr>
+          <tr><th>AT3</th><td><strong>Positive control</strong></td><td>Synthetic cube with a known local source whose plume is planted <em>inside</em> the 25&ndash;60 km annulus. Assert the recovered local share is near zero at (25,60) and rises above the 0.05 threshold at (60,120) &mdash; i.e. the sweep <em>can</em> detect self-subtraction.</td></tr>
+          <tr><th>AT3b</th><td><strong>Negative control</strong></td><td>Same fixture with the source confined to the footprint and no plume in the ring. Assert the local share is stable across all rings &mdash; i.e. the sweep does not manufacture a rise from geometry alone.</td></tr>
+          <tr><th>AT4</th><td>All cells reported; raw &Delta;R&sup2; present</td><td>Assert no row is dropped and that <code>dr2_local</code> can be negative while <code>share_steel_local</code> is clamped, with <code>local_clamped</code> flagged.</td></tr>
+          <tr><th>AT5</th><td>Octant weighting &amp; imbalance</td><td>On an anisotropic fixture, assert the plain and octant-weighted rows differ and the imbalance ratio is reported.</td></tr>
+          <tr><th>AT6</th><td>Verdict rule</td><td>Table-driven: synthetic share/CI inputs &rArr; each of the three verdicts; assert the threshold is read from config and not hard-coded at the call site.</td></tr>
+          <tr><th>AT7</th><td>Edge cases</td><td>Realised radius on a truncating ring; no footprint/ring overlap; daily-vs-weekly disagreement &rArr; <code>inconclusive</code>.</td></tr>
+          <tr><th>AT-REG-1</th><td><strong>Regression</strong></td><td>Run <code>noxus variance</code> and diff against the committed <code>variance_decomposition.csv</code>; must be identical.</td></tr>
+          <tr><th>AT-ERR-1</th><td>Error states</td><td>Empty ring &rArr; refused row, sweep continues; missing cube/ERA5 &rArr; the NOX-009 messages.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="risks">
+        <h2>Risks and trade-offs</h2>
+        <table class="meta-table"><thead><tr><th>Risk</th><th>Level</th><th>Mitigation</th></tr></thead><tbody>
+          <tr><th>The sweep overturns NOX-009 and the paper's central claim</th><td>Medium likelihood, high impact</td><td>This is the <em>purpose</em>, not a risk to be managed away. The verdict rule is pre-registered (REQ-031) so the outcome cannot be argued after the fact, and REQ-040 requires the findings note to state explicitly that the paper needs correction.</td></tr>
+          <tr><th>Far-ring anisotropy masquerades as a physical effect</th><td>High likelihood, medium impact</td><td>REQ-013 octant weighting, REQ-022 reported imbalance, AT3b negative control, AT5.</td></tr>
+          <tr><th>Larger rings average more cells &rArr; less ring noise &rArr; partition shifts for the wrong reason</th><td>Medium</td><td>EDGE-005: cell counts reported per row; octant weighting partially decouples; AT3b shows the sweep is flat when there is no plume.</td></tr>
+          <tr><th>Threading the ring parameter breaks the existing default</th><td>Low likelihood, high impact</td><td><code>ring=None</code> preserves the exact <code>SignalConfig</code> path; AT-REG-1 is a hard byte-comparison gate.</td></tr>
+          <tr><th>Ring truncation by the AOI clip is invisible</th><td>Medium</td><td>EDGE-001: realised maximum radius recorded per ring.</td></tr>
+          <tr><th><code>tau = 4 h</code> is itself an assumption</th><td>Medium</td><td>The advection scale is a <em>marker</em>, not a fitted quantity; the sweep spans 25&rarr;120 km so the conclusion does not depend on the exact value. Recorded in <code>RingSweepConfig</code> and in <a href="assumptions.html">assumptions.html</a>.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="rollback">
+        <h2>Rollback plan</h2>
+        <p>The change is additive and file-isolated. Rollback is: revert
+        <code>noxus/signal/ring_sweep.py</code>, <code>analysis/ring_sensitivity.py</code>,
+        <code>tests/signal/test_ring_sweep.py</code>, the <code>RingSweepConfig</code> block and the CLI
+        subcommand, and restore the <code>_level_series_for_cube</code> signature. No committed
+        artefact is overwritten &mdash; the sweep writes <code>ring_sensitivity.csv</code>, never
+        <code>variance_decomposition.csv</code> &mdash; so prior results survive a rollback untouched.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Open questions</h2>
+      <p><strong>0 blocking.</strong> The questions below change scope or interpretation but none
+      prevents implementation from starting once the spec is approved.</p></section>
+
+      <section id="q1"><div class="card"><div class="card-header"><span class="card-title">Q1 &mdash; Should the sweep also vary the partition <em>order</em>?</span> <span class="badge badge-pending">non-blocking</span></div>
+      <div class="card-body"><p>Ring geometry and entry order are two independent ways the &asymp;0 local share could be manufactured. This spec fixes the order (A5) and varies only the ring.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> keep the order fixed; open a follow-up task for order sensitivity (e.g. <code>local &rarr; regional &rarr; meteo</code>, or a Shapley-style order-averaged decomposition, which would remove the order dependence entirely).</p>
+      <p><strong>Recommendation:</strong> accept the default. Two swept dimensions at once would make a positive result ambiguous.</p></div></div></div></section>
+
+      <section id="q2"><div class="card"><div class="card-header"><span class="card-title">Q2 &mdash; Should the ring be wind-sector-masked instead of annular?</span> <span class="badge badge-pending">non-blocking</span></div>
+      <div class="card-body"><p>A physically sharper test: exclude only the <em>downwind</em> sector of the near ring per period, keeping the upwind sector as background. That isolates the plume rather than moving the whole ring outward, and it would preserve azimuthal balance.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> not in scope. It needs per-period ERA5 wind direction threaded into mask construction &mdash; a larger change than this spec's optional-argument approach, and it would break the &ldquo;vary one thing&rdquo; discipline.</p>
+      <p><strong>Recommendation:</strong> record as a follow-up. It is the better long-run test if the annular sweep returns <code>inconclusive</code>.</p></div></div></div></section>
+
+      <section id="q3"><div class="card"><div class="card-header"><span class="card-title">Q3 &mdash; What happens to the paper if the verdict is <code>self-subtraction</code>?</span> <span class="badge badge-warning">developer decision</span></div>
+      <div class="card-body"><p>The paper's Section 6.1 headline, its abstract, its synthesis and its conclusion all rest on the &asymp;0 cluster-local share. A <code>self-subtraction</code> verdict does not restore the signal &mdash; the near-null coupling (r = 0.078) is measured independently &mdash; but it does remove the <em>mechanism</em> the paper offers for it.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> T7 stops and escalates rather than auto-editing the paper.</p>
+      <p><strong>Recommendation:</strong> confirm this escalation is what you want before approving, since it is the one path where this task creates more work than it closes.</p></div></div></div></section>
+
+      <section id="q4"><div class="card"><div class="card-header"><span class="card-title">Q4 &mdash; Seasonal split?</span> <span class="badge badge-pending">non-blocking</span></div>
+      <div class="card-body"><p>NO&#8322; lifetime is 2&ndash;3&#215; longer in winter, so plume contamination of the ring should be strongly seasonal. A winter/summer split of the sweep would be a sharp diagnostic.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> full-record only; the split is cheap to add later from the same CSV if the full-record result is ambiguous.</p></div></div></div></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

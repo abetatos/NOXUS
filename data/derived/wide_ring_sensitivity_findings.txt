@@ -1,0 +1,93 @@
+NOX-017 - wide-AOI ring sweep (does the cluster-local share plateau?)
+==============================================================================
+Benchmark-blind: the CREA benchmark is NEVER read in this sweep.
+AOI buffer 1.25 deg (NOX-015 ran at 0.25 deg, whose full-360 ring radius
+is only 63 km -- its 60-120 km ring was four corner wedges, not an annulus).
+
+VERDICT: domain-limited
+  reason: the local share has NOT plateaued at the edge of the domain: only 3/4 cells (all are required) move by less than 0.01 between the two outermost rings (largest last increment +0.0123). A rise still climbing when the cube runs out is not evidence for either reading, and a wider cube would be required to settle it
+
+Pre-registered rules (fixed BEFORE the wide cube was acquired; REQ-020..024)
+------------------------------------------------------------------------------
+  Rule A (LEVEL, carried over from NOX-015 unchanged): share > 0.05 with a bootstrap CI excluding zero, in >= 2 of 4 cells at the outermost ring.
+    -> fired in 1/4 cells: False
+  Rule B (RISE, the corrected formulation): share(outermost) - share(baseline) > 0.05, with the outermost CI excluding zero, in >= 2 cells.
+    -> fired in 1/4 cells: False
+  Plateau: |share(outermost) - share(second-outermost)| < 0.01 in EVERY measurable cell (a cell clamped at zero is flat by construction and cannot carry a plateau on its own -- rule revised on a pilot before the full-record run; see the module docstring for the disclosure).
+    -> 3/4 cells flat: False
+
+  Rule A is the rule NOX-015 committed to, reported here only for comparability: it
+  thresholds the share's LEVEL, so a footprint-confined source -- evidence AGAINST
+  self-subtraction -- would be misclassified as self-subtraction. That defect was recorded
+  in the NOX-015 review and is repaired here by PRE-REGISTERING Rule B, not by editing a
+  rule after seeing a result.
+
+  advection scale |U|*tau = 2.48 m/s * 4.0 h = 35.7 km (NOX-005; a marker, never a cut).
+
+Cluster-local change-variance share by ring (plain weighting)
+------------------------------------------------------------------------------
+  basis                                  deseason         first-diff     
+  resolution                                    D       W          D    W
+  ring_inner_km ring_outer_km ring_cells                                 
+  25.0          60.0          293          0.0000  0.0070        0.0  0.0
+  40.0          80.0          575          0.0000  0.0094        0.0  0.0
+  50.0          90.0          752          0.0009  0.0163        0.0  0.0
+  60.0          100.0         970          0.0037  0.0256        0.0  0.0
+                120.0         1737         0.0078  0.0364        0.0  0.0
+  75.0          135.0         2152         0.0144  0.0489        0.0  0.0
+  90.0          150.0         2514         0.0227  0.0612        0.0  0.0
+
+Regional share over the same sweep (self-subtraction moves variance BETWEEN
+these two terms, so they should move in opposite directions if it is present)
+------------------------------------------------------------------------------
+  basis                       deseason         first-diff        
+  resolution                         D       W          D       W
+  ring_inner_km ring_outer_km                                    
+  25.0          60.0            0.9455  0.9544     0.9353  0.9474
+  40.0          80.0            0.9423  0.9362     0.9312  0.9267
+  50.0          90.0            0.9255  0.9105     0.9135  0.9031
+  60.0          100.0           0.9068  0.8838     0.8958  0.8836
+                120.0           0.8825  0.8538     0.8722  0.8631
+  75.0          135.0           0.8393  0.8050     0.8313  0.8212
+  90.0          150.0           0.7934  0.7577     0.7884  0.7807
+
+Ring geometry (EDGE-001/002: a wider ring is not only further away -- it holds
+more cells, is azimuthally lop-sided, and past ~120 km it spans the Bohai Sea and
+the Tianjin plume, i.e. it is no longer the same air mass)
+------------------------------------------------------------------------------
+   ring_inner_km  ring_outer_km  ring_cells  realised_max_km                   octant_counts  octant_imbalance  empty_octants
+            25.0           60.0         293            59.97         11|60|49|45|21|32|54|21             5.455              0
+            40.0           80.0         575            79.97       70|104|78|68|31|82|103|39             3.355              0
+            50.0           90.0         752            89.94     107|123|99|89|54|107|120|53             2.321              0
+            60.0          100.0         970           100.00   137|139|125|122|95|132|139|81             1.716              0
+            60.0          120.0        1737           119.99 231|235|219|215|192|228|238|179             1.330              0
+            75.0          135.0        2152           134.99 274|279|271|267|262|270|278|251             1.112              0
+            90.0          150.0        2514           149.98 312|319|310|310|317|310|319|317             1.029              0
+
+Rise from the 25-60 km baseline to the 90-150 km ring, per cell
+------------------------------------------------------------------------------
+          deseason.D: +0.0227
+        first-diff.D: +0.0000
+          deseason.W: +0.0542
+        first-diff.W: +0.0000
+
+Last increment (the plateau test), per cell
+------------------------------------------------------------------------------
+          deseason.D: +0.0083
+          deseason.W: +0.0123
+        first-diff.D: +0.0000
+        first-diff.W: +0.0000
+
+Interpretation
+------------------------------------------------------------------------------
+  The share is still moving at the edge of the widened domain. This is the same
+  limit NOX-015 hit, now measured on a cube 4.8x larger in area: widening the AOI
+  did not make the rise flatten, so the ring radius is not a knob that converges
+  over any domain this cluster's geography allows. Report the share as
+  ring-DEPENDENT and quote its range across geometries; do not quote the 25-60 km
+  value alone, and do not claim ring-independence.
+
+  Standing limit, independent of the verdict: at 90-150 km the ring spans open sea and
+  the Tianjin urban plume. A share that moves at that radius may be responding to a
+  change of air mass rather than to escaping the cluster's own plume, and this sweep
+  cannot separate the two.

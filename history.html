@@ -95,6 +95,73 @@
 
     <div class="entry">
       <div class="entry-header">
+        <span class="entry-date">2026-08-31</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-017 &mdash; wide-AOI ring sweep (the NOX-015 follow-up)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done &mdash; verdict <strong>domain-limited</strong> (pre-registered rule)</dd>
+        <dt>Spec</dt>              <dd><code>specs/wide-aoi-ring-sweep/</code></dd>
+        <dt>Summary</dt>           <dd>NOX-015 left two geometric loose ends. The committed cube (AOI buffer 0.25&deg;) reaches only 63&nbsp;km from the cluster centroid with full 360&deg; coverage, so its 60&ndash;120&nbsp;km &ldquo;ring&rdquo; was four corner wedges rather than an annulus; and the deseason local share was still rising at the outermost ring available, which cannot be read either way. This task re-acquired the whole TROPOMI record at buffer 1.25&deg; (4.8&times; the area &mdash; full-360&deg; ring radius 148.8&nbsp;km) and re-ran the same partition out to 90&ndash;150&nbsp;km, changing nothing else.</dd>
+        <dt>Result</dt>            <dd><strong>Widening the domain did not make the share converge.</strong> All seven rings are complete annuli (0 empty octants). The weekly deseason share rises monotonically 0.007&nbsp;&rarr;&nbsp;0.061 (&times;8.7), CI excluding zero from 40&ndash;80&nbsp;km outward; the regional share falls 0.95&nbsp;&rarr;&nbsp;0.76. At the outermost ring the weekly deseason cell clears <em>both</em> materiality thresholds for the first time (level 0.061, rise +0.054) &mdash; but alone, where the quorum is 2 of 4, and the share is still climbing (+0.0123 against a 0.01 plateau tolerance). The first-difference basis is a clamped zero at every radius.</dd>
+        <dt>What it settles</dt>   <dd>The computational limit, not the physical one. Ring-dependence is now established on genuine annuli out to 150&nbsp;km, and the &asymp;0 of NOX-009 is confirmed as a property of the footprint-minus-25&ndash;60&nbsp;km contrast. But beyond ~120&nbsp;km the ring spans the Bohai Sea and the Tianjin plume, so a still-wider cube would confound the test rather than settle it. <strong>A wider cube is explicitly not recommended as a follow-up.</strong></dd>
+        <dt>Acquisition</dt>       <dd>92 month-batches, 2,741 overpasses, <strong>0 failed batches</strong>, 204&nbsp;MB, 79.5&nbsp;min. Grid 66&times;109 at the committed 0.05456&deg;&times;0.03472&deg; step. Retained-period audit: the wide cube&rsquo;s weeks are a strict <em>superset</em> of the committed cube&rsquo;s (0 lost, 11 gained &mdash; all tail, the committed store having been fetched 2026-06-13).</dd>
+        <dt>Files changed</dt>     <dd>New: <code>analysis/wide_ring_sensitivity.py</code>, <code>tests/signal/test_wide_ring_sweep.py</code>. Modified: <code>noxus/signal/ring_sweep.py</code> (<code>sweep_aoi</code>, <code>classify_wide_verdict</code>, <code>render_wide_findings</code>, <code>run_wide_ring_sweep</code>), <code>noxus/config/run.py</code> (<code>WideRingSweepConfig</code>, <code>GriddingConfig.coverage_bbox</code>), <code>noxus/data/gridding.py</code> (<code>_clip_bbox</code>), <code>noxus/signal/variance.py</code> (<code>aoi</code> hook), <code>noxus/cli/main.py</code> (<code>fetch --raw-dir</code>, <code>grid --coverage-buffer</code>, <code>ring-sweep --wide</code>), <code>.gitignore</code>. Artefacts: <code>wide_ring_sensitivity.csv</code>, <code>wide_ring_sensitivity_findings.txt</code>, <code>docs/figures/exploration/wide_ring_sensitivity.png</code>.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> &rarr; 360 passed; <code>uv run ruff check .</code> &rarr; clean; <code>tectonic</code> &rarr; 21 pp., 0 overfull.</dd>
+        <dt>Notable</dt>           <dd>The NOX-015 verdict-rule defect (thresholding the share&rsquo;s <em>level</em> where it should threshold its <em>rise</em>) is repaired here <strong>by pre-registration</strong>, not post-hoc: Rule A is carried over verbatim for comparability, Rule B is the corrected formulation, and a plateau criterion was added &mdash; all three fixed before the wide cube existed. A pilot on 8 of the 89 months then exposed a defect in the plateau rule itself (a cell clamped at zero is flat by construction and was satisfying a quorum), so it was revised to require every measurable cell, <em>before</em> the full run and disclosed with its provenance and its direction: the revision makes <code>domain-limited</code> more reachable, i.e. away from the flattering answer.</dd>
+        <dt>Registration check</dt><dd>Spec assumptions A2/A3 were false as written: the wide grid&rsquo;s step matches but its origin is offset sub-cell, so the footprint discretises to 447 cells not 448 and the ERA5 footprint means shift by &le;0.048&nbsp;m&nbsp;s&#8315;&sup1;. Tested rather than assumed &mdash; re-running the committed 25&ndash;60&nbsp;km ring on the truncated wide cube reproduces every share to within 0.0035 and every <em>n</em> to within 2.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> (see <code>specs/wide-aoi-ring-sweep/review.html</code>)</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-08-28 (&ldquo;n cubo m&aacute;s ancho de ~124 km haz esto y damos por cerrado todo&rdquo;). Spec authored first, approval recorded against it (assumption A6).</dd>
+        <dt>Docs updated</dt>      <dd><code>paper/nox_convergent_nulls.tex</code> (&sect;2 study region, &sect;6.1, &sect;6.3 rewritten with a new table and figure, &sect;7 shared inputs + synthesis, control C1, &ldquo;what could reopen the question&rdquo;, abstract, at-a-glance table), history</dd>
+        <dt>Follow-ups</dt>        <dd>Separating &ldquo;the ring escapes the plume&rdquo; from &ldquo;the ring changes air mass&rdquo; needs a directional or sectoral background, not a wider domain. The CREA/WIND provenance gap (NOX-016) stays open; C3&ndash;C7 remain unrun.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-08-28</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-016 — provincial/national benchmark arm (paper critique C2)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — verdict <strong>pipeline-suspect</strong> (pre-registered rule)</dd>
+        <dt>Spec</dt>              <dd><code>specs/provincial-benchmark-arm/</code></dd>
+        <dt>Summary</dt>           <dd>The cheap test that discriminates the two explanations for the near-null: score the SAME benchmark-blind NO₂ features against wider-scale steel targets. If a Tangshan-AOI feature tracked national steel better than Tangshan's own BF rate, the AOI column would be regionally dominated — the paper's spatial reading. It does not: national pairings are near-null too (best |r| = 0.094 on the primary weekly national BF rate) and the paired contrast is negative throughout. Nothing in the family of 24 pairings is robust-significant.</dd>
+        <dt>Result</dt>            <dd><strong>The discriminating test did not corroborate the paper's spatial explanation.</strong> This does NOT establish a broken pipeline — the feature is a cluster-scale window (~13% of national steel), never guaranteed to proxy national output — but the paper can no longer present the spatial reading as the explanation its own evidence selects.</dd>
+        <dt>Arm B (independent publisher)</dt><dd><span class="badge badge-warning">NO-GO</span> — the T1 probe found every NBS data endpoint refusing programmatic access (HTTP 403, site WAF) while static assets on the same host serve normally. Per REQ-031 no paywalled substitute was used, so the shared-publisher (CREA/WIND) provenance gap stays open. Probe is reproducible: <code>noxus scale-contrast --probe</code>.</dd>
+        <dt>Files changed</dt>     <dd>New: <code>noxus/validation/scale_contrast.py</code>, <code>noxus/validation/paired_corr.py</code>, <code>noxus/data/nbs.py</code>, <code>analysis/scale_contrast.py</code>, <code>tests/validation/test_scale_contrast.py</code>, <code>tests/validation/test_paired_corr.py</code>. Modified: <code>noxus/config/run.py</code> (ScaleContrastConfig), <code>noxus/cli/main.py</code> (<code>scale-contrast</code>). Artefacts: <code>scale_contrast.csv</code>, <code>scale_contrast_findings.txt</code>, <code>nbs_probe.txt</code>, <code>docs/figures/exploration/scale_contrast.png</code>.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 337 passed; <code>uv run ruff check .</code> → clean.</dd>
+        <dt>Notable</dt>           <dd>First task that reads several targets on purpose, so the NOX-009 structural anti-p-hacking guarantee is unavailable. Replaced by three tested ones: features read-only with no fit entry point (AT2), BH family covering every computed pairing including refusals (AT4), thresholds fixed in config before the run. REQ-012 uses a paired-difference bootstrap on the common sample; AT3 asserts it is narrower than the naive marginal-overlap comparison, so the wrong method cannot pass silently.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> (see <code>specs/provincial-benchmark-arm/review.html</code>)</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-08-28 ("ok perfecto, tienes permiso"). Blocking Q1 unanswered → spec default/recommendation followed (probe first, build Arm B only on GO).</dd>
+        <dt>Docs updated</dt>      <dd><code>paper/nox_convergent_nulls.tex</code> (new §6.4; control C2; synthesis, limitations, conclusion, abstract), history</dd>
+        <dt>Follow-ups</dt>        <dd>Provenance gap open until an independent publisher is reachable. The decisive form of the pipeline test needs a province/nation-scale NO₂ cube (spec Q3), not a Tangshan window scored against a national target.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
+        <span class="entry-date">2026-08-28</span>
+        <span class="badge badge-ok">done</span>
+        <span class="entry-title">NOX-015 — background-ring radius sensitivity (paper critique C1)</span>
+      </div>
+      <dl class="entry-fields">
+        <dt>Status</dt>            <dd>done — verdict <strong>inconclusive</strong> (pre-registered rule)</dd>
+        <dt>Spec</dt>              <dd><code>specs/background-ring-sensitivity/</code></dd>
+        <dt>Summary</dt>           <dd>NOX-009's ~0 steel-local share was measured against a FIXED 25–60 km ring, but the NOX-005 advection scale (|U|·τ ≈ 36 km) lands inside it — so the ~0 could be ring self-subtraction booked to "regional" by the fixed partition order. Swept the ring radii 25–60 → 60–120 km with every other parameter held fixed. No new acquisition: the cube reaches ~124 km, and the outer ring holds 709 cells against the default's 288, all eight octants populated.</dd>
+        <dt>Result</dt>            <dd><strong>Self-subtraction not established; ring-robustness not established either.</strong> The deseason basis rises monotonically (weekly 0.006 → 0.038, CI excluding zero at the outer radii) and the regional share falls 0.94 → 0.84–0.88 in every cell — both self-subtraction signatures. But no cell clears the pre-registered 0.05 materiality threshold, and the first-difference basis stays clamped at zero with its raw ΔR² becoming <em>more</em> negative. The ~0 is a property of the footprint-minus-25–60 km contrast, not of the cluster.</dd>
+        <dt>Files changed</dt>     <dd>New: <code>noxus/signal/ring_sweep.py</code>, <code>analysis/ring_sensitivity.py</code>, <code>tests/signal/test_ring_sweep.py</code>. Modified: <code>noxus/signal/variance.py</code> (optional <code>ring</code>/<code>ring_weighting</code> args + <code>octant_ring_mean</code>), <code>noxus/config/run.py</code> (RingSweepConfig), <code>noxus/cli/main.py</code> (<code>ring-sweep</code>). Artefacts: <code>ring_sensitivity.csv</code>, <code>ring_sensitivity_findings.txt</code>, <code>docs/figures/exploration/ring_sensitivity.png</code>.</dd>
+        <dt>Tests run</dt>         <dd><code>uv run pytest</code> → 337 passed; <code>uv run ruff check .</code> → clean. AT-REG-1 verifies <code>noxus variance</code> still reproduces the committed <code>variance_decomposition.csv</code> byte-for-byte.</dd>
+        <dt>Notable</dt>           <dd><strong>A defect in the pre-registered rule was recorded, not patched.</strong> AT3b (negative control) showed REQ-031 thresholds the share's LEVEL, so a footprint-confined source — evidence AGAINST self-subtraction — would be misclassified as self-subtraction; C1 asks about the RISE. Rewriting the rule after the run flipped the real verdict from <code>inconclusive</code> to <code>ring-robust</code>, i.e. toward the answer flattering the existing paper. Substituting a post-hoc rule for a pre-registered one is what this project's design exists to prevent, so the pre-registered verdict stands and the rise is published as a labelled post-hoc diagnostic. Also fixed in review: outermost-ring selection pooled (60,100) and (60,120) when keyed on inner radius alone.</dd>
+        <dt>Reviewer decision</dt> <dd><span class="badge badge-ok">approved</span> (see <code>specs/background-ring-sensitivity/review.html</code>)</dd>
+        <dt>Human approval ref</dt><dd>tasks.json approval: abetatos, 2026-08-28 ("ok perfecto, tienes permiso")</dd>
+        <dt>Docs updated</dt>      <dd><code>paper/nox_convergent_nulls.tex</code> (new §6.3; §6.1 qualifier; §6.2(i); control C1; synthesis, conclusion, abstract; <strong>footprint radius corrected 5 km → 15 km</strong>), history</dd>
+        <dt>Follow-ups</dt>        <dd>Pre-register the RISE formulation and re-run. Needs a cube wider than ~124 km so the sweep can continue until the share plateaus — the rise had not plateaued at the outermost ring available.</dd>
+      </dl>
+    </div>
+
+    <div class="entry">
+      <div class="entry-header">
         <span class="entry-date">2026-08-28</span>
         <span class="badge badge-ok">done</span>
         <span class="entry-title">NOX-005 — Flux-divergence point-source attribution: T1 feasibility-gate POWERED honest-null closeout (can ∇·flux isolate a Tangshan steel source above the North-China-Plain background?)</span>

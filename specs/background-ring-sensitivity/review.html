@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-ok">review</span></td></tr>
+        <tr><th>Reviewed</th><td>2026-08-28</td></tr>
+        <tr><th>Commands run</th><td><code>uv run pytest</code> (337 passed) &middot; <code>uv run ruff check .</code> (clean) &middot; <code>uv run noxus ring-sweep</code></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Decision: approved</h2>
+        <p>The sweep is implemented as specified, the two controls pass, and the run of record
+        completed. The <strong>result is <code>inconclusive</code></strong> under the pre-registered
+        rule, and that is reported as-is.</p>
+        <p class="claude-note">Two deviations from the spec were found during implementation and are
+        recorded rather than quietly fixed; both are described below and back-annotated into
+        <a href="requirements.html">requirements.html</a>.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Where</th><th>Test</th><th>Status</th></tr></thead><tbody>
+          <tr><td>REQ-001/002/003 ring grid + advection flag</td><td><code>RingSweepConfig</code>, <code>sweep_rings</code></td><td>AT1</td><td class="ok">met</td></tr>
+          <tr><td>REQ-004 / ERR-001 empty ring refused-and-continue</td><td><code>sweep_rings</code></td><td>AT7</td><td class="ok">met</td></tr>
+          <tr><td>REQ-010/011/012 same partition, all cells, raw &Delta;R&sup2;</td><td><code>sweep_rings</code></td><td>AT4</td><td class="ok">met</td></tr>
+          <tr><td>REQ-013 equal-octant weighting</td><td><code>octant_ring_mean</code></td><td>AT5 + isotropy check</td><td class="ok">met</td></tr>
+          <tr><td>REQ-020/021 rise + regional transfer</td><td><code>ring_dependence_diagnostic</code></td><td>AT3/AT3b</td><td class="ok">met</td></tr>
+          <tr><td>REQ-022 octant counts + imbalance</td><td><code>ring_geometry</code></td><td>AT5</td><td class="ok">met</td></tr>
+          <tr><td>REQ-030/031 pre-registered verdict</td><td><code>classify_ring_verdict</code></td><td>AT6</td><td class="warning">met, with a recorded defect (below)</td></tr>
+          <tr><td>REQ-040/041/042 CSV, findings, figure, CLI</td><td><code>run_ring_sweep</code>, <code>analysis/ring_sensitivity.py</code>, <code>noxus ring-sweep</code></td><td>manual run</td><td class="ok">met</td></tr>
+          <tr><td>NFR-001 benchmark-blind</td><td>signature + AST scan</td><td>AT2</td><td class="ok">met</td></tr>
+          <tr><td>NFR-002 additive</td><td>only <code>_level_series_for_cube</code> gained an optional arg</td><td>&mdash;</td><td class="ok">met</td></tr>
+          <tr><td>NFR-003 default byte-identical</td><td><code>ring=None</code> path</td><td>AT-REG-1</td><td class="ok">met</td></tr>
+          <tr><td>NFR-005 no new acquisition</td><td>committed cubes only</td><td>&mdash;</td><td class="ok">met</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="findings">
+        <h2>Blocking findings</h2>
+        <p>None.</p>
+        <h2>Non-blocking findings, recorded</h2>
+        <table class="meta-table"><thead><tr><th>#</th><th>Finding</th><th>Handling</th></tr></thead><tbody>
+          <tr><td>1</td><td><strong>REQ-031 is defective.</strong> The rule thresholds the share's LEVEL. AT3b shows a footprint-confined source (high share at every ring &mdash; evidence AGAINST self-subtraction) is misclassified as <code>self-subtraction</code>. C1 asks about the RISE.</td>
+              <td class="warning">Recorded, <strong>not patched</strong>. Rewriting the rule after the run changed the real verdict from <code>inconclusive</code> to <code>ring-robust</code> &mdash; i.e. toward the answer that flatters the existing paper. Substituting a post-hoc rule for a pre-registered one is exactly what this project's design exists to prevent, so the pre-registered rule stands as the verdict of record and the rise is published as a labelled post-hoc diagnostic. A follow-up task should pre-register the rise formulation and re-run.</td></tr>
+          <tr><td>2</td><td><strong>Spec feasibility count was 7% optimistic.</strong> The 60&ndash;120 km ring holds 709 cells, not the 759 quoted in the spec: the scoping measurement omitted the AOI clip that <code>background_ring</code> applies.</td>
+              <td class="ok">Corrected in <a href="requirements.html#feasibility">requirements.html</a>. Conclusion unchanged (still 2.5&times; the default ring).</td></tr>
+          <tr><td>3</td><td><strong>Outermost-ring selection bug, caught in review.</strong> Keying on <code>ring_inner_km</code> alone pooled (60,100) and (60,120), doubling the cell count the agreement rule counted against <code>min_cells_agreeing</code>.</td>
+              <td class="ok">Fixed (<code>_outermost</code> keys on the inner/outer PAIR) and locked by a regression test. The verdict was <code>inconclusive</code> before and after.</td></tr>
+          <tr><td>4</td><td><strong>Footprint radius of record is 15 km, not the 5 km the NOX-009 spec prose and the paper both say.</strong> <code>SignalConfig.footprint_radius_km = 15.0</code> (84 cells at 5 km vs 448 at 15 km).</td>
+              <td class="warning">Out of scope for this task's code, but it is a factual error in the paper. Flagged for the documentation pass.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="result">
+        <h2>Result of record</h2>
+        <p><strong>Verdict: <code>inconclusive</code></strong>. Neither reading is established.</p>
+        <ul>
+          <li><strong>Self-subtraction is not established.</strong> No cell rises past the
+          pre-registered 0.05 materiality threshold (largest rise +0.031), and the two change bases
+          disagree flatly: the deseason basis rises monotonically with ring radius (weekly
+          0.0064 &rarr; 0.0379) while first-difference stays clamped at zero and its raw
+          incremental R&sup2; becomes <em>more</em> negative (&minus;0.021 &rarr; &minus;0.049). A ring
+          simply eating the plume should hand variance back to both bases.</li>
+          <li><strong>Ring-robustness is not established either.</strong> The share is demonstrably
+          ring-DEPENDENT: it rises monotonically in the deseason cells and its bootstrap CI
+          <em>excludes zero</em> at the outer rings, so the "&asymp;0 within CI" claim NOX-009 makes at
+          25&ndash;60 km does not hold at 60&ndash;120 km. The regional share falls from ~0.94 to
+          ~0.84&ndash;0.88 in every cell over the same sweep.</li>
+          <li><strong>A limit the sweep cannot escape:</strong> the rise has not plateaued at the
+          outermost ring available, and the cube reaches only ~124 km from the centroid, so we cannot
+          show the ring ever fully clears the plume.</li>
+        </ul>
+      </section>
+
+      <section id="docs">
+        <h2>Documentation required</h2>
+        <p><strong>Yes.</strong> Targets: <code>paper/nox_convergent_nulls.tex</code> (&sect;6.1 must
+        report the share as ring-dependent and quote the range across geometries; &sect;6.2(i) and
+        control C1 must move from "not run" to "run, did not settle it"; the 5 km footprint error
+        must be corrected to 15 km), <code>docs/exploration-results.html</code>,
+        <code>history.html</code>, <code>.claude/context/project-map.md</code>.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

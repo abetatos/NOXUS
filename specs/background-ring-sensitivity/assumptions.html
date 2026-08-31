@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Assumptions</h2>
+      <p>Recorded so a reviewer can attack them directly. Each states what we assumed, why, what
+      happens if it is wrong, and whether it blocks implementation.</p></section>
+
+      <section id="a1"><div class="card risk-medium"><div class="card-header"><span class="card-title">A1 &mdash; The advection scale is <code>|U|&middot;tau &asymp; 36 km</code></span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> the NOX-005 mean effective wind (2.48 m/s) and the assumed NO&#8322; lifetime (tau = 4 h) give the relevant plume length for deciding whether the 25&ndash;60 km ring is contaminated.</p>
+      <div class="card-fields"><p><strong>Why:</strong> both numbers are already measured/fixed in the flux probe; using them keeps this task consistent with the analysis it is auditing.</p>
+      <p><strong>If wrong:</strong> tau is seasonal (2&ndash;3&#215; longer in winter, see NOX critique C6), so 36 km may understate the winter plume length by a factor of 2&ndash;3. That would mean even the 60&ndash;120 km ring is partly contaminated in winter and the sweep would <em>under</em>-detect self-subtraction.</p>
+      <p><strong>Mitigation:</strong> the sweep spans 25&rarr;120 km rather than testing a single alternative radius, so the trend &mdash; not one threshold &mdash; carries the answer. The advection scale is recorded as a marker, never used as a cut.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+      <section id="a2"><div class="card risk-low"><div class="card-header"><span class="card-title">A2 &mdash; The committed cube is adequate for a 60&ndash;120 km ring</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> no new acquisition is needed.</p>
+      <div class="card-fields"><p><strong>Why:</strong> measured, not assumed &mdash; the cube reaches 124 km from the centroid and a 60&ndash;120 km ring holds 759 cells across all eight octants at 0.99 valid-week fraction (see <a href="requirements.html#feasibility">Feasibility</a>).</p>
+      <p><strong>If wrong:</strong> n/a &mdash; verified read-only before the spec was written.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+      <section id="a3"><div class="card risk-medium"><div class="card-header"><span class="card-title">A3 &mdash; A rising local share at larger radii means self-subtraction, not something else</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> the causal reading of a positive result.</p>
+      <div class="card-fields"><p><strong>Why:</strong> if the near ring carries the plume, removing it removes signal; moving the ring out should restore it.</p>
+      <p><strong>If wrong:</strong> a larger ring is also a <em>worse</em> proxy for the local background (different air mass, different sources, more cells and hence less ring noise). Any of these could move the partition without any plume being involved.</p>
+      <p><strong>Mitigation:</strong> AT3b (negative control: source confined to the footprint &rArr; share must stay flat), EDGE-005 (cell counts reported), REQ-013 octant weighting, and REQ-021 (regional share must fall as the local share rises &mdash; the signature of a transfer between the two terms rather than a generic drift).</p>
+      <p><strong>Blocks implementation:</strong> no &mdash; but it does mean a <code>self-subtraction</code> verdict must be reported as &ldquo;the &asymp;0 result is not robust to ring geometry&rdquo;, not as &ldquo;the cluster signal is recoverable&rdquo;.</p></div></div></div></section>
+
+      <section id="a4"><div class="card risk-medium"><div class="card-header"><span class="card-title">A4 &mdash; 0.05 is the right pre-registered threshold</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> a clamped local share above 0.05 with a CI excluding zero is materially different from &ldquo;&asymp; 0&rdquo;.</p>
+      <div class="card-fields"><p><strong>Why:</strong> one order of magnitude below the regional share, and <code>sqrt(0.05) &asymp; 0.22</code> &mdash; roughly the smallest change-detector ceiling that could plausibly matter to a nowcast.</p>
+      <p><strong>If wrong:</strong> the threshold is a reporting convenience; the raw shares and CIs are published for every cell, so a reader can apply their own.</p>
+      <p><strong>Blocks implementation:</strong> no. <strong>But it must be fixed before T7 runs</strong> and never adjusted afterwards.</p></div></div></div></section>
+
+      <section id="a5"><div class="card risk-low"><div class="card-header"><span class="card-title">A5 &mdash; The fixed partition order stays fixed</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> the sweep varies the ring only, keeping <code>regional &rarr; meteo &rarr; local</code>.</p>
+      <div class="card-fields"><p><strong>Why:</strong> varying two things at once would make the result uninterpretable, and the order is the NOX-009 result of record.</p>
+      <p><strong>If wrong:</strong> the order-dependence of the partition is a <em>separate</em> known limitation (paper &sect;3, Sequential variance partition) and deserves its own task; it is out of scope here.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

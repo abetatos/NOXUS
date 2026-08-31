@@ -1,0 +1,20 @@
+NOX-016 Arm B - NBS feasibility probe (REQ-030)
+==============================================================================
+VERDICT: NO-GO
+  host reachable (static asset): True
+
+Routes tried
+------------------------------------------------------------------------------
+  [403] easyquery-national-monthly
+        https://data.stats.gov.cn/easyquery.htm?m=QueryData&dbcode=hgyd&rowcode=zb&colcode=sj&wds=[]&dfwds=[{"wdcode":
+        HTTP error: Forbidden
+  [403] easyquery-province-monthly
+        https://data.stats.gov.cn/easyquery.htm?m=QueryData&dbcode=fsyd&rowcode=zb&colcode=sj&wds=[{"wdcode":"reg","va
+        HTTP error: Forbidden
+  [403] portal-query-api
+        https://data.stats.gov.cn/dg/api/query/data
+        HTTP error: Forbidden
+
+Interpretation
+------------------------------------------------------------------------------
+  NO-GO. The NBS host serves static assets normally but every DATA query endpoint is refused, so this is an access policy on the query API (observed: HTTP 403 from the site WAF), not an outage or a transient failure. There is no free programmatic route to NBS series from this environment. Per REQ-031 no paywalled substitute is used: the scale contrast reports Arm A alone and records the shared-publisher provenance gap as an UNRESOLVED limitation. Re-running this probe from a permitted network may return GO, in which case Arm B can be added without changing anything else.

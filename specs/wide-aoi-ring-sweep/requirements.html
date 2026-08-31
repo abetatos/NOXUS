@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Wide-AOI ring sweep: does the cluster-local share plateau, or keep rising past 120 km?</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-017</code></td></tr>
+        <tr><th>Feature slug</th><td><code>wide-aoi-ring-sweep</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-015</code> (ring sweep, verdict <em>inconclusive</em>), <code>NOX-009</code> (change-variance decomposition), <code>NOX-002a/b</code> (acquisition + gridding)</td></tr>
+        <tr><th>Origin</th><td>Recorded NOX-015 follow-up: “needs a cube wider than ~124 km since the rise had not plateaued”, plus the NOX-015 review defect on the pre-registered verdict rule.</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>NOX-015 swept the background ring from 25–60&nbsp;km out to 60–120&nbsp;km and returned
+        <strong>inconclusive</strong>. Two things were left unresolved, and both are geometric:</p>
+        <ul>
+          <li>The deseason-basis local share rose <em>monotonically</em> with ring radius
+          (weekly 0.0064&nbsp;→&nbsp;0.0379, CI excluding zero at the outer radii) and had
+          <strong>not plateaued</strong> at the outermost ring available. A rise that is still
+          climbing when the domain runs out cannot be read either way.</li>
+          <li>The committed cube (AOI buffer 0.25°) reaches only <strong>63&nbsp;km from the cluster
+          centroid with full 360° coverage</strong>; beyond that the “ring” is four corner wedges
+          (corner maximum ≈ 126&nbsp;km). The 60–120&nbsp;km ring was therefore not an annulus at all,
+          which the equal-octant weighting mitigates but does not repair.</li>
+        </ul>
+        <p>This task acquires a <strong>wider AOI cube</strong> so a genuine annulus exists out to
+        ~150&nbsp;km, and re-runs the <em>same</em> partition over an extended ring grid. It also
+        repairs, <strong>by pre-registration rather than post-hoc</strong>, the NOX-015 verdict-rule
+        defect recorded in that task's review: the committed rule thresholded the <em>level</em> of the
+        local share instead of its <em>rise</em>, so a source confined to the footprint — evidence
+        <em>against</em> self-subtraction — would have been classified as self-subtraction.</p>
+        <p class="claude-note">Every threshold below is fixed <strong>before</strong> the wide cube is
+        acquired or any wide-ring number is viewed. NOX-015's rule is carried over unchanged and
+        reported alongside the corrected one, so the two are comparable and neither is chosen after
+        the fact.</p>
+      </section>
+
+      <section id="feasibility">
+        <h2>Measured feasibility (live, 2026-08-28)</h2>
+        <p>Established <strong>before</strong> this spec was written, so no requirement rests on an
+        assumption about data availability:</p>
+        <table class="meta-table"><thead><tr><th>Question</th><th>Measured</th></tr></thead>
+        <tbody>
+          <tr><td>Does CDSE openEO serve <code>SENTINEL_5P_L2</code> at a 3.58° × 3.76° box?</td><td><strong>Yes.</strong> One-month live probe (2023-06, buffer 1.25°) returned 30 overpasses.</td></tr>
+          <tr><td>Wall time</td><td><strong>81.4 s per month-batch</strong> ⇒ ~2.0 h for the 89-month record.</td></tr>
+          <tr><td>Storage</td><td><strong>2.2 MB per month</strong> ⇒ ~200 MB (gitignored, <code>data/raw/</code>).</td></tr>
+          <tr><td>Grid</td><td>66 × 109 cells at the <em>same</em> 0.05456° × 0.03472° step as the committed 30 × 51 cube — so the footprint sampling is unchanged.</td></tr>
+          <tr><td>Ring reach at buffer 1.25°</td><td>full-360° radius <strong>148.8 km</strong> (vs 63.2 km now); corner maximum 267 km.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="functional">
+        <h2>Functional requirements</h2>
+
+        <h3>Acquisition and gridding</h3>
+        <p><span class="req-id">REQ-001</span> Acquire TROPOMI NO₂ over the Tangshan AOI at buffer
+        <strong>1.25°</strong> for the full record (<code>2019-01-01</code> → today), into a
+        <strong>separate</strong> raw store, leaving <code>data/raw/tropomi/</code> untouched.</p>
+        <p><span class="req-id">REQ-002</span> The acquisition must be resumable and idempotent
+        (manifest-backed), and must not require re-downloading on re-run.</p>
+        <p><span class="req-id">REQ-003</span> Composite the wide store into weekly and daily cubes
+        with the <strong>same</strong> gridding configuration as the committed cubes.</p>
+        <p><span class="req-id">REQ-004</span> The <em>temporal</em> masking rule must be held
+        identical to the committed cube. <code>period_coverage</code> is currently the valid-cell
+        fraction over the whole box, so a wider box would mask a different set of periods and change
+        <code>n</code> — a second knob moving at the same time as the ring. Coverage must therefore be
+        evaluated over the <strong>committed 0.25° AOI sub-box</strong> of the wide cube.</p>
+        <p><span class="req-id">REQ-005</span> The retained period set of the wide weekly cube must be
+        <strong>compared against the committed cube</strong> and any difference reported, not silently
+        absorbed.</p>
+
+        <h3>Ring geometry</h3>
+        <p><span class="req-id">REQ-010</span> <code>background_ring</code> clips the ring to an AOI
+        box that currently defaults to the 0.25°-buffer <code>TANGSHAN</code> region. The sweep must
+        pass the <strong>wide</strong> AOI explicitly, or the wide rings would be silently clipped back
+        to the narrow box and the whole exercise would be a no-op.</p>
+        <p><span class="req-id">REQ-011</span> The footprint definition (15 km around the 26 active
+        facilities), the meteo covariates, the deseason method, the entry order
+        <code>regional → meteo → local</code>, the bootstrap and the seed are
+        <strong>inherited unchanged</strong> from NOX-015. The ring is the only knob that moves.</p>
+        <p><span class="req-id">REQ-012</span> Extended pre-registered ring grid, in km:
+        <code>(25,60) (40,80) (50,90) (60,100) (60,120) (75,135) (90,150)</code>. The first five
+        reproduce NOX-015 exactly so the two runs are directly comparable; the last two are new and lie
+        entirely beyond the domain the old cube could support.</p>
+        <p><span class="req-id">REQ-013</span> For every ring, report realised cell count, populated
+        octants, octant imbalance and the realised minimum/maximum radius, so a ring that is still
+        geometrically incomplete is visible rather than assumed.</p>
+
+        <h3>Pre-registered verdict rules</h3>
+        <p><span class="req-id">REQ-020</span> <strong>Rule A (LEVEL — carried over from NOX-015,
+        unchanged).</strong> Self-subtraction if the clamped local share exceeds
+        <code>0.05</code> with a bootstrap CI excluding zero in at least <strong>2</strong> of the
+        (basis × resolution) cells at the outermost ring. Reported for comparability with NOX-015; its
+        known defect is documented, not repaired in place.</p>
+        <p><span class="req-id">REQ-021</span> <strong>Rule B (RISE — the corrected formulation,
+        pre-registered here for the first time).</strong> Self-subtraction if
+        <code>share(outermost) − share(25–60 baseline) &gt; 0.05</code> in at least <strong>2</strong>
+        cells <em>and</em> the outermost cell's bootstrap CI excludes zero. This thresholds the
+        quantity self-subtraction actually predicts.</p>
+        <p><span class="req-id">REQ-022</span> <strong>Plateau criterion</strong> — the reason the wider
+        cube was acquired. The rise has plateaued if the share increment between the two outermost
+        rings is <code>&lt; 0.01</code> in <strong>every measurable cell</strong>. A verdict that depends
+        on a rise which has <strong>not</strong> plateaued must be reported as <em>domain-limited</em>,
+        whatever its sign.</p>
+        <p class="claude-note"><strong>REQ-022 revision, disclosed.</strong> As first written this was a
+        quorum — “flat in at least <code>min_cells_agreeing</code> cells”. A pilot run on <strong>8 of
+        the 89</strong> acquired months, executed to smoke-test the wide code path, showed the quorum to
+        be trivially satisfiable: the first-difference basis clamps at exactly <code>0.0</code> at every
+        ring, so its increment is zero <em>by construction</em>, and two such censored cells met the
+        quorum while the deseason cells were still climbing by <code>+0.16</code>. The quorum reading
+        also contradicts the plain meaning of the word: if any cell is still moving, the share has not
+        plateaued. The rule was therefore revised <strong>before the full-record run</strong> and before
+        any full-record verdict existed. Two things are stated plainly rather than buried: the pilot used
+        <em>real</em> (partial) data, not a synthetic fixture; and the revision makes
+        <code>domain-limited</code> <em>more</em> reachable — it moves the verdict away from the answer
+        that would flatter the paper, not toward it.</p>
+        <p><span class="req-id">REQ-023</span> The verdict of record is the <strong>conjunction</strong>
+        of Rules A and B plus the plateau flag, stated explicitly. Rules A and B disagreeing is a
+        reportable outcome, not an error to resolve by picking one.</p>
+        <p><span class="req-id">REQ-024</span> No threshold in REQ-020..022 may be altered after any
+        wide-ring number is viewed. If a rule is found defective mid-run, the defect is
+        <strong>recorded</strong> and the pre-registered rule still carries the verdict — exactly as in
+        NOX-015.</p>
+
+        <h3>Reporting</h3>
+        <p><span class="req-id">REQ-030</span> Emit a machine-readable CSV of every
+        (ring × weighting × basis × resolution) cell and a human-readable findings note carrying the
+        verdict, the two rules, the plateau flag and the geometry audit.</p>
+        <p><span class="req-id">REQ-031</span> Update the paper's §6.3 with the wide-cube result,
+        stating plainly whether it supersedes, confirms or fails to resolve the NOX-015
+        <em>inconclusive</em> verdict.</p>
+      </section>
+
+      <section id="nonfunctional">
+        <h2>Non-functional requirements</h2>
+        <p><span class="req-id">NFR-001</span> <strong>Benchmark-blind.</strong> The CREA benchmark is
+        never read anywhere in the acquisition, gridding or sweep path.</p>
+        <p><span class="req-id">NFR-002</span> <strong>Pre-registration.</strong> All thresholds fixed
+        in configuration before the run; defects recorded, never retro-patched.</p>
+        <p><span class="req-id">NFR-003</span> <strong>No regression.</strong> The committed
+        <code>noxus variance</code> and <code>noxus ring-sweep</code> outputs must stay byte-identical
+        on their default paths. New behaviour is reachable only via explicit new arguments.</p>
+        <p><span class="req-id">NFR-004</span> <strong>Repository hygiene.</strong> The wide raw store
+        and wide cubes live under gitignored paths; nothing large is committed.</p>
+        <p><span class="req-id">NFR-005</span> Credentials are referenced by environment-variable name
+        only and never read, printed or logged.</p>
+      </section>
+
+      <section id="edge">
+        <h2>Edge cases and error handling</h2>
+        <p><span class="req-id">EDGE-001</span> A ring whose octants are not all populated is still
+        reported, flagged as geometrically incomplete.</p>
+        <p><span class="req-id">EDGE-002</span> The wide box extends over the Bohai Sea and toward
+        Tianjin; sea cells and a second urban plume enter the outer rings. This is a
+        <strong>property of the test</strong>, not a bug — but it must be stated, because at 150 km the
+        “regional background” is no longer the same air mass.</p>
+        <p><span class="req-id">EDGE-003</span> Batches that fail mid-acquisition are recorded in the
+        manifest and retried; a partially acquired record must be detected and refused rather than
+        analysed.</p>
+        <p><span class="req-id">EDGE-004</span> A negative raw ΔR² for the local term clamps to zero,
+        as in NOX-009/015, and the clamp is flagged.</p>
+        <p><span class="req-id">ERR-001</span> Missing wide cube ⇒ actionable message naming the
+        command that builds it.</p>
+        <p><span class="req-id">ERR-002</span> If the acquisition cannot complete, the task
+        <strong>stops and escalates</strong>; a truncated record is never presented as the wide result.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Test</th><th>What it proves</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Wide acquisition targets a separate store and is idempotent.</td></tr>
+          <tr><td><span class="req-id">REQ-004/005</span></td><td>AT2</td><td>Coverage sub-box keeps the temporal mask identical; period-set difference reported.</td></tr>
+          <tr><td><span class="req-id">REQ-010</span></td><td>AT3</td><td>Wide AOI reaches <code>background_ring</code>; without it the ring is clipped.</td></tr>
+          <tr><td><span class="req-id">REQ-012/013</span></td><td>AT4</td><td>Extended grid swept; geometry audit emitted per ring.</td></tr>
+          <tr><td><span class="req-id">REQ-020/021/022/023</span></td><td>AT5</td><td>Both rules and the plateau flag computed mechanically from the config.</td></tr>
+          <tr><td><span class="req-id">NFR-003</span></td><td>AT-REG-1</td><td>Default <code>variance</code> and <code>ring-sweep</code> paths byte-identical.</td></tr>
+          <tr><td><span class="req-id">NFR-001</span></td><td>AT6</td><td>No benchmark path or symbol reachable from the sweep.</td></tr>
+          <tr><td><span class="req-id">AC-POS</span></td><td>AT7</td><td>Positive control: planted in-ring source ⇒ Rule B fires. Negative control: footprint-confined source ⇒ Rule B does <em>not</em> fire (the NOX-015 defect).</td></tr>
+          <tr><td><span class="req-id">ERR-001/002, EDGE-003</span></td><td>AT-ERR-1</td><td>Missing/partial cube refused with an actionable message.</td></tr>
+        </tbody></table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

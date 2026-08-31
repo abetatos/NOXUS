@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="technical-summary">
+        <h2>Technical summary</h2>
+        <p>Everything this task needs already exists. <code>align_series</code> resamples and
+        inner-joins a feature to a target with a coverage screen; <code>robust_corr</code> returns the
+        full autocorrelation-robust set; the NOX-013 probe already wires features to a target and
+        writes a findings note. The only genuinely new logic is the <strong>paired contrast</strong>
+        (REQ-012) &mdash; a bootstrap CI on the <em>difference</em> between two correlations measured
+        on the same feature over the common sample &mdash; and the four-branch verdict rule.</p>
+        <p>The design's real work is discipline, not machinery. This is the project's first task that
+        <em>deliberately reads multiple targets</em>, so the anti-p-hacking guarantee shifts from
+        &ldquo;structurally cannot see the benchmark&rdquo; (NOX-009's guarantee) to &ldquo;sees all
+        targets, refits nothing, corrects across the whole family, and commits its verdict rule in
+        advance&rdquo;. The interfaces below are shaped to make the weaker guarantee testable: features
+        are loaded through a read-only accessor with no fitting entry point, and every computed
+        pairing is appended to the family before any is inspected.</p>
+        <p class="claude-note">The paired-difference bootstrap matters. Comparing two correlations by
+        checking whether their separate CIs overlap is a well-known error; because both use the same
+        NO&#8322; feature over an overlapping window, the difference has far lower variance than either
+        margin suggests, and a moving-block bootstrap over the <em>joint</em> sample is the right
+        estimator.</p>
+      </section>
+
+      <section id="data-flow">
+        <h2>Data flow</h2>
+        <div class="diagram-container">
+        <svg viewBox="0 0 880 320" width="100%" role="img" aria-label="Scale contrast data flow">
+          <defs><marker id="ar2" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#0F6B73"/></marker></defs>
+          <g font-family="system-ui,sans-serif" font-size="12">
+            <rect x="8" y="16" width="164" height="64" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="90" y="38" text-anchor="middle">NO&#8322; features</text>
+            <text x="90" y="55" text-anchor="middle" font-size="10">no2_corrected</text>
+            <text x="90" y="70" text-anchor="middle" font-size="10">residual_activity</text>
+
+            <rect x="8" y="104" width="164" height="50" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="90" y="125" text-anchor="middle">Tangshan BF rate</text>
+            <text x="90" y="142" text-anchor="middle" font-size="10">cluster scale</text>
+
+            <rect x="8" y="178" width="164" height="64" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="90" y="199" text-anchor="middle" font-weight="600">CREA national (NEW)</text>
+            <text x="90" y="215" text-anchor="middle" font-size="10">BF rate 247 / crude steel</text>
+            <text x="90" y="230" text-anchor="middle" font-size="10">pig iron</text>
+
+            <rect x="8" y="264" width="164" height="46" rx="6" fill="#F3F3F3" stroke="#6B6B6B" stroke-dasharray="4 3"/>
+            <text x="90" y="284" text-anchor="middle" font-size="11">Arm B: NBS Hebei</text>
+            <text x="90" y="300" text-anchor="middle" font-size="10">GATED on T1 probe</text>
+
+            <rect x="216" y="104" width="180" height="88" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="306" y="130" text-anchor="middle">align_series()</text>
+            <text x="306" y="150" text-anchor="middle">robust_corr()</text>
+            <text x="306" y="170" text-anchor="middle" font-size="10">REUSED UNCHANGED</text>
+            <text x="306" y="185" text-anchor="middle" font-size="10">features never refit</text>
+
+            <rect x="440" y="60" width="184" height="62" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="532" y="82" text-anchor="middle" font-weight="600">paired contrast (NEW)</text>
+            <text x="532" y="100" text-anchor="middle" font-size="10">block bootstrap on</text>
+            <text x="532" y="114" text-anchor="middle" font-size="10">r(national) &minus; r(Tangshan)</text>
+
+            <rect x="440" y="150" width="184" height="52" rx="6" fill="#E8F2F3" stroke="#0F6B73"/>
+            <text x="532" y="171" text-anchor="middle">BH&ndash;FDR across family</text>
+            <text x="532" y="189" text-anchor="middle" font-size="10">every pairing counted</text>
+
+            <rect x="672" y="60" width="196" height="52" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="770" y="81" text-anchor="middle" font-weight="600">scale_contrast.csv</text>
+            <text x="770" y="98" text-anchor="middle" font-size="10">feature &#215; target &#215; cadence</text>
+
+            <rect x="672" y="146" width="196" height="62" rx="6" fill="#FDF0EA" stroke="#A8492C"/>
+            <text x="770" y="167" text-anchor="middle" font-weight="600">verdict (REQ-021)</text>
+            <text x="770" y="184" text-anchor="middle" font-size="10">scale-confirmed | inverted</text>
+            <text x="770" y="199" text-anchor="middle" font-size="10">no-scale-effect | pipeline-suspect</text>
+
+            <g stroke="#0F6B73" fill="none" marker-end="url(#ar2)">
+              <path d="M172 48 H 196 V 132 H 214"/>
+              <path d="M172 129 H 214"/>
+              <path d="M172 210 H 196 V 160 H 214"/>
+              <path d="M396 138 H 420 V 90 H 438"/>
+              <path d="M396 158 H 420 V 176 H 438"/>
+              <path d="M624 90 H 670"/>
+              <path d="M624 176 H 670"/>
+            </g>
+            <g stroke="#6B6B6B" fill="none" stroke-dasharray="4 3" marker-end="url(#ar2)">
+              <path d="M172 287 H 196 V 186 H 214"/>
+            </g>
+          </g>
+        </svg>
+        </div>
+      </section>
+
+      <section id="files-to-change">
+        <h2>Files to change</h2>
+        <table class="meta-table"><thead><tr><th>File</th><th>Change</th><th>Why</th></tr></thead><tbody>
+          <tr><th><code>noxus/validation/scale_contrast.py</code></th><td><strong>New.</strong> <code>scale_contrast(cfg)</code>: load targets and features read-only, align, score with <code>robust_corr</code>, compute the paired-difference bootstrap, apply BH across the family, apply the REQ-021 verdict rule, write CSV + findings.</td><td>All new logic in one module.</td></tr>
+          <tr><th><code>noxus/validation/paired_corr.py</code></th><td><strong>New (small).</strong> <code>paired_corr_difference(x, y_a, y_b, ...)</code> &mdash; moving-block bootstrap CI on <code>r(x,y_b) &minus; r(x,y_a)</code> over the jointly observed sample, reusing the NOX-008 block-length rule.</td><td>The one genuinely new estimator; isolated so it is independently testable (AT3).</td></tr>
+          <tr><th><code>noxus/data/nbs.py</code></th><td><strong>New, gated.</strong> Arm-B fetcher plus a <code>--probe</code> feasibility path. Credentials, if any, by env-var <em>name</em> only. Written only if REQ-030 returns GO.</td><td>REQ-030/031/032. Mirrors the NOX-005/NOX-011 probe-first pattern.</td></tr>
+          <tr><th><code>noxus/config/run.py</code></th><td><strong>Add.</strong> <code>ScaleContrastConfig</code> (targets, features, cadences, sub-periods, verdict thresholds, seeds, paths).</td><td>Thresholds fixed before results are seen.</td></tr>
+          <tr><th><code>noxus/cli.py</code></th><td><strong>Add.</strong> <code>noxus scale-contrast</code> (with <code>--probe</code> for Arm-B T1).</td><td>REQ-042.</td></tr>
+          <tr><th><code>analysis/scale_contrast.py</code></th><td><strong>New.</strong> The r-vs-scale figure (REQ-041).</td><td>Plotting stays out of the library.</td></tr>
+          <tr><th><code>tests/validation/test_scale_contrast.py</code>, <code>tests/validation/test_paired_corr.py</code></th><td><strong>New.</strong> AT1&ndash;AT8, AT-ERR-1.</td><td>Requirement-to-test mapping.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="files-not-to-change">
+        <h2>Files <em>not</em> to change</h2>
+        <table class="meta-table"><thead><tr><th>File</th><th>Why it must stay untouched</th></tr></thead><tbody>
+          <tr><th><code>noxus/signal/*</code> (feature construction)</th><td>NFR-001: the features must be exactly the ones already scored against Tangshan, or the contrast is not a contrast.</td></tr>
+          <tr><th><code>noxus/validation/preprocess.py</code>, <code>robust.py</code>, <code>leadlag.py</code></th><td>Shared inference stack. Reused read-only; changing it would move every other result in the project.</td></tr>
+          <tr><th><code>data/derived/benchmark_auxiliary.parquet</code></th><td>The committed national series. Read-only input; re-ingesting it mid-task would break reproducibility of the numbers quoted in this spec.</td></tr>
+          <tr><th><code>data/derived/nowcast_probe.txt</code></th><td>The NOX-013 result of record. This task writes separate artefacts.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="interfaces">
+        <h2>Interfaces and contracts</h2>
+        <div class="tabs">
+          <div class="tab-bar">
+            <button class="tab-btn" data-tab="py">Python</button>
+            <button class="tab-btn" data-tab="cli">CLI</button>
+            <button class="tab-btn" data-tab="csv">CSV schema</button>
+          </div>
+          <div class="tab-panel" data-tab="py"><pre><code>@dataclass(frozen=True)
+class ScaleContrastConfig:
+    # Targets, ordered by spatial scale. Fixed BEFORE any result is viewed (NFR-001).
+    targets: tuple[tuple[str, str, str], ...] = (
+        # (label, source_file, series_name)
+        ("tangshan_bf_rate", "benchmark_tangshan_bf_operating_rate.parquet", "value"),
+        ("national_bf_rate", "benchmark_auxiliary.parquet",
+                             "China: Blast Furnace Starting Rate (247)"),
+        ("national_crude_steel", "benchmark_auxiliary.parquet",
+                             "China: Estimated Daily Average Output: Crude Steel"),
+        ("national_pig_iron", "benchmark_auxiliary.parquet",
+                             "China: Estimated Daily Average Output: Pig Iron"),
+    )
+    primary_national: str = "national_bf_rate"   # the REQ-021 decider
+
+    # Features consumed EXACTLY as committed -- never refit (NFR-001).
+    features: tuple[tuple[str, str, str], ...] = (
+        ("no2_residual",  "no2/steel_footprint_signal.parquet",         "no2_corrected"),
+        ("no2_intensity", "no2/steel_intensity_decomposition.parquet",  "residual_activity"),
+    )
+
+    # Cadence: weekly where both sides allow it, else aggregate BOTH down (REQ-002).
+    freq_weekly: str = "W"
+    freq_coarse: str = "ME"
+    subperiods: tuple[tuple[str, str], ...] = (("2019-01-01", "2021-12-31"),
+                                               ("2022-01-01", "2026-12-31"))
+
+    # Pre-registered verdict thresholds (REQ-021).
+    fdr_alpha: float = 0.05
+    pipeline_suspect_abs_r: float = 0.20
+
+    # Project-standard inference knobs (NFR-004).
+    n_boot: int = 5000
+    n_perm: int = 5000
+    seed: int = 20260828
+    max_lag: int = 8
+    min_coverage: float = 0.25
+    min_overlap: int = 26
+
+    out_dir: Path = Path("data/derived")
+    results_name: str = "scale_contrast.csv"
+
+
+def scale_contrast(cfg: ScaleContrastConfig | None = None) -&gt; pd.DataFrame:
+    # Score the committed NO2 features against Tangshan-scale AND national-scale
+    # steel targets under one BH family, and report the paired contrast.
+    # Features are READ-ONLY: no refit against any target (NFR-001, ERR-004).
+    ...</code></pre></div>
+          <div class="tab-panel" data-tab="cli"><pre><code># Arm B feasibility gate FIRST (REQ-030) -- may return NO-GO
+uv run noxus scale-contrast --probe
+
+# Arm A (always runs): the scale contrast of record
+uv run noxus scale-contrast
+
+# Existing commands -- output unchanged
+uv run noxus validate
+</code></pre></div>
+          <div class="tab-panel" data-tab="csv"><pre><code>feature, target, target_scale,          # cluster | province | national
+cadence, n, block,
+r, p_naive, n_eff_first, n_eff_nw, p_eff_nw,
+boot_lo, boot_hi, p_perm, p_fdr, fdr_significant,
+contrast_vs_tangshan, contrast_lo, contrast_hi,   # paired difference + CI
+peak_lag, peak_r, sig_bound, peak_is_boundary, peak_significant,
+subperiod,                              # full | 2019-2021 | 2022-2026
+family_size, refused_reason, verdict</code></pre></div>
+        </div>
+      </section>
+
+      <section id="test-design">
+        <h2>Test design</h2>
+        <table class="meta-table"><thead><tr><th>ID</th><th>Test</th><th>Method</th></tr></thead><tbody>
+          <tr><th>AT1</th><td>Targets loaded; cadence aggregated down</td><td>Synthetic weekly feature vs a 10-day target; assert both sides are resampled to monthly and that no NaN is filled anywhere (compare against a hand-computed join).</td></tr>
+          <tr><th>AT2</th><td><strong>No feature refit</strong></td><td>Assert the feature accessor exposes no fit/tune entry point, and monkeypatch every <code>signal</code> fitting function to raise &mdash; a full run must complete.</td></tr>
+          <tr><th>AT3</th><td><strong>Paired contrast recovers a planted difference</strong></td><td>Construct <code>x</code>, <code>y_a</code> (weak link) and <code>y_b</code> (strong link) with known correlations on an AR(1) fixture. Assert the difference CI excludes zero and brackets the true difference, and that it is <em>narrower</em> than the naive interval implied by the two marginal CIs.</td></tr>
+          <tr><th>AT4</th><td>BH family completeness</td><td>Assert <code>family_size</code> equals the number of computed pairings including refused ones, and that removing a pairing from the frame changes the adjusted p-values (i.e. correction is genuinely family-wide).</td></tr>
+          <tr><th>AT5</th><td>Lag-reporting discipline</td><td>Fixture whose CCF peaks at <code>&plusmn;max_lag</code> and below its bound; assert <code>peak_is_boundary</code> and <code>peak_significant=False</code> are set and the findings text does not claim a lead or lag.</td></tr>
+          <tr><th>AT6</th><td>Verdict rule &mdash; all four branches</td><td>Table-driven synthetic frames; assert each branch fires, and that changing <code>pipeline_suspect_abs_r</code> in config moves the boundary (threshold not inlined).</td></tr>
+          <tr><th>AT7</th><td>Arm-B gate</td><td>Probe stubbed GO &rArr; Arm-B rows present and folded into the family; stubbed NO-GO &rArr; Arm A only, gap recorded, and a licence-gated route is never substituted.</td></tr>
+          <tr><th>AT8</th><td>Sub-period split and caveats</td><td>Assert full-record and both sub-periods are emitted, and that the findings note contains the EDGE-005 (processor-version) and EDGE-006 (13%-of-national) statements.</td></tr>
+          <tr><th>AT-ERR-1</th><td>Error states</td><td>Missing auxiliary parquet &rArr; message naming <code>noxus ingest-benchmark</code>; overlap &lt; 26 &rArr; refused row with reason, still counted in <code>family_size</code>.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="risks">
+        <h2>Risks and trade-offs</h2>
+        <table class="meta-table"><thead><tr><th>Risk</th><th>Level</th><th>Mitigation</th></tr></thead><tbody>
+          <tr><th>Reading multiple targets weakens the project's anti-p-hacking guarantee</th><td>High likelihood, high impact</td><td>The structural guarantee is impossible here by construction, so it is replaced by three testable ones: features read-only and never refit (AT2), family-wide BH including refused pairings (AT4), verdict thresholds fixed in config before T-run and checked in review against git history.</td></tr>
+          <tr><th>All Arm-A targets share the CREA/WIND publisher</th><td>Certain, medium impact</td><td>Cannot be mitigated within Arm A. REQ-022 requires it stated as a limit; Arm B exists precisely to add an independent publisher, and its absence (if NO-GO) is reported, not hidden.</td></tr>
+          <tr><th>A national correlation is driven by shared secular trend, not co-movement</th><td>High likelihood, high impact</td><td>EDGE-003: contrast computed on the deseasonalised/differenced features, plus a mandatory sub-period split. EDGE-005: the processor-version confound is restated in the findings note.</td></tr>
+          <tr><th>A <code>scale-confirmed</code> verdict is over-read as &ldquo;TROPOMI measures national steel&rdquo;</th><td>Medium</td><td>EDGE-006: the findings note must state the correct reading &mdash; a Tangshan-AOI signal tracking national output means the AOI signal is regionally dominated, which is the paper's claim, not a national-scale capability claim.</td></tr>
+          <tr><th>Comparing two correlations via overlapping marginal CIs</th><td>Medium likelihood, high impact</td><td>REQ-012 mandates a paired-difference bootstrap; AT3 asserts it is narrower than the naive marginal comparison, so the wrong method cannot pass silently.</td></tr>
+          <tr><th>Arm B balloons into a data-acquisition project</th><td>Medium</td><td>Hard T1 gate (REQ-030) before any fetcher is written; NO-GO is an accepted, reportable outcome (ERR-003), matching the NOX-005/NOX-011 precedent.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="rollback">
+        <h2>Rollback plan</h2>
+        <p>Fully additive. Rollback is: delete <code>noxus/validation/scale_contrast.py</code>,
+        <code>noxus/validation/paired_corr.py</code>, <code>noxus/data/nbs.py</code>,
+        <code>analysis/scale_contrast.py</code>, the two test modules, the
+        <code>ScaleContrastConfig</code> block and the CLI subcommand. No existing module is edited and
+        no committed artefact is overwritten &mdash; the task writes only
+        <code>scale_contrast.csv</code> and its findings note.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

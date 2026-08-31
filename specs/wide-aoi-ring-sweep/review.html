@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Wide-AOI ring sweep (NOX-017)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-017</code></td></tr>
+        <tr><th>Feature slug</th><td><code>wide-aoi-ring-sweep</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-ok">review</span></td></tr>
+        <tr><th>Reviewed</th><td>2026-08-31</td></tr>
+        <tr><th>Commands run</th><td><code>uv run pytest</code> (360 passed) &middot; <code>uv run ruff check .</code> (clean) &middot; <code>noxus fetch --buffer 1.25 --raw-dir data/raw/tropomi_wide</code> &middot; <code>noxus grid [--freq D] --coverage-buffer 0.25</code> &middot; <code>noxus ring-sweep --wide</code> &middot; <code>tectonic</code> (21 pp., 0 overfull)</td></tr>
+        <tr><th>Verdict of record</th><td><span class="badge badge-warn">domain-limited</span></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Decision: approved</h2>
+        <p>The wide cube was acquired in full, the sweep ran at the pre-registered settings, and the
+        verdict is recorded exactly as the rule produced it. The result does <strong>not</strong>
+        corroborate the paper's spatial reading, and it is reported that way.</p>
+      </section>
+
+      <section id="result">
+        <h2>Result</h2>
+        <p><strong>Acquisition.</strong> 92 month-batches, 2,741 overpasses, <strong>0 failed
+        batches</strong>, 204&nbsp;MB, 79.5&nbsp;min wall clock. Grid 66&nbsp;×&nbsp;109 at the
+        committed 0.05456°&nbsp;×&nbsp;0.03472° step. Weekly cube 400 periods, daily 2,796.</p>
+
+        <p><strong>Cluster-local change-variance share, plain weighting</strong> (regional share in
+        parentheses):</p>
+        <table class="meta-table"><thead><tr><th>Ring (km)</th><th>cells</th><th>empty octants</th><th>deseason·W</th><th>deseason·D</th><th>first-diff (W/D)</th></tr></thead>
+        <tbody>
+          <tr><td>25–60</td><td>293</td><td>0</td><td>0.0070 (0.954)</td><td>0.0000 (0.946)</td><td>0.000</td></tr>
+          <tr><td>40–80</td><td>575</td><td>0</td><td>0.0094 (0.936)</td><td>0.0000 (0.942)</td><td>0.000</td></tr>
+          <tr><td>50–90</td><td>752</td><td>0</td><td>0.0163 (0.911)</td><td>0.0009 (0.926)</td><td>0.000</td></tr>
+          <tr><td>60–100</td><td>970</td><td>0</td><td>0.0256 (0.884)</td><td>0.0037 (0.907)</td><td>0.000</td></tr>
+          <tr><td>60–120</td><td>1,737</td><td>0</td><td>0.0364 (0.854)</td><td>0.0078 (0.883)</td><td>0.000</td></tr>
+          <tr><td>75–135</td><td>2,152</td><td>0</td><td>0.0489 (0.805)</td><td>0.0144 (0.839)</td><td>0.000</td></tr>
+          <tr><td><strong>90–150</strong></td><td>2,514</td><td>0</td><td><strong>0.0612</strong> (0.758)</td><td><strong>0.0227</strong> (0.793)</td><td>0.000</td></tr>
+        </tbody></table>
+
+        <p><strong>Verdict: <code>domain-limited</code>.</strong> Rule A (level) fired in 1 of 4
+        cells, Rule B (rise) in 1 of 4 — both need 2. Plateau failed: 3 of 4 cells flat where all are
+        required, the weekly deseason cell still moving by <code>+0.0123</code> against a tolerance of
+        <code>0.01</code>.</p>
+        <p>The weekly deseason cell clears <em>both</em> materiality thresholds for the first time
+        (level 0.0612, rise +0.0542, each above 0.05) and its bootstrap CI excludes zero from the
+        40–80&nbsp;km ring outward. It does so alone: the first-difference basis is a clamped zero at
+        every radius, and on that basis the variance leaving the regional term goes to meteorology and
+        noise rather than to the cluster.</p>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements coverage</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Status</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>REQ-001/002/003</td><td><span class="badge badge-ok">met</span></td><td>Full record acquired into a separate manifest-resumable store; weekly + daily cubes built.</td></tr>
+          <tr><td>REQ-004/005</td><td><span class="badge badge-ok">met</span></td><td>Coverage evaluated over the committed 0.25° sub-box. Retained weeks are a strict <em>superset</em>: 0 lost, 11 gained, all in the tail added by the later download (committed store fetched 2026-06-13, this one 2026-08-28).</td></tr>
+          <tr><td>REQ-010</td><td><span class="badge badge-ok">met</span></td><td>All seven rings are complete annuli (0 empty octants; realised outer radius within 0.03 km of requested). Without the AOI they would have clipped to the narrow box — AT3 asserts exactly that.</td></tr>
+          <tr><td>REQ-011</td><td><span class="badge badge-ok">met</span></td><td>AT4 asserts the wide config inherits every estimator setting from <code>RingSweepConfig</code>.</td></tr>
+          <tr><td>REQ-012/013</td><td><span class="badge badge-ok">met</span></td><td>Seven rings swept; geometry audit per row.</td></tr>
+          <tr><td>REQ-020..024</td><td><span class="badge badge-ok">met</span></td><td>Three rules fixed before acquisition; verdict computed mechanically; not edited afterwards.</td></tr>
+          <tr><td>REQ-030/031</td><td><span class="badge badge-ok">met</span></td><td>CSV + findings note + figure emitted; paper §2, §6.1, §6.3, §7.x, abstract and control list updated.</td></tr>
+          <tr><td>NFR-001</td><td><span class="badge badge-ok">met</span></td><td>The existing AST scan covers the whole module, including the new functions.</td></tr>
+          <tr><td>NFR-003</td><td><span class="badge badge-ok">met</span></td><td>All three code hooks default to prior behaviour; AT-REG-1 asserts it; 360 tests pass.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="findings">
+        <h2>Findings recorded during the run</h2>
+
+        <h3>F1 — The plateau rule was defective and was revised <em>before</em> the full run</h3>
+        <p>A pilot on 8 of the 89 months, run to smoke-test the wide code path, showed the quorum form
+        of the plateau criterion to be trivially satisfiable: the first-difference basis clamps at
+        exactly <code>0.0</code> at every ring, so its increment is zero <em>by construction</em>, and
+        two such censored cells declared a plateau while the deseason cells were still climbing by
+        <code>+0.16</code>. The rule now requires every measurable cell to be flat.</p>
+        <p class="claude-note">Two disclosures, because both matter to whether the pre-registration is
+        still worth anything. The pilot used <strong>real</strong> partial data, not a synthetic
+        fixture. And the revision makes <code>domain-limited</code> <em>more</em> reachable — it moves
+        the verdict away from the answer that would flatter the paper, which is the opposite direction
+        from the temptation NOX-015 recorded. The full-record verdict did not exist when it was made.
+        Covered by a regression test.</p>
+
+        <h3>F2 — Spec assumptions A2 and A3 were false as written, and were corrected</h3>
+        <p>The wide grid's <em>step</em> matches the committed one but its <em>origin</em> does not:
+        the box starts exactly 1.0° away, which is not an integer multiple of either step. The
+        footprint therefore discretises to 447 cells rather than 448, and the ERA5 footprint means
+        shift by up to 0.048&nbsp;m&nbsp;s⁻¹ (11.9&nbsp;m BLH) over 389 common weeks. Handled
+        empirically rather than by assumption: re-running the <em>committed</em> 25–60&nbsp;km ring on
+        the wide cube truncated to the original record's end reproduces every share to within
+        <strong>0.0035</strong> and every sample size to within 2 observations. The offset is
+        immaterial and the wide/narrow comparison stands.</p>
+
+        <h3>F3 — The NOX-015 sweep's outer rings were not annuli</h3>
+        <p>Confirmed and quantified: the 0.25° AOI reaches only 63&nbsp;km from the cluster centroid
+        with full 360° coverage. Its 60–120&nbsp;km "ring" was four corner wedges holding 709 cells;
+        the same ring on the wide cube is a complete annulus of 1,737. This is why the two runs report
+        different numbers at nominally identical radii beyond 63&nbsp;km, and the paper now says so.</p>
+
+        <h3>F4 — What the wide run adds, stated as a negative</h3>
+        <p>Quadrupling the AOI area and pushing the ring to 150&nbsp;km did <strong>not</strong>
+        produce convergence. The ring radius is not a parameter that settles down over any domain this
+        cluster's geography allows. Beyond ~120&nbsp;km the ring spans the Bohai Sea and the Tianjin
+        plume, so a still-wider cube would confound the test rather than settle it — the limit is now
+        physical, not computational.</p>
+      </section>
+
+      <section id="docs">
+        <h2>Documentation</h2>
+        <p>Required and completed: <code>paper/nox_convergent_nulls.tex</code> (§2 study region, §6.1
+        ring-dependence, §6.3 rewritten around the wide result with a new table and figure, §7 shared
+        inputs and synthesis, control list C1, "what could reopen the question", abstract, and the
+        at-a-glance table), <code>history.html</code>, and this spec's
+        <code>requirements.html</code>/<code>assumptions.html</code> (F1, F2). Paper compiles to 21
+        pages with 0 overfull boxes.</p>
+      </section>
+
+      <section id="followups">
+        <h2>Follow-ups (recorded, not requested work)</h2>
+        <ul>
+          <li>The ring sweep is closed as far as this geography allows. A still-wider cube is
+          <strong>not</strong> recommended: past ~120&nbsp;km the ring is a different air mass.</li>
+          <li>Separating "the share rises because the ring escapes the plume" from "the share rises
+          because the ring changes air mass" would need a directional or sectoral background rather
+          than a concentric one — a different design, not a wider domain.</li>
+          <li>The CREA/WIND shared-publisher provenance gap (NOX-016) remains open.</li>
+          <li>C3–C7 of the paper's control list remain unrun.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

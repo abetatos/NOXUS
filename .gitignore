@@ -54,6 +54,9 @@ data/derived/verification/
 # NO2-derived analysis products (cube + interim AOI series, footprint signal, activity index)
 # — derived from downloaded data; not published (NOX-003 NFR-004).
 data/derived/no2/
+# NOX-017 wide-AOI cubes (buffer 1.25 deg) and their raw store — regenerable from the
+# recorded config via 'noxus fetch --buffer 1.25 --raw-dir data/raw/tropomi_wide'.
+data/derived/no2_wide/
 # VIIRS thermal-anomaly detections (per-night AOI-clipped VNF/FIRMS downloads) — reproducible from a
 # dated fetch, not committed (NOX-011 NFR-003). Only small derived stats + figures under
 # data/derived/ are committable.

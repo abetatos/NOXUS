@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Tasks — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="overview">
+        <h2>Implementation plan</h2>
+        <p>Nine tasks. T1 is a live feasibility gate that may close Arm B before any code is written
+        for it. T2&ndash;T3 build the one new estimator and lock the anti-p-hacking guarantees
+        <em>before</em> any target is scored, which is the ordering that matters most in this task.</p>
+        <ol class="task-timeline">
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span> Arm-B feasibility probe (GATE)</div>
+            <div class="task-item-body">Resolve live whether NBS Hebei-provincial and national monthly crude-steel output are reachable through a free, public, programmatic route. Emit GO/NO-GO with the route tried and the realised span/cadence. <strong>NO-GO closes Arm B and is a valid outcome</strong> &mdash; no paywalled substitute (REQ-030/031, ERR-003).</div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span> Paired-difference estimator</div>
+            <div class="task-item-body"><code>paired_corr_difference()</code>: moving-block bootstrap CI on <code>r(x, y_b) &minus; r(x, y_a)</code> over the jointly observed sample, reusing the NOX-008 block rule. Test AT3, including the assertion that the paired CI is narrower than the naive marginal comparison. <em>(REQ-012)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span> Anti-p-hacking guarantees</div>
+            <div class="task-item-body">Read-only feature accessor with no fit entry point; family accumulator that appends every computed pairing (including refused) before any inspection. Tests AT2 and AT4 must pass <strong>before</strong> T5 runs. <em>(NFR-001/002, ERR-004)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span> <code>ScaleContrastConfig</code> + target loading</div>
+            <div class="task-item-body">Config with targets, features, cadences, sub-periods and the REQ-021 thresholds. Load the three CREA national series from <code>benchmark_auxiliary.parquet</code>; aggregate both sides down for the 10-day series, never interpolate. Tests AT1, AT-ERR-1. <em>(REQ-001/002, EDGE-002)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span> Scoring and BH family</div>
+            <div class="task-item-body">Score every feature &#215; target &#215; cadence &#215; sub-period pairing with <code>robust_corr</code>; compute the paired contrast against the Tangshan target; apply BH across the whole family and print the family size. Tests AT4, AT5. <em>(REQ-010/011/013)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span> Verdict rule</div>
+            <div class="task-item-body">Implement REQ-021 as a pure function of the frame, with all four branches driven by config thresholds. Test AT6. <em>(REQ-020/021)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span> Arm B (only if T1 = GO)</div>
+            <div class="task-item-body"><code>noxus/data/nbs.py</code> fetcher + ingest; fold Arm-B pairings into the same family with the family size updated. Test AT7. If T1 = NO-GO, skip and record the provenance gap. <em>(REQ-032)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span> Real run, CLI, figure, findings</div>
+            <div class="task-item-body">Run the contrast on committed data; record the verdict as it comes out. <code>noxus scale-contrast</code>; the r-vs-scale figure; findings note carrying the verdict, the REQ-022 statement of limits, and the EDGE-005/006 caveats. Test AT8. <em>(REQ-040/041/042)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span> Validation and review</div>
+            <div class="task-item-body"><code>uv run pytest</code>, <code>uv run ruff check .</code>, <code>uv run ruff format .</code>; reviewer against <code>requirements.html</code>, with an explicit check that the REQ-021 thresholds are unchanged in git history since before T8 ran. <em>(AC-005)</em></div></li>
+        </ol>
+      </section>
+      <section id="definition-of-done">
+        <h2>Definition of done</h2>
+        <ul class="checklist">
+          <li>T1 GO/NO-GO recorded in <code>tasks.json</code> with the route tried.</li>
+          <li>AT1&ndash;AT8 and AT-ERR-1 green; AT2/AT3/AT4 green before T5 ran.</li>
+          <li><code>scale_contrast.csv</code> committed with every pairing, including refused ones, and the family size.</li>
+          <li>Verdict emitted by the REQ-021 rule alone; thresholds provably unchanged since before the run.</li>
+          <li>Paper control C2 replaced by the result; &sect;7.1 and &sect;8 updated.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

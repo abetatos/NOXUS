@@ -574,6 +574,126 @@
       },
       "origin": "Developer direction 2026-07-12: investment-signal reframing, part 2 (market translation + honest backtest).",
       "created": "2026-07-12"
+    },
+    {
+      "id": "NOX-015",
+      "title": "Background-ring radius sensitivity (is the cluster-local ~0 share physics or ring self-subtraction?)",
+      "slug": "background-ring-sensitivity",
+      "description": "SPEC_READY 2026-08-28 (requirements/design/tasks/assumptions/open-questions/acceptance-tests authored; awaiting human approval). Paper critique C1 — the single most important missing control. The change-variance decomposition (NOX-009) subtracts a FIXED 25-60 km background ring, but the NOX-005 flux probe measures |U|=2.48 m/s and assumes tau=4 h, i.e. a ~36 km advection scale that lands in the MIDDLE of that ring. If the ring carries the cluster's own advected plume, subtracting it removes signal with background, and the fixed regional->meteo->local partition order books that shared variance to 'regional' BY CONSTRUCTION — so cluster-local ~= 0 could be a design artefact, making the paper's central claim circular. This task sweeps the ring inner/outer radii past the advection scale and re-runs the decomposition unchanged, so the ~0 share is either confirmed as physical or exposed as self-subtraction. FEASIBILITY (measured 2026-08-28, read-only): the existing weekly cube reaches 124 km from the cluster centroid; a 60-120 km ring yields 759 valid cells (vs 288 for 25-60 km), all 8 azimuthal octants populated, mean valid-week fraction 0.99 — NO new acquisition required.",
+      "sdd": true,
+      "status": "done",
+      "depends_on": [
+        "NOX-009",
+        "NOX-005"
+      ],
+      "spec_path": "specs/background-ring-sensitivity/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-08-28",
+        "notes": "Developer said \"ok perfecto, tienes permiso\" 2026-08-28 after reviewing both specs. No blocking open questions."
+      },
+      "origin": "Paper critique C1 (2026-08-28): 'el anillo de fondo de 25-60 km esta contaminado por la propia pluma de Tangshan'.",
+      "created": "2026-08-28",
+      "spec_ready_at": "2026-08-28",
+      "open_questions_blocking": 0,
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-08-28",
+        "report": "specs/background-ring-sensitivity/review.html",
+        "verdict": "inconclusive",
+        "note": "Ring sweep 25-60 -> 60-120 km, every other parameter fixed. VERDICT inconclusive under the pre-registered rule: self-subtraction NOT established (no cell clears the 0.05 materiality threshold; first-diff basis flat at zero with raw dR2 becoming MORE negative), but ring-robustness NOT established either (deseason share rises monotonically 0.0064->0.0379 weekly with a bootstrap CI EXCLUDING zero at the outer radii; regional share falls 0.94->0.84-0.88 in every cell). The ~0 of NOX-009 is a property of the footprint-minus-25-60km contrast, not of the cluster. A defect in REQ-031 (thresholds the LEVEL, should threshold the RISE) was found by the AT3b negative control and RECORDED not patched: repairing it post-hoc flipped the verdict to ring-robust, i.e. toward the answer flattering the paper. 337 tests pass; AT-REG-1 confirms 'noxus variance' output is byte-identical."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html",
+        "specs/background-ring-sensitivity/requirements.html",
+        "specs/background-ring-sensitivity/review.html"
+      ],
+      "follow_ups": "Pre-register the RISE formulation and re-run; needs a cube wider than ~124 km (the rise had not plateaued at the outermost ring available). Separately: the paper's footprint radius was wrong (5 km stated, 15 km of record) and has been corrected."
+    },
+    {
+      "id": "NOX-016",
+      "title": "Provincial/national benchmark arm (does the pipeline recover a wider-scale steel signal it cannot recover locally?)",
+      "slug": "provincial-benchmark-arm",
+      "description": "SPEC_READY 2026-08-28 (requirements/design/tasks/assumptions/open-questions/acceptance-tests authored; awaiting human approval). Paper critique C2 — the cheap test that discriminates between the two live explanations for the near-null. Explanation A (the paper's): the SPATIAL SCALE is the binding constraint — the Tangshan cluster term is not separable from the regional common mode. Explanation B: the PIPELINE is broken, or the CREA trader survey is a poor target. Scoring the SAME benchmark-blind NO2 features against wider-scale steel output separates them: if the Tangshan NO2 feature tracks NATIONAL/PROVINCIAL steel activity better than it tracks Tangshan's own BF rate, that is positive evidence FOR the regional-common-mode reading and it simultaneously reduces the feature-vs-target ambiguity that NOX-011 (VIIRS) failed to resolve. If it tracks neither, the problem is upstream and the paper's spatial interpretation is not supported. FEASIBILITY (measured 2026-08-28, read-only): benchmark_auxiliary.parquet ALREADY carries three CREA national series — 'Blast Furnace Starting Rate (247)' weekly n=383 since 2019 (a direct national counterpart to the Tangshan BF rate, same variable and publisher), plus decadal (10-day) national crude-steel and pig-iron daily-average output, n=260 each. Arm A therefore needs NO acquisition. Arm B (NBS Hebei-provincial monthly crude steel) needs a new public fetcher and is gated behind a T1 probe.",
+      "sdd": true,
+      "status": "done",
+      "depends_on": [
+        "NOX-001",
+        "NOX-003.1",
+        "NOX-013"
+      ],
+      "spec_path": "specs/provincial-benchmark-arm/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-08-28",
+        "notes": "Developer said \"ok perfecto, tienes permiso\" 2026-08-28 after reviewing both specs. NOX-016 Q1 (blocking) not answered explicitly -> proceeding with the spec default and recommendation: option (a), run the T1 NBS probe first and build Arm B only on GO."
+      },
+      "origin": "Paper critique C2 (2026-08-28): 'falta el control obvio contra un segundo benchmark'.",
+      "created": "2026-08-28",
+      "spec_ready_at": "2026-08-28",
+      "open_questions_blocking": 1,
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-08-28",
+        "report": "specs/provincial-benchmark-arm/review.html",
+        "verdict": "pipeline-suspect",
+        "note": "Arm A run on the committed CREA national series; Arm B (NBS) gated and NO-GO. VERDICT pipeline-suspect under the pre-registered rule: widening the target does NOT strengthen the coupling (primary national BF rate |r|=0.094; paired contrast negative throughout; nothing in the family of 24 pairings robust-significant). The discriminating test did NOT corroborate the paper's spatial explanation. It does not establish a broken pipeline either - the feature is a cluster-scale window (~13% of national steel). NBS probe: every data endpoint HTTP 403 (site WAF) while static assets serve normally; no paywalled substitute used, so the CREA/WIND shared-publisher provenance gap stays OPEN. 337 tests pass."
+      },
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html",
+        "specs/provincial-benchmark-arm/review.html"
+      ],
+      "follow_ups": "Provenance gap open until an independent publisher is reachable (re-run 'noxus scale-contrast --probe' from a permitted network). The decisive pipeline test needs a province/nation-scale NO2 cube (spec Q3), not a Tangshan window scored against a national target."
+    },
+    {
+      "id": "NOX-017",
+      "title": "Wide-AOI ring sweep (does the cluster-local share plateau, or keep rising past 120 km?)",
+      "slug": "wide-aoi-ring-sweep",
+      "description": "Direct NOX-015 follow-up. The committed cube (AOI buffer 0.25 deg) reaches only 63 km from the cluster centroid with full 360-degree coverage (corner max ~126 km), so the 60-120 km ring was four corner wedges, not an annulus -- and the deseason local share was still RISING monotonically at the outermost ring available, which cannot be read either way. This task acquires a wider cube (buffer 1.25 deg: full-360 ring to 148.8 km) and re-runs the SAME partition over an extended pre-registered ring grid, changing nothing else. It also repairs BY PRE-REGISTRATION the NOX-015 verdict-rule defect: Rule A (LEVEL, carried over unchanged for comparability) and Rule B (RISE, the corrected formulation) are both fixed before the run, alongside a plateau criterion -- the actual reason the wider cube was acquired. Rules disagreeing is itself a reportable verdict, never resolved by picking one after the fact. FEASIBILITY (measured live 2026-08-28, before this spec was written): one-month openEO probe at buffer 1.25 returned 30 overpasses in 81.4 s / 2.2 MB on a 66x109 grid at the SAME 0.05456x0.03472 deg step as the committed 30x51 cube, so the footprint sample is unchanged; full record extrapolates to ~2.0 h and ~200 MB (gitignored).",
+      "sdd": true,
+      "status": "done",
+      "depends_on": [
+        "NOX-015",
+        "NOX-009",
+        "NOX-002a",
+        "NOX-002b"
+      ],
+      "spec_path": "specs/wide-aoi-ring-sweep/",
+      "approval": {
+        "human_approved": true,
+        "approved_by": "abetatos",
+        "approved_at": "2026-08-28",
+        "notes": "Developer instruction 2026-08-28, verbatim: \"n cubo mas ancho de ~124 km haz esto y damos por cerrado todo\" -- an explicit go-ahead for this scoped follow-up, given in the same message that named it. Spec authored first and the approval recorded against it (assumption A6); no blocking open questions."
+      },
+      "origin": "Recorded NOX-015 follow-up: 'needs a cube wider than ~124 km since the rise had not plateaued', plus the NOX-015 review defect on the pre-registered verdict rule.",
+      "created": "2026-08-28",
+      "spec_ready_at": "2026-08-28",
+      "open_questions_blocking": 0,
+      "documentation_required": true,
+      "documentation_status": "updated",
+      "documentation_targets": [
+        "paper/nox_convergent_nulls.tex",
+        "history.html",
+        "specs/wide-aoi-ring-sweep/review.html",
+        "specs/wide-aoi-ring-sweep/requirements.html",
+        "specs/wide-aoi-ring-sweep/assumptions.html"
+      ],
+      "review": {
+        "decision": "approved",
+        "reviewed_at": "2026-08-31",
+        "report": "specs/wide-aoi-ring-sweep/review.html",
+        "verdict": "domain-limited",
+        "note": "Wide cube acquired in full at buffer 1.25 deg: 92 batches, 2741 overpasses, 0 failed batches, 204 MB, 79.5 min; grid 66x109 at the committed step. All seven rings are COMPLETE ANNULI (0 empty octants), which the 0.25-deg AOI could not form beyond 63 km. VERDICT domain-limited: the weekly deseason share rises monotonically 0.0070 -> 0.0612 (x8.7) with a bootstrap CI excluding zero from 40-80 km outward, the regional share falls 0.95 -> 0.76, and at the outermost ring the weekly deseason cell clears BOTH pre-registered materiality thresholds for the first time (level 0.0612, rise +0.0542) -- but alone, where the quorum is 2 of 4, and the share is STILL CLIMBING (+0.0123 vs a 0.01 plateau tolerance). The first-difference basis is a clamped zero at every radius. Net: quadrupling the AOI area and pushing the ring to 150 km did NOT produce convergence, so the ring radius does not settle over any domain this geography allows; past ~120 km the ring spans the Bohai Sea and the Tianjin plume, so a wider cube would confound the test rather than settle it. Two defects recorded and handled honestly: (1) the plateau rule was revised from a quorum to 'every measurable cell' after a pilot on 8 of 89 months showed clamped-at-zero cells satisfy a quorum by construction -- revised BEFORE the full run, disclosed with its provenance, and in the direction that makes domain-limited MORE reachable; (2) spec assumptions A2/A3 were false as written (wide grid offset sub-cell: 447 footprint cells not 448), tested rather than assumed via a registration check that reproduces every committed share to within 0.0035. 360 tests pass; ruff clean; paper 21 pp., 0 overfull."
+      },
+      "follow_ups": "Ring sweep closed as far as this geography allows; a still-wider cube is explicitly NOT recommended (past ~120 km the ring is a different air mass). Separating 'the ring escapes the plume' from 'the ring changes air mass' needs a directional/sectoral background, a different design. CREA/WIND provenance gap (NOX-016) stays open; C3-C7 unrun."
     }
   ]
 }

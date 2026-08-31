@@ -60,6 +60,7 @@ def _cmd_fetch(args: argparse.Namespace) -> int:
         start=date.fromisoformat(args.start) if args.start else cfg.start,
         end=date.fromisoformat(args.end) if args.end else cfg.end,
         qa_threshold=args.qa if args.qa is not None else cfg.qa_threshold,
+        raw_dir=Path(args.raw_dir) if getattr(args, "raw_dir", None) else cfg.raw_dir,
     )
     report = acquire_no2(aoi, cfg)
     print(
@@ -149,6 +150,9 @@ def _cmd_grid(args: argparse.Namespace) -> int:
         else cfg.min_period_coverage,
         raw_dir=Path(args.raw_dir) if args.raw_dir else cfg.raw_dir,
         out_dir=Path(args.out_dir) if args.out_dir else cfg.out_dir,
+        coverage_bbox=tangshan_aoi(args.coverage_buffer).as_bbox()
+        if getattr(args, "coverage_buffer", None) is not None
+        else cfg.coverage_bbox,
     )
     rep = build_cube(cfg)
     print(f"[noxus] cube: {rep.n_periods} periods -> {rep.cube_path}")
@@ -348,6 +352,67 @@ def _cmd_scale_sweep(args: argparse.Namespace) -> int:
         print(f"[noxus] scale-sweep failed: {exc}")
         return 1
     print(f"[noxus] scale-sensitivity table -> {out}")
+    return 0
+
+
+def _cmd_scale_contrast(args: argparse.Namespace) -> int:
+    """Provincial/national benchmark arm: the scale contrast (NOX-016). --probe = Arm-B T1 gate."""
+    from dataclasses import replace
+
+    from noxus.config.run import ScaleContrastConfig
+    from noxus.data.nbs import probe_nbs
+    from noxus.validation.scale_contrast import run_scale_contrast
+
+    cfg = ScaleContrastConfig()
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws, n_perm=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    if args.probe:
+        res = probe_nbs(Path(cfg.out_dir) / cfg.probe_name)
+        print(res.render())
+        return 0 if res.go else 2  # 2 = a valid NO-GO, not an error
+    try:
+        out = run_scale_contrast(cfg)
+    except FileNotFoundError as exc:
+        print(f"[noxus] scale-contrast failed: {exc}")
+        return 1
+    print(f"[noxus] scale-contrast table -> {out}")
+    print(f"[noxus] findings -> {Path(cfg.out_dir) / cfg.findings_name}")
+    return 0
+
+
+def _cmd_ring_sweep(args: argparse.Namespace) -> int:
+    """Background-ring radius sensitivity of the change-variance decomposition (NOX-015)."""
+    from dataclasses import replace
+
+    from noxus.config.run import RingSweepConfig, WideRingSweepConfig
+    from noxus.data.era5 import ERA5SnapshotError
+    from noxus.signal.ring_sweep import run_ring_sweep, run_wide_ring_sweep
+
+    wide = bool(getattr(args, "wide", False))
+    cfg = WideRingSweepConfig() if wide else RingSweepConfig()
+    if args.rings:
+        pairs = []
+        for chunk in args.rings.split(";"):
+            lo, hi = (float(v) for v in chunk.split(","))
+            pairs.append((lo, hi))
+        cfg = replace(cfg, ring_grid=tuple(pairs))
+    if args.resolutions:
+        cfg = replace(cfg, resolutions=tuple(r.strip() for r in args.resolutions.split(",")))
+    if args.weightings:
+        cfg = replace(cfg, weightings=tuple(w.strip() for w in args.weightings.split(",")))
+    if args.draws is not None:
+        cfg = replace(cfg, n_boot=args.draws)
+    if args.seed is not None:
+        cfg = replace(cfg, seed=args.seed)
+    try:
+        out = run_wide_ring_sweep(cfg) if wide else run_ring_sweep(cfg)
+    except (FileNotFoundError, ERA5SnapshotError) as exc:
+        print(f"[noxus] ring-sweep failed: {exc}")
+        return 1
+    print(f"[noxus] ring-sensitivity table -> {out}")
+    print(f"[noxus] findings -> {Path(cfg.out_dir) / cfg.findings_name}")
     return 0
 
 
@@ -618,6 +683,14 @@ def main(argv: list[str] | None = None) -> int:
     p_grid.add_argument("--min-coverage", type=float, help="min period coverage before masking")
     p_grid.add_argument("--raw-dir", help="acquired store (default: data/raw/tropomi)")
     p_grid.add_argument("--out-dir", help="output dir (default: data/derived/no2)")
+    p_grid.add_argument(
+        "--coverage-buffer",
+        type=float,
+        help="evaluate the PERIOD coverage mask over the AOI at this buffer in degrees instead of "
+        "the whole cube. A wider acquisition must pass the committed 0.25 so it keeps the same "
+        "temporal mask, or the retained period set moves at the same time as the ring (NOX-017 "
+        "REQ-004)",
+    )
     p_grid.set_defaults(func=_cmd_grid)
 
     p_ing = sub.add_parser("ingest-benchmark", help="fetch + clean the CREA Tangshan benchmark")
@@ -632,6 +705,12 @@ def main(argv: list[str] | None = None) -> int:
     p_fetch.add_argument("--end", help="ISO end date (default: today)")
     p_fetch.add_argument("--buffer", type=float, help="AOI buffer in degrees (default: 0.25)")
     p_fetch.add_argument("--qa", type=float, help="qa_value threshold (default: 0.75)")
+    p_fetch.add_argument(
+        "--raw-dir",
+        help="raw store to write into (default: data/raw/tropomi). A wider --buffer MUST use its "
+        "own store: the manifest is keyed by date only, so mixing buffers would silently merge two "
+        "geometries into one record (NOX-017 REQ-001/002)",
+    )
     p_fetch.set_defaults(func=_cmd_fetch)
 
     p_fdiv = sub.add_parser(
@@ -643,7 +722,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="T1 feasibility spike on a bounded subset: three-way go/no-go + compute profile",
     )
-    p_fdiv.add_argument("--start", help="ISO start of the bounded subset window (default 2023-06-01)")
+    p_fdiv.add_argument(
+        "--start", help="ISO start of the bounded subset window (default 2023-06-01)"
+    )
     p_fdiv.add_argument("--end", help="ISO end of the bounded subset window (default 2023-06-05)")
     p_fdiv.set_defaults(func=_cmd_flux_divergence)
 
@@ -699,6 +780,37 @@ def main(argv: list[str] | None = None) -> int:
     p_var.add_argument("--seed", type=int, help="RNG seed (default 20260706)")
     p_var.add_argument("--deseason", help="deseason basis method: harmonic|intensity-model")
     p_var.set_defaults(func=_cmd_variance)
+
+    p_sc = sub.add_parser(
+        "scale-contrast",
+        help="score NO2 features against cluster AND national steel targets (NOX-016)",
+    )
+    p_sc.add_argument(
+        "--probe", action="store_true", help="Arm-B NBS feasibility gate only (REQ-030)"
+    )
+    p_sc.add_argument("--draws", type=int, help="bootstrap/permutation draws (default 5000)")
+    p_sc.add_argument("--seed", type=int, help="RNG seed (default 20260828)")
+    p_sc.set_defaults(func=_cmd_scale_contrast)
+
+    p_ring = sub.add_parser(
+        "ring-sweep",
+        help="background-ring radius sensitivity of the change-variance decomposition (NOX-015)",
+    )
+    p_ring.add_argument(
+        "--rings",
+        help="semicolon-separated inner,outer km pairs (default 25,60;40,80;50,90;60,100;60,120)",
+    )
+    p_ring.add_argument("--resolutions", help="comma resolutions: W,D (default W,D)")
+    p_ring.add_argument("--weightings", help="comma weightings: plain,octant (default both)")
+    p_ring.add_argument("--draws", type=int, help="moving-block bootstrap draws (default 5000)")
+    p_ring.add_argument("--seed", type=int, help="RNG seed (default 20260706)")
+    p_ring.add_argument(
+        "--wide",
+        action="store_true",
+        help="NOX-017 wide-AOI sweep: extended ring grid out to 90-150 km over the 1.25-deg cube, "
+        "with the three pre-registered rules (level, rise, plateau). Writes its own artefacts",
+    )
+    p_ring.set_defaults(func=_cmd_ring_sweep)
 
     p_fviirs = sub.add_parser(
         "fetch-viirs",

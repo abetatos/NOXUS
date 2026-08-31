@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Provincial/national benchmark arm: does the pipeline recover a wider-scale steel signal it cannot recover locally?</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-001</code> (benchmark ingest), <code>NOX-003.1</code> (features), <code>NOX-008</code> (robust inference), <code>NOX-013</code> (screen pattern)</td></tr>
+        <tr><th>Origin</th><td>Paper critique <strong>C2</strong> — “falta el control obvio contra un segundo benchmark”</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>The paper's near-null has two live explanations and the project has never run the test that
+        separates them.</p>
+        <ul>
+          <li><strong>Explanation A (the paper's).</strong> The binding constraint is <em>spatial</em>:
+          the Tangshan cluster term is not separable from the regional common mode, so a
+          cluster-specific benchmark cannot be tracked.</li>
+          <li><strong>Explanation B.</strong> The <em>pipeline</em> is broken, or the CREA trader
+          survey is a poor measure of physical output. Either would produce the same near-null and
+          the paper could not tell the difference.</li>
+        </ul>
+        <p>Scoring the <strong>same benchmark-blind NO₂ features</strong> against
+        <strong>wider-scale</strong> steel activity discriminates them, because the two explanations
+        make opposite predictions:</p>
+        <table class="meta-table"><thead><tr><th>Observation</th><th>Implies</th></tr></thead><tbody>
+          <tr><th>Tangshan NO₂ tracks <em>national</em> steel activity better than it tracks Tangshan's own BF rate</th>
+              <td><strong>Supports A.</strong> The NO₂ signal is carrying a regional/national common mode, which is precisely the paper's claim. It also weakens the feature-vs-target objection: the feature is measuring <em>something</em> real about steel, just not at cluster scale.</td></tr>
+          <tr><th>Tangshan NO₂ tracks national activity no better than the Tangshan BF rate, and both are near-null</th>
+              <td><strong>Supports B, or at least does not support A.</strong> The problem is upstream of scale, and the paper's spatial interpretation is not established.</td></tr>
+          <tr><th>Tangshan NO₂ tracks the Tangshan BF rate better than the national series</th>
+              <td>Neither &mdash; but it would falsify the regional-common-mode reading and require a rewrite.</td></tr>
+        </tbody></table>
+        <p class="claude-note">This is a <strong>positive control on the interpretation</strong>, not
+        on the machinery, and that is what makes it worth more than its cost. NOX-011 (VIIRS) was the
+        project's previous attempt to break the feature-vs-target ambiguity and it failed for
+        instrument reasons. This route does not depend on a new instrument.</p>
+      </section>
+
+      <section id="scope">
+        <h2>Scope: two arms, one gated</h2>
+        <p><strong>Arm A (mandatory, zero acquisition).</strong> Score the existing NO₂ features
+        against the <strong>CREA national series already committed</strong> in
+        <code>data/derived/benchmark_auxiliary.parquet</code>. Measured read-only on 2026-08-28:</p>
+        <table class="meta-table"><thead><tr><th>Series</th><th>Cadence</th><th>n since 2019</th><th>Span</th><th>Role</th></tr></thead><tbody>
+          <tr><th>China: Blast Furnace Starting Rate (247)</th><td>weekly</td><td>383</td><td>2018-03 → 2026-06</td><td><strong>Primary.</strong> Same variable and same publisher as the Tangshan BF rate, national 247-mill sample. The cleanest possible scale contrast: only the spatial extent of the target changes.</td></tr>
+          <tr><th>China: Estimated Daily Average Output: Crude Steel</th><td>10-day</td><td>260</td><td>2009-01 → 2026-05</td><td>Secondary. Physical output rather than a rate.</td></tr>
+          <tr><th>China: Estimated Daily Average Output: Pig Iron</th><td>10-day</td><td>260</td><td>2014-06 → 2026-05</td><td>Secondary. Closest to blast-furnace activity specifically.</td></tr>
+        </tbody></table>
+        <p><strong>Arm B (gated behind a T1 feasibility probe).</strong> NBS Hebei-provincial and
+        national monthly crude-steel output. This adds an independent <em>publisher</em>, which Arm A
+        does not: all three Arm-A series come from CREA/WIND, so Arm A holds the spatial scale test
+        but does <em>not</em> fully break the provenance ambiguity. Arm B is attempted only if the T1
+        probe finds a free, public, programmatic route; if not, the task reports Arm A and records the
+        gap honestly.</p>
+        <p><strong>Explicitly out of scope.</strong> Enlarging the NO₂ AOI to province or country
+        scale. That would test whether the <em>pipeline</em> reproduces the known national NO₂–industry
+        link, which is a different (and much more expensive) question: a Hebei-scale cube is roughly
+        15&#215; the current AOI area and requires re-acquiring the full 2,641-overpass record at a
+        wider window. It is recorded as a follow-up, not attempted here.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format.</p>
+
+        <h3 id="fr-targets">Targets</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When running the scale-contrast screen, the system shall load the national CREA series from the committed <code>benchmark_auxiliary.parquet</code> and expose each as a scoring target alongside the existing Tangshan BF rate, reusing <code>noxus.validation.preprocess.align_series</code> <strong>unchanged</strong>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>When a target's native cadence is coarser than weekly (the 10-day output series), the system shall aggregate <strong>both</strong> sides to the coarser common cadence (monthly) rather than interpolating the target up, and shall record the cadence used per pairing (no interpolation anywhere, EDGE-002).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>The system shall score the <strong>identical</strong> NO₂ feature set already used against the Tangshan benchmark &mdash; the background-corrected residual (<code>no2_corrected</code>) and the intensity-decomposition covariate (<code>residual_activity</code>) &mdash; with <strong>no</strong> re-tuning, re-fitting or re-selection of any feature parameter for the new targets (NFR-001).</span></div>
+
+        <h3 id="fr-scoring">Scoring and the scale contrast</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>For every (feature &#215; target) pairing, the system shall report the full autocorrelation-robust set from <code>noxus.validation.robust.robust_corr</code>: <code>r</code>, <code>n</code>, <code>n_eff</code> (first-order and Newey&ndash;West), moving-block bootstrap 95% CI, block-permutation <code>p</code>, and the block length used.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>The system shall apply a <strong>Benjamini&ndash;Hochberg FDR correction across the whole pairing family</strong> (all features &#215; all targets &#215; lag-0), and shall report the family size explicitly. Adding targets adds tests, and the correction must absorb that (EDGE-004).</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>The system shall report the <strong>scale contrast</strong> as the headline statistic: for each feature, <code>r</code> against the Tangshan target beside <code>r</code> against each national target, with the difference and a bootstrap CI for the <em>difference</em> (paired over the common sample, so the comparison is not two independent CIs eyeballed against each other).</span></div>
+        <div class="req-row"><span class="req-id">REQ-013</span><span>The system shall report a cross-correlation over the same fixed &plusmn;8-period window used elsewhere, and shall mark any peak that (a) fails its per-lag significance bound or (b) sits at the scan boundary, as <strong>not an estimated lag</strong> &mdash; the reporting discipline established by the paper's Section 6.5 correction.</span></div>
+
+        <h3 id="fr-verdict">Pre-committed verdict rule</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>The system shall emit one of: <code>scale-confirmed</code> (national coupling robustly exceeds Tangshan coupling), <code>no-scale-effect</code> (both near-null, difference CI contains zero), <code>pipeline-suspect</code> (national coupling is also near-null <em>and</em> materially below the published national-scale literature range), or <code>inverted</code> (Tangshan exceeds national).</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>The verdict rule, fixed before any result is viewed: <strong><code>scale-confirmed</code></strong> requires the national pairing to be robust-significant (BH-adjusted permutation <code>p &lt; 0.05</code>) <em>and</em> the paired difference CI (REQ-012) to exclude zero, for the primary national target (BF Starting Rate 247) on at least one feature; <strong><code>inverted</code></strong> is the mirror condition; <strong><code>no-scale-effect</code></strong> when neither pairing is robust-significant and the difference CI contains zero; <strong><code>pipeline-suspect</code></strong> when neither is significant and the national <code>|r|</code> is below 0.2 &mdash; well under the 0.5&ndash;0.75 range the national-scale nowcasting literature reports.</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>The system shall state, in the findings note, which of the paper's two explanations the verdict supports and what it does <strong>not</strong> establish &mdash; in particular that a <code>scale-confirmed</code> verdict from Arm A alone does not break the provenance ambiguity, because all Arm-A targets share the CREA/WIND source.</span></div>
+
+        <h3 id="fr-armb">Arm B (gated)</h3>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>Before any Arm-B acquisition, the system shall run a <strong>T1 feasibility probe</strong> that resolves, live: whether an NBS (National Bureau of Statistics of China) monthly crude-steel series for Hebei and for the nation is reachable through a free, public, programmatic route with no licence gate; the probe shall report the route, the realised series span and cadence, and a GO/NO-GO.</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span>If the probe returns NO-GO, the system shall report Arm A alone and record the provenance gap explicitly as an unresolved limitation. It shall <strong>not</strong> substitute a paywalled or licence-gated source (the free/public-data principle, as with VIIRS Nightfire in NOX-011).</span></div>
+        <div class="req-row"><span class="req-id">REQ-032</span><span>If the probe returns GO, Arm B shall be scored under the identical REQ-010..013 machinery and folded into the same BH family, with the family size updated.</span></div>
+
+        <h3 id="fr-report">Reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>The system shall write <code>data/derived/scale_contrast.csv</code> (one row per feature &#215; target &#215; cadence) and a plain-language findings note carrying the verdict, the driving numbers, and the REQ-022 statement of limits.</span></div>
+        <div class="req-row"><span class="req-id">REQ-041</span><span>The system shall emit a figure comparing <code>r</code> with its CI across targets, ordered by spatial scale (Tangshan cluster &rarr; province, if available &rarr; national), so the scale contrast is visible as a trend rather than a table lookup.</span></div>
+        <div class="req-row"><span class="req-id">REQ-042</span><span>The system shall expose the screen as a <code>noxus</code> subcommand driven by a recorded config, following the NOX-013 probe wiring. Existing subcommands and their defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row"><span class="req-id">NFR-001</span><span><strong>No feature re-tuning.</strong> The NO₂ features are consumed exactly as committed. Introducing new targets must not become an opportunity to re-select a feature that flatters one of them &mdash; the anti-p-hacking risk is <em>higher</em> here than in a benchmark-blind task, because this task by construction reads targets.</span></div>
+        <div class="req-row"><span class="req-id">NFR-002</span><span><strong>Family-wide multiplicity.</strong> Every pairing computed enters the BH family, including ones that return nulls. No pairing may be computed, seen, and then omitted from the correction.</span></div>
+        <div class="req-row"><span class="req-id">NFR-003</span><span><strong>Additive.</strong> No existing estimator or feature is modified; <code>align_series</code>, <code>robust_corr</code> and the lead-lag machinery are reused read-only.</span></div>
+        <div class="req-row"><span class="req-id">NFR-004</span><span><strong>Deterministic.</strong> Fixed seed, 5,000 bootstrap and permutation draws, matching the project standard.</span></div>
+        <div class="req-row"><span class="req-id">NFR-005</span><span><strong>Free and public only.</strong> Arm B may not use a licence- or pay-gated source (REQ-031).</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row"><span class="req-id edge">EDGE-001</span><span><strong>Shared publisher.</strong> All three Arm-A targets are CREA/WIND, as is the Tangshan benchmark. A correlated survey artefact would move all four together. Handled by REQ-022 (stated as a limit) and by Arm B (independent publisher) where feasible &mdash; not by pretending Arm A is independent.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-002</span><span><strong>Cadence mismatch.</strong> The 10-day output series cannot be aligned to weekly without interpolation. REQ-002 aggregates both sides down instead; the reduced <code>n</code> must be reported, not hidden.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-003</span><span><strong>National series is itself trending.</strong> A spurious scale-contrast could arise from two shared secular trends rather than co-movement &mdash; exactly the trap the paper's Section 4 &ldquo;decoupling&rdquo; discussion documents. The screen shall therefore report the contrast on the <em>deseasonalised/differenced</em> features already used, not on raw levels, and shall report a sub-period split (2019&ndash;2021 / 2022&ndash;2026) alongside the full record.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-004</span><span><strong>Multiplicity inflation.</strong> Adding three targets triples the family. REQ-011 requires the family size to be printed so a reader can see what the correction absorbed.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-005</span><span><strong>Processor-version confound.</strong> Any secular component of a national-scale correlation is confounded with the unharmonised TROPOMI version sequence (paper Section 2). The sub-period split of EDGE-003 partially isolates this; the findings note must repeat the caveat rather than let a national trend correlation stand unqualified.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-006</span><span><strong>Tangshan is ~13% of national output.</strong> A Tangshan-AOI NO₂ feature correlating with national steel is <em>not</em> evidence that TROPOMI measures national steel; it is evidence that the AOI signal is dominated by something regionally coherent. The findings note must state this reading explicitly.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row"><span class="req-id err">ERR-001</span><span><strong>Missing auxiliary benchmark.</strong> If <code>benchmark_auxiliary.parquet</code> is absent, fail with the command that regenerates it (<code>noxus ingest-benchmark</code>).</span></div>
+        <div class="req-row"><span class="req-id err">ERR-002</span><span><strong>Insufficient overlap.</strong> Fewer than <code>min_overlap = 26</code> common periods for a pairing &rArr; refuse that pairing with a recorded reason; do not emit an unstable estimate. The pairing still counts in the family size.</span></div>
+        <div class="req-row"><span class="req-id err">ERR-003</span><span><strong>Arm-B route unavailable.</strong> NO-GO from the T1 probe &rArr; report Arm A and record the provenance gap (REQ-031). This is a designed-for outcome, not a failure.</span></div>
+        <div class="req-row"><span class="req-id err">ERR-004</span><span><strong>Feature re-fit attempted.</strong> Any code path that would refit a feature against a target is a hard failure, verified by test (AT2).</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row"><span class="req-id">AC-001</span><span><code>noxus scale-contrast</code> runs on committed data and writes <code>scale_contrast.csv</code> with every feature &#215; target pairing, including refused ones.</span></div>
+        <div class="req-row"><span class="req-id">AC-002</span><span>The Tangshan rows reproduce the committed NOX-013 numbers (<code>no2_corrected</code>: r = &minus;0.014, n = 364; <code>residual_activity</code>: r = +0.063, n = 379) to floating-point tolerance.</span></div>
+        <div class="req-row"><span class="req-id">AC-003</span><span>A paired difference CI is reported per contrast (REQ-012), and a verdict is emitted by the REQ-021 rule alone.</span></div>
+        <div class="req-row"><span class="req-id">AC-004</span><span>The T1 Arm-B probe returns an explicit GO/NO-GO with the route it tried, and a NO-GO is reported as a limitation rather than silently dropped.</span></div>
+        <div class="req-row"><span class="req-id">AC-005</span><span>Full test suite and <code>ruff check</code> pass; no existing command's output changes.</span></div>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> — control <strong>C2</strong> is replaced by the result; Section 7.1 (shared failure modes) and Section 8 (Benchmark provenance) are updated to reflect what the arm did and did not resolve. A <code>scale-confirmed</code> verdict materially strengthens Section 7; a <code>pipeline-suspect</code> verdict requires the paper's central interpretation to be softened.</li>
+          <li><code>docs/exploration-results.html</code>, <code>history.html</code>, <code>.claude/context/project-map.md</code>, and a <code>decisions/</code> entry on target selection and the provenance limitation.</li>
+        </ul>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Test</th><th>What it proves</th></tr></thead><tbody>
+          <tr><td><span class="req-id">REQ-001/002</span></td><td>AT1</td><td>Targets loaded; cadence aggregated down, never interpolated.</td></tr>
+          <tr><td><span class="req-id">REQ-003, NFR-001, ERR-004</span></td><td>AT2</td><td>No feature refit against any target.</td></tr>
+          <tr><td><span class="req-id">REQ-010/012</span></td><td>AT3</td><td>Robust stats present; paired difference CI recovers a planted contrast.</td></tr>
+          <tr><td><span class="req-id">REQ-011, NFR-002, EDGE-004</span></td><td>AT4</td><td>BH family covers every computed pairing; family size printed.</td></tr>
+          <tr><td><span class="req-id">REQ-013</span></td><td>AT5</td><td>Boundary/non-significant peaks marked as not-an-estimated-lag.</td></tr>
+          <tr><td><span class="req-id">REQ-020/021</span></td><td>AT6</td><td>All four verdict branches fire from config-driven thresholds.</td></tr>
+          <tr><td><span class="req-id">REQ-030/031/032</span></td><td>AT7</td><td>Arm-B probe GO and NO-GO paths; no gated source substituted.</td></tr>
+          <tr><td><span class="req-id">EDGE-003/005/006</span></td><td>AT8</td><td>Sub-period split reported; caveats present in the findings note.</td></tr>
+          <tr><td><span class="req-id">ERR-001/002</span></td><td>AT-ERR-1</td><td>Missing aux benchmark; short-overlap refusal still counted in the family.</td></tr>
+        </tbody></table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

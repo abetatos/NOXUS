@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Tasks — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="overview">
+        <h2>Implementation plan</h2>
+        <p>Nine tasks, ordered. T1&ndash;T2 are the safety net (regression lock + benchmark-blind guard)
+        and must land before any sweep code runs. T7 is the only task that touches real data and it is
+        the one that can overturn the paper.</p>
+        <ol class="task-timeline">
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T1</span> Regression lock</div>
+            <div class="task-item-body">Add <code>AT-REG-1</code>: snapshot the committed <code>variance_decomposition.csv</code> and assert <code>noxus variance</code> reproduces it. Must pass <em>before</em> any change to <code>variance.py</code>. <em>(NFR-003)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T2</span> Thread the ring parameter</div>
+            <div class="task-item-body">Add the optional <code>ring=None</code> argument to <code>_level_series_for_cube</code>; <code>None</code> keeps the exact <code>SignalConfig</code> path. Re-run T1 &mdash; must still pass. <em>(REQ-001, NFR-002/003)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T3</span> <code>RingSweepConfig</code></div>
+            <div class="task-item-body">Add the dataclass to <code>noxus/config/run.py</code> with the fixed ring grid, advection parameters, weightings, and the pre-registered verdict threshold. <em>(REQ-002/003/031, NFR-001)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T4</span> Ring geometry diagnostics</div>
+            <div class="task-item-body">In <code>ring_sweep.py</code>: realised max radius, cell count, azimuthal octant counts, imbalance ratio, <code>beyond_advection</code> flag, and equal-octant ring weighting. Tests AT1, AT5, EDGE-001/002. <em>(REQ-003/013/022)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T5</span> Sweep driver</div>
+            <div class="task-item-body"><code>sweep_rings(cfg)</code>: loop ring &#215; basis &#215; resolution &#215; weighting over the <strong>unmodified</strong> <code>decompose_from_levels</code>; assemble the tidy frame with raw <code>dr2_local</code> and the clamp flag; write <code>ring_sensitivity.csv</code>. Tests AT2, AT4, AT-ERR-1. <em>(REQ-010/011/012, ERR-001..004)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T6</span> Controls and verdict rule</div>
+            <div class="task-item-body">Implement the REQ-031 rule as a pure function of the frame. Add <strong>AT3</strong> (planted in-ring plume &rArr; local share rises) and <strong>AT3b</strong> (footprint-only source &rArr; share flat across rings). These two decide whether the sweep is trustworthy at all. <em>(REQ-020/021/030/031, AC-004)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T7</span> Real run on the committed cubes</div>
+            <div class="task-item-body">Run the full sweep. Record the verdict <strong>as it comes out</strong>. If <code>self-subtraction</code>, stop and escalate to the developer before touching the paper &mdash; the correction is larger than a wording change. <em>(AC-001..003)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T8</span> CLI, figure, findings note</div>
+            <div class="task-item-body"><code>noxus ring-sweep</code>; <code>analysis/ring_sensitivity.py</code> figure (shares vs inner radius, 36 km marked); plain-language findings note stating the verdict and, if applicable, that the paper needs correction. <em>(REQ-040/041/042)</em></div></li>
+          <li class="task-item"><div class="task-item-header"><span class="req-id t">T9</span> Validation and review</div>
+            <div class="task-item-body"><code>uv run pytest</code>, <code>uv run ruff check .</code>, <code>uv run ruff format .</code>; then reviewer against <code>requirements.html</code>. Documentation targets listed in <code>requirements.html</code> &sect; Documentation expectations. <em>(AC-005)</em></div></li>
+        </ol>
+      </section>
+      <section id="definition-of-done">
+        <h2>Definition of done</h2>
+        <ul class="checklist">
+          <li>All nine tasks complete; AT1&ndash;AT7, AT3b, AT-REG-1, AT-ERR-1 green.</li>
+          <li><code>ring_sensitivity.csv</code> committed with every swept cell present.</li>
+          <li>Verdict emitted by the REQ-031 rule alone and recorded in <code>tasks.json</code>.</li>
+          <li><code>noxus variance</code> output unchanged.</li>
+          <li>Paper Section 6.2(i) and control C1 updated to report the actual result.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

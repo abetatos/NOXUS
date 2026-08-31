@@ -85,6 +85,13 @@ class GriddingConfig:
     raw_dir: Path = Path("data/raw/tropomi")
     out_dir: Path = Path("data/derived/no2")
     emit_aoi_series: bool = True  # interim naive AOI-mean series (pre-attribution)
+    # Sub-box (min_lon, min_lat, max_lon, max_lat) over which the PERIOD-level coverage mask is
+    # evaluated. ``None`` (default) reduces over the whole cube -- the committed behaviour. NOX-017
+    # sets it to the committed 0.25-deg AOI so that a wider acquisition keeps the *same* temporal
+    # mask: otherwise the surviving period set moves at the same time as the ring, and the wide/narrow
+    # comparison is confounded by a second knob (REQ-004). It never changes the retained values, only
+    # which periods survive.
+    coverage_bbox: tuple[float, float, float, float] | None = None
 
 
 # Status values in tangshan_steel_facilities.csv that indicate an active integrated plant. "operating"
@@ -308,6 +315,202 @@ class VarianceDecompConfig:
     findings_name: str = "variance_decomposition_findings.txt"
     # Optional gitignored per-basis change-series cache (NO2-derived, NFR-006).
     series_cache_dir: Path = Path("data/derived/no2/variance")
+
+
+@dataclass(frozen=True)
+class ScaleContrastConfig:
+    """Provincial/national benchmark arm: does the pipeline recover a wider-scale signal? (NOX-016).
+
+    The near-null has two live explanations and the project has never run the test that separates
+    them. (A) The binding constraint is SPATIAL: the Tangshan cluster term is not separable from the
+    regional common mode. (B) The pipeline is broken, or the CREA trader survey is a poor target.
+    Scoring the SAME benchmark-blind features against wider-scale steel activity discriminates: if
+    the Tangshan NO2 feature tracks NATIONAL steel better than it tracks Tangshan's own BF rate,
+    that supports (A) and simultaneously reduces the feature-vs-target ambiguity NOX-011 could not.
+
+    This is the project's first task that DELIBERATELY reads several targets, so the anti-p-hacking
+    guarantee is no longer structural (NOX-009's estimator simply had no benchmark parameter). It is
+    replaced by three testable ones: features are consumed read-only and never refit; the BH family
+    covers every computed pairing including refused ones; and the verdict thresholds below are fixed
+    BEFORE the run and must not be adjusted afterwards.
+    """
+
+    # --- Targets, ordered by spatial scale (REQ-001). ``primary_national`` decides the verdict. ---
+    # (label, scale, parquet under out_dir, series name; "" series = the primary `value` column)
+    targets: tuple[tuple[str, str, str, str], ...] = (
+        ("tangshan_bf_rate", "cluster", "benchmark_tangshan_bf_operating_rate.parquet", ""),
+        (
+            "national_bf_rate",
+            "national",
+            "benchmark_auxiliary.parquet",
+            "China: Blast Furnace Starting Rate (247)",
+        ),
+        (
+            "national_crude_steel",
+            "national",
+            "benchmark_auxiliary.parquet",
+            "China: Estimated Daily Average Output: Crude Steel",
+        ),
+        (
+            "national_pig_iron",
+            "national",
+            "benchmark_auxiliary.parquet",
+            "China: Estimated Daily Average Output: Pig Iron",
+        ),
+    )
+    baseline_target: str = "tangshan_bf_rate"
+    # Same variable, same publisher, same weekly cadence as the Tangshan target, so the contrast
+    # isolates spatial SCALE and holds everything else fixed. It decides the REQ-021 verdict.
+    primary_national: str = "national_bf_rate"
+
+    # --- Features, consumed EXACTLY as committed -- never refit (NFR-001). --------------------
+    # (label, parquet under out_dir, column)
+    features: tuple[tuple[str, str, str], ...] = (
+        ("no2_residual", "no2/steel_footprint_signal.parquet", "no2_corrected"),
+        ("no2_intensity", "no2/steel_intensity_decomposition.parquet", "residual_activity"),
+    )
+
+    # --- Cadence (REQ-002). A 10-day target cannot be aligned to weekly without inventing data, --
+    # so BOTH sides aggregate DOWN to monthly instead. Never interpolate.
+    freq_weekly: str = "W"
+    freq_coarse: str = "ME"
+    coarse_targets: tuple[str, ...] = ("national_crude_steel", "national_pig_iron")
+    # EDGE-003: a shared secular trend can manufacture a contrast, so sub-periods are mandatory.
+    subperiods: tuple[tuple[str, str, str], ...] = (
+        ("full", "2019-01-01", "2026-12-31"),
+        ("2019-2021", "2019-01-01", "2021-12-31"),
+        ("2022-2026", "2022-01-01", "2026-12-31"),
+    )
+
+    # --- Pre-registered verdict thresholds (REQ-021). DO NOT tune after the run. --------------
+    fdr_alpha: float = 0.05
+    # Below this |r| the national pairing is so far under the 0.5-0.75 range the national-scale
+    # nowcasting literature reports that "the pipeline recovers nothing anywhere" is the reading.
+    pipeline_suspect_abs_r: float = 0.20
+
+    # --- Project-standard inference knobs (NFR-004). ------------------------------------------
+    n_boot: int = 5000
+    n_perm: int = 5000
+    seed: int = 20260828
+    max_lag: int = 8
+    min_coverage: float = 0.25
+    min_overlap: int = 26
+
+    # --- Paths. Writes its own artefacts; never overwrites the NOX-013 result of record. ------
+    derived_dir: Path = Path("data/derived")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "scale_contrast.csv"
+    findings_name: str = "scale_contrast_findings.txt"
+    probe_name: str = "nbs_probe.txt"
+    figures_dir: Path = Path("docs/figures/exploration")
+
+
+@dataclass(frozen=True)
+class RingSweepConfig:
+    """Background-ring radius sensitivity of the change-variance decomposition (NOX-015).
+
+    NOX-009 measured a steel-local change-variance share of ~0 against a FIXED 25-60 km background
+    ring. The NOX-005 flux probe measures a mean effective wind of 2.48 m/s under an assumed 4 h
+    NO2 lifetime, i.e. an advection scale of ~36 km -- inside that ring. If the ring carries the
+    cluster's own advected plume, subtracting it removes signal along with background, and the fixed
+    ``regional -> meteo -> local`` entry order books the shared variance to "regional" by
+    construction. This sweep moves the ring past the advection scale and re-runs the SAME partition,
+    so the ~0 share is either confirmed physical or exposed as self-subtraction.
+
+    Every knob here is fixed BEFORE any result is viewed (NFR-001) -- in particular the verdict
+    threshold, which must not be adjusted after the run. The CREA benchmark is never referenced.
+    """
+
+    # --- Swept ring radii, km (REQ-002). First entry is the NOX-009 default: the baseline row. ---
+    ring_grid: tuple[tuple[float, float], ...] = (
+        (25.0, 60.0),  # current default -- STRADDLES the advection scale
+        (40.0, 80.0),
+        (50.0, 90.0),
+        (60.0, 100.0),
+        (60.0, 120.0),  # the C1 target ring -- entirely beyond the advection scale
+    )
+    # --- NOX-005 advection scale (REQ-003). Recorded, never fitted; a marker, not a cut. ---
+    wind_ms: float = 2.48
+    tau_h: float = 4.0
+    # --- Ring aggregation (REQ-013). "octant" guards against far-ring azimuthal anisotropy. ---
+    weightings: tuple[str, ...] = ("plain", "octant")
+    # --- Pre-registered verdict rule (REQ-031). DO NOT tune after the run. ---
+    # A clamped local share above this, with a bootstrap CI excluding zero, in at least
+    # ``min_cells_agreeing`` (basis x resolution) cells at the outermost ring => self-subtraction.
+    # 0.05 is an order of magnitude below the regional share, and sqrt(0.05) ~ 0.22 is about the
+    # smallest change-detector ceiling that could plausibly matter to a nowcast.
+    self_subtraction_threshold: float = 0.05
+    min_cells_agreeing: int = 2
+    # --- Inherited unchanged from VarianceDecompConfig so only the ring varies (REQ-010). ---
+    bases: tuple[str, ...] = ("first-diff", "deseason")
+    resolutions: tuple[str, ...] = ("W", "D")
+    deseason_method: str = "harmonic"
+    meteo_covariates: tuple[str, ...] = ("u10", "v10", "blh", "wind_speed")
+    order: tuple[str, ...] = ("regional", "meteo", "local")
+    attributable_cap: tuple[float, float] = (0.30, 0.43)
+    n_boot: int = 5000
+    seed: int = 20260706
+    block_exponent: float = 1.0 / 3.0
+    block_floor: int = 2
+    # --- Paths. Writes its OWN artefacts; never overwrites the NOX-009 result of record. ---
+    cube_path_weekly: Path = Path("data/derived/no2/no2_cube_w.nc")
+    cube_path_daily: Path = Path("data/derived/no2/no2_cube_d.nc")
+    facilities_csv: Path = Path("data/derived/tangshan_steel_facilities.csv")
+    era5_snapshot_dir: Path = Path("data/raw/era5")
+    out_dir: Path = Path("data/derived")
+    results_name: str = "ring_sensitivity.csv"
+    findings_name: str = "ring_sensitivity_findings.txt"
+    figures_dir: Path = Path("docs/figures/exploration")
+
+    @property
+    def advection_km(self) -> float:
+        """Advection length |U| * tau in km (REQ-003)."""
+        return self.wind_ms * self.tau_h * 3600.0 / 1000.0
+
+
+@dataclass(frozen=True)
+class WideRingSweepConfig(RingSweepConfig):
+    """Wide-AOI ring sweep (NOX-017): the same partition over a cube that can hold a real annulus.
+
+    NOX-015 returned ``inconclusive`` and left two geometric loose ends. The committed cube (AOI
+    buffer 0.25 deg) reaches only **63 km from the cluster centroid with full 360-degree coverage**
+    (corner maximum ~126 km), so its 60-120 km "ring" was four corner wedges; and the deseason local
+    share was still **rising** at the outermost ring available, which cannot be read either way.
+
+    This configuration widens the AOI to 1.25 deg (full-360 ring to 148.8 km, measured) and extends
+    the ring grid, changing nothing else -- the footprint, meteo covariates, deseason method, entry
+    order, bootstrap and seed are inherited verbatim from :class:`RingSweepConfig`.
+
+    It also repairs the NOX-015 verdict-rule defect **by pre-registration rather than post-hoc**.
+    Rule A (level) is carried over unchanged so the two runs stay comparable; Rule B (rise) is the
+    corrected formulation, thresholding the quantity self-subtraction actually predicts; and the
+    plateau criterion is the reason the wider cube was acquired at all. All three are fixed here,
+    before the wide cube was acquired and before any wide-ring number was viewed (REQ-020..024).
+    """
+
+    # --- Wider acquisition domain (REQ-001/010). Measured: full-360 ring radius 148.8 km. ---
+    aoi_buffer_deg: float | None = 1.25
+    # --- Extended pre-registered ring grid (REQ-012). The first five reproduce NOX-015 exactly so
+    # the two runs are directly comparable; the last two lie beyond what the old cube could support.
+    ring_grid: tuple[tuple[float, float], ...] = (
+        (25.0, 60.0),  # NOX-009 default -- the baseline row
+        (40.0, 80.0),
+        (50.0, 90.0),
+        (60.0, 100.0),
+        (60.0, 120.0),  # the NOX-015 outermost ring -- corner wedges on the narrow cube
+        (75.0, 135.0),  # NEW: only reachable on the wide cube
+        (90.0, 150.0),  # NEW: outermost; at the measured full-360 limit
+    )
+    # --- Rule B (REQ-021): rise of the local share from the baseline ring to the outermost one. ---
+    rise_threshold: float = 0.05
+    # --- Rule C (REQ-022): the rise has plateaued if the last increment is below this. ---
+    plateau_threshold: float = 0.01
+    # --- Paths. Separate raw store, cube tree and artefacts; NOX-009/015 outputs are untouched. ---
+    cube_path_weekly: Path = Path("data/derived/no2_wide/no2_cube_w.nc")
+    cube_path_daily: Path = Path("data/derived/no2_wide/no2_cube_d.nc")
+    raw_dir: Path = Path("data/raw/tropomi_wide")
+    results_name: str = "wide_ring_sensitivity.csv"
+    findings_name: str = "wide_ring_sensitivity_findings.txt"
 
 
 @dataclass(frozen=True)
@@ -612,7 +815,9 @@ class FluxDivergenceConfig:
     # bandwidth allows — the budget cap keeps the run laptop-feasible either way.
     n_overpasses: int = 4  # cap on granules for the powered probe (~0.6 GB each → ~2.4 GB)
     download_budget_gb: float = 3.0  # hard download cap (laptop-feasible; refuse to exceed)
-    one_per_day: bool = True  # one overpass per calendar day → varied winds cancel advection dipoles
+    one_per_day: bool = (
+        True  # one overpass per calendar day → varied winds cancel advection dipoles
+    )
     scaling_ns: tuple[int, ...] = (1, 2, 4, 8)  # SNR-vs-N subset sizes (auto-clamped to available)
 
     # --- Oversampling + flux + divergence operators (fixed pre-outcome) ------------------------

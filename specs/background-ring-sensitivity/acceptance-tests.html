@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance tests — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance tests — Background-ring radius sensitivity (NOX-015)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Test command</th><td><code>uv run pytest tests/signal/test_ring_sweep.py</code></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Acceptance tests</h2>
+      <p>Given/When/Then. Every test names the requirement it discharges. The two controls (AT3, AT3b)
+      are the load-bearing ones: without both, a sweep result cannot be interpreted.</p>
+      <p>Location: <code>tests/signal/test_ring_sweep.py</code>. Command:
+      <code>uv run pytest tests/signal/test_ring_sweep.py -q</code>.</p></section>
+
+      <section id="at1"><div class="card"><div class="card-header"><span class="card-title">AT1 &mdash; The ring grid is swept and flagged</span> <span class="req-id">REQ-001/002/003</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a synthetic cube spanning &plusmn;130 km around a single facility and the default <code>RingSweepConfig</code>.</p>
+      <p><strong>When</strong> <code>sweep_rings(cfg)</code> runs.</p>
+      <p><strong>Then</strong> the frame has exactly <code>len(ring_grid) &#215; len(bases) &#215; len(resolutions) &#215; len(weightings)</code> rows; <code>beyond_advection</code> is <code>False</code> for (25,60) and <code>True</code> for (60,100) and (60,120); <code>background_ring</code> is called with the swept radii (spy).</p>
+      <p><strong>And not:</strong> <code>SignalConfig.background_inner_km</code> is never consulted when a ring is supplied.</p></div></div></div></section>
+
+      <section id="at2"><div class="card"><div class="card-header"><span class="card-title">AT2 &mdash; Structurally benchmark-blind</span> <span class="req-id">NFR-001, ERR-004</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> the public API of <code>noxus.signal.ring_sweep</code>.</p>
+      <p><strong>When</strong> the signature of <code>sweep_rings</code> is inspected and a full run executes with the CREA loader monkeypatched to raise.</p>
+      <p><strong>Then</strong> no parameter name matches <code>bench|crea|target|label</code>, and the run completes without the loader ever being called.</p>
+      <p><strong>And not:</strong> no module-level import of the benchmark path anywhere in the sweep&rsquo;s import graph.</p></div></div></div></section>
+
+      <section id="at3"><div class="card risk-high"><div class="card-header"><span class="card-title">AT3 &mdash; POSITIVE CONTROL: planted in-ring plume is detected</span> <span class="req-id">AC-004, REQ-020/021</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a synthetic cube where a known local activity series drives (a) the footprint and (b) an advected plume deposited at 30&ndash;50 km &mdash; i.e. <em>inside</em> the 25&ndash;60 km annulus &mdash; on top of an independent regional common mode.</p>
+      <p><strong>When</strong> the sweep runs.</p>
+      <p><strong>Then</strong> the recovered cluster-local share is &asymp; 0 at (25,60) and rises above <code>self_subtraction_threshold</code> with a CI excluding zero at (60,120); the regional share falls by a comparable amount over the same sweep (REQ-021).</p>
+      <p><strong>And not:</strong> the verdict must be <code>self-subtraction</code>, not <code>inconclusive</code> &mdash; the rule must actually fire on the case it exists to catch.</p></div></div></div></section>
+
+      <section id="at3b"><div class="card risk-high"><div class="card-header"><span class="card-title">AT3b &mdash; NEGATIVE CONTROL: geometry alone does not manufacture a rise</span> <span class="req-id">EDGE-002/005, A3</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> the same fixture with the local source confined to the footprint and <strong>no</strong> plume in any ring.</p>
+      <p><strong>When</strong> the sweep runs.</p>
+      <p><strong>Then</strong> the cluster-local share is stable across all five rings (no monotone rise), the verdict is <code>ring-robust</code>, and the octant-weighted rows agree with the plain rows to within the bootstrap CI.</p>
+      <p><strong>And not:</strong> a rise driven purely by larger rings averaging more cells must not appear; if it does, the sweep is not fit for purpose and T7 must not run.</p></div></div></div></section>
+
+      <section id="at4"><div class="card"><div class="card-header"><span class="card-title">AT4 &mdash; Every cell reported; raw &Delta;R&sup2; preserved</span> <span class="req-id">REQ-011/012, EDGE-004</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a fixture engineered so at least one cell yields a negative raw <code>dr2_local</code>.</p>
+      <p><strong>When</strong> the sweep runs and writes the CSV.</p>
+      <p><strong>Then</strong> that row carries the negative <code>dr2_local</code>, a clamped <code>share_steel_local == 0.0</code>, and the <code>local_clamped</code> flag; no row is missing.</p>
+      <p><strong>And not:</strong> the clamped zero must never be written without the raw value beside it &mdash; the failure mode this project already shipped once.</p></div></div></div></section>
+
+      <section id="at5"><div class="card"><div class="card-header"><span class="card-title">AT5 &mdash; Octant weighting and imbalance</span> <span class="req-id">REQ-013/022</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a deliberately anisotropic AOI (rectangular, long in latitude) so far rings over-weight the N/S lobes.</p>
+      <p><strong>When</strong> the sweep runs with <code>weightings = ("plain", "octant")</code>.</p>
+      <p><strong>Then</strong> <code>octant_counts</code> and <code>octant_imbalance</code> are populated per ring; the plain and octant rows differ measurably at the outermost ring; an empty octant is reported, not silently dropped.</p></div></div></div></section>
+
+      <section id="at6"><div class="card"><div class="card-header"><span class="card-title">AT6 &mdash; The verdict rule is mechanical</span> <span class="req-id">REQ-030/031</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> hand-built frames encoding each branch: (i) 3 of 4 cells above threshold with CI excluding zero; (ii) all cells below threshold with CI containing zero; (iii) exactly 1 cell above threshold.</p>
+      <p><strong>When</strong> the verdict function is applied.</p>
+      <p><strong>Then</strong> it returns <code>self-subtraction</code>, <code>ring-robust</code>, <code>inconclusive</code> respectively, and changing <code>cfg.self_subtraction_threshold</code> changes the outcome &mdash; proving the threshold is read from config, not inlined.</p>
+      <p><strong>And not:</strong> the verdict must not depend on any quantity derived from the benchmark.</p></div></div></div></section>
+
+      <section id="at7"><div class="card"><div class="card-header"><span class="card-title">AT7 &mdash; Edge cases</span> <span class="req-id">EDGE-001/003/006</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> (a) a ring whose <code>outer_km</code> exceeds the cube extent; (b) a ring with <code>inner_km</code> inside the footprint radius; (c) a frame where weekly says <code>self-subtraction</code> and daily says <code>ring-robust</code>.</p>
+      <p><strong>When</strong> the sweep / verdict runs.</p>
+      <p><strong>Then</strong> (a) <code>realised_max_km</code> &lt; requested and is recorded; (b) no cell appears in both footprint and ring masks; (c) the verdict is <code>inconclusive</code> and both cadences are reported.</p>
+      <p><strong>And not:</strong> the cadence that agrees with the prior NOX-009 result must not be preferred.</p></div></div></div></section>
+
+      <section id="atreg"><div class="card risk-high"><div class="card-header"><span class="card-title">AT-REG-1 &mdash; REGRESSION: the existing decomposition is untouched</span> <span class="req-id">NFR-003</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> the committed <code>data/derived/variance_decomposition.csv</code>.</p>
+      <p><strong>When</strong> <code>noxus variance</code> is run with no new flags after the <code>ring=None</code> threading.</p>
+      <p><strong>Then</strong> the output is identical to the committed file (exact string comparison of the CSV).</p>
+      <p><strong>And not:</strong> no tolerance is allowed here. Any drift means the ring threading changed the default path and the sweep&rsquo;s baseline row would no longer be the NOX-009 result.</p></div></div></div></section>
+
+      <section id="aterr"><div class="card"><div class="card-header"><span class="card-title">AT-ERR-1 &mdash; Error states</span> <span class="req-id">ERR-001/002/003</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> (a) a ring grid entry producing zero cells; (b) an absent weekly cube; (c) an absent daily cube with <code>"D"</code> requested; (d) an absent ERA5 snapshot.</p>
+      <p><strong>When</strong> the sweep runs.</p>
+      <p><strong>Then</strong> (a) that ring is recorded as refused with its cell count and the sweep <em>continues</em>; (b)&ndash;(d) raise the existing NOX-009 messages naming the command to run.</p></div></div></div></section>
+
+      <section id="checklist"><h2>Pre-review checklist</h2>
+      <ul class="checklist">
+        <li>AT-REG-1 passed <em>before</em> and <em>after</em> the <code>variance.py</code> change.</li>
+        <li>AT3 and AT3b both green &mdash; the sweep detects real self-subtraction and does not invent it.</li>
+        <li>Verdict threshold unchanged since before T7 ran (check git history of <code>RingSweepConfig</code>).</li>
+        <li><code>uv run pytest</code> and <code>uv run ruff check .</code> clean.</li>
+      </ul></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

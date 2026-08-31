@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — Background-ring radius sensitivity (NOX-015)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Requirements — Background-ring radius sensitivity: is the cluster-local ≈ 0 share physics or ring self-subtraction?</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-015</code></td></tr>
+        <tr><th>Feature slug</th><td><code>background-ring-sensitivity</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Builds on</th><td><code>NOX-009</code> (change-variance decomposition), <code>NOX-005</code> (advection scale), <code>NOX-008</code> (robust inference)</td></tr>
+        <tr><th>Origin</th><td>Paper critique <strong>C1</strong> — “el anillo de fondo de 25–60 km está contaminado por la propia pluma de Tangshan”</td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>Every cube-based result in this project measures the cluster signal as
+        <strong>footprint minus a fixed 25–60&nbsp;km background ring</strong>. The ring is assumed to
+        carry <em>regional background only</em>. The NOX-005 flux probe measured a mean effective wind
+        of <code>|U| = 2.48 m/s</code> under an assumed lifetime <code>tau = 4 h</code>, giving an
+        advection length of <code>|U|·tau ≈ 36 km</code> — which lands <strong>in the middle of the
+        ring</strong>.</p>
+
+        <p>If a material part of the cluster's own emitted NO₂ is present in the ring as advected
+        plume, then subtracting the ring subtracts <em>signal</em> along with background. Worse, the
+        NOX-009 partition enters terms in a fixed order
+        (<code>regional → meteo → local</code>), so any variance shared between the ring and the
+        cluster is booked to <strong>“regional” by construction</strong>. The headline result
+        “cluster-local change-variance share ≈ 0” is therefore <strong>exactly what ring
+        self-subtraction would also produce</strong>, and the paper's central claim is circular until
+        this is tested.</p>
+
+        <p>This task sweeps the ring's inner/outer radii <strong>past the advection scale</strong> and
+        re-runs the NOX-009 decomposition otherwise unchanged. The decomposition algorithm is not
+        modified: only the ring geometry becomes a swept dimension. The outcome is binary and
+        pre-committed:</p>
+        <ul>
+          <li><strong>Confirmed physical</strong> — the cluster-local share stays ≈ 0 at every ring
+          radius, including rings entirely beyond the advection scale. Self-subtraction is ruled out
+          and the paper's interpretation is supported.</li>
+          <li><strong>Self-subtraction artefact</strong> — the cluster-local share rises materially
+          (pre-registered threshold, REQ-031) as the inner radius moves past ~36&nbsp;km. The NOX-009
+          headline is then partly a design artefact and must be restated in the paper.</li>
+        </ul>
+        <p class="claude-note">The verdict is <strong>not</strong> asserted in advance. Both outcomes
+        are first-class and reportable; a rise in the local share would be a correction of our own
+        prior result, which is the point of running it.</p>
+      </section>
+
+      <section id="feasibility">
+        <h2>Measured feasibility (read-only, 2026-08-28)</h2>
+        <p>Ring availability was measured against the committed weekly cube before this spec was
+        written, so the design does not rest on an assumption about geometry. No new acquisition is
+        required: the existing cube already extends to <strong>124&nbsp;km</strong> from the cluster
+        centroid (<code>118.559 °E, 39.624 °N</code>).</p>
+        <table class="meta-table"><thead>
+          <tr><th>Ring (km)</th><th>Cells</th><th>Empty azimuthal octants</th><th>Mean valid-week fraction</th><th>Note</th></tr>
+        </thead><tbody>
+          <tr><th>25–60</th><td>288</td><td>0</td><td>0.985</td><td>current default; <strong>straddles the 36 km advection scale</strong></td></tr>
+          <tr><th>40–80</th><td>520</td><td>0</td><td>0.987</td><td>inner radius just past the advection scale</td></tr>
+          <tr><th>50–90</th><td>585</td><td>0</td><td>0.988</td><td>inner radius comfortably past it</td></tr>
+          <tr><th>60–100</th><td>631</td><td>0</td><td>0.990</td><td>fully beyond the advection scale</td></tr>
+          <tr><th>60–120</th><td>709</td><td>0</td><td>0.990</td><td>the C1 target ring; <strong>2.5× more cells than the default</strong></td></tr>
+        </tbody></table>
+        <p class="claude-note"><strong>Correction (implementation, 2026-08-28).</strong> The counts above were first measured without the AOI clip that <code>background_ring</code> applies. The realised counts are 288 / 496 / 553 / 591 / <strong>709</strong>; the table has been corrected. The conclusion is unchanged &mdash; the target ring still holds 2.5&times; the cells of the default.</p>
+        <p>All eight octants are populated at every candidate radius and the valid-observation rate is
+        ≈ 0.99 throughout, so no ring is starved of data. Azimuthal balance does degrade with radius
+        (octant counts range 40–166 at 60–120&nbsp;km, versus 10–55 at 25–60&nbsp;km) because the AOI
+        is a rectangle: the far rings are weighted toward the north/south lobes. That anisotropy is a
+        real limitation, is quantified by REQ-022, and is the reason for the area-weighting
+        requirement REQ-013.</p>
+      </section>
+
+      <section id="functional-requirements">
+        <h2>Functional requirements</h2>
+        <p>EARS format. IDs are stable references for tasks and tests.</p>
+
+        <h3 id="fr-geometry">Ring geometry as a swept dimension</h3>
+        <div class="req-row"><span class="req-id">REQ-001</span><span>When running the sweep, the system shall treat the background-ring <strong>(inner_km, outer_km)</strong> pair as an explicit swept dimension, reusing <code>noxus.attribution.source.background_ring</code> <strong>unchanged</strong> (additive reuse — no edit to the ring-construction algorithm).</span></div>
+        <div class="req-row"><span class="req-id">REQ-002</span><span>The system shall sweep, at minimum, the fixed radius grid <code>[(25,60), (40,80), (50,90), (60,100), (60,120)]</code> km, which spans from the current default (straddling the advection scale) to rings lying entirely beyond it. The grid is fixed in configuration <strong>before</strong> any result is viewed (NFR-001).</span></div>
+        <div class="req-row"><span class="req-id">REQ-003</span><span>When a swept ring is constructed, the system shall record the <strong>advection scale</strong> <code>|U|·tau</code> (from the NOX-005 flux parameters, <code>|U| = 2.48 m/s</code>, <code>tau = 4 h</code>) alongside each ring, and shall flag each ring as <code>straddles_advection</code> / <code>beyond_advection</code> so the reader can see which rings are exposed to self-subtraction.</span></div>
+        <div class="req-row"><span class="req-id">REQ-004</span><span>If a requested ring yields zero cells after footprint exclusion and AOI clipping, the system shall record that cell as <strong>refused</strong> with its cell count and shall continue the sweep, rather than aborting (ERR-001).</span></div>
+
+        <h3 id="fr-decomp">Decomposition reuse</h3>
+        <div class="req-row"><span class="req-id">REQ-010</span><span>For each swept ring, the system shall run the <strong>existing</strong> NOX-009 partition (<code>noxus.signal.variance.decompose_from_levels</code>) with <strong>every other parameter unchanged</strong>: same bases (<code>first-diff</code>, <code>deseason</code>), same resolutions (<code>W</code>, <code>D</code>), same meteo covariates, same entry order, same bootstrap draws and seed.</span></div>
+        <div class="req-row"><span class="req-id">REQ-011</span><span>The system shall emit one row per <strong>(ring × basis × resolution)</strong> cell carrying: ring radii, cell count, <code>n</code>, the four shares, the <strong>raw</strong> <code>ΔR²_local</code> (unclamped), the clamped cluster-local share, the <code>sqrt(f)</code> change ceiling, the block-bootstrap CI of the share, and the <code>local_clamped</code> flag.</span></div>
+        <div class="req-row"><span class="req-id">REQ-012</span><span>The system shall report <strong>every</strong> swept cell. No ring, basis or resolution may be dropped from the output for producing an inconvenient result (Morris &amp; Zhang 2019; mirrors NOX-009 REQ-051).</span></div>
+        <div class="req-row"><span class="req-id">REQ-013</span><span>When the ring is azimuthally unbalanced, the system shall additionally compute the ring mean under <strong>equal-octant weighting</strong> (each of eight azimuthal octants contributing equally) and report the decomposition under both plain and octant-weighted ring means, so the far-ring anisotropy (see Feasibility) cannot be mistaken for a physical effect.</span></div>
+
+        <h3 id="fr-verdict">Pre-committed verdict rule</h3>
+        <div class="req-row"><span class="req-id">REQ-020</span><span>The system shall compute, per (basis × resolution), the <strong>trend of the cluster-local share against ring inner radius</strong>, reported as the raw share at each radius plus the change from the 25–60 km default to the 60–120 km ring.</span></div>
+        <div class="req-row"><span class="req-id">REQ-021</span><span>The system shall report the change in the <strong>regional</strong> share across the same sweep, since ring self-subtraction predicts that variance moves <em>out of</em> the regional term and <em>into</em> the local term together.</span></div>
+        <div class="req-row"><span class="req-id">REQ-022</span><span>The system shall report, per ring, the <strong>azimuthal octant cell counts</strong> and the imbalance ratio (max/min octant), so a reader can judge whether a share change coincides with a geometry change.</span></div>
+        <div class="req-row"><span class="req-id">REQ-030</span><span>The system shall emit one of three verdicts, decided by the <strong>pre-registered rule</strong> in REQ-031 and by no other criterion: <code>ring-robust</code> (physics), <code>self-subtraction</code> (artefact), or <code>inconclusive</code>.</span></div>
+        <div class="req-row"><span class="req-id">REQ-031</span><span><strong class="req-id err">DEFECT FOUND (AT3b, 2026-08-28; recorded, not patched):</strong> this rule thresholds the share's <em>level</em>, so a source that is genuinely footprint-confined &mdash; high share at <em>every</em> ring, which is evidence AGAINST self-subtraction &mdash; is misclassified as <code>self-subtraction</code>. C1 asks whether the share <em>rises</em>, so a future pre-registration should threshold the rise. It was NOT retro-fitted: on the real data the two formulations give different verdicts, so swapping them after the run would have replaced a pre-registered verdict with a chosen one. The rise is reported as a clearly-labelled post-hoc diagnostic instead (<code>ring_dependence_diagnostic</code>). Original text follows. The verdict rule, fixed before any result is viewed: <strong><code>self-subtraction</code></strong> if the clamped cluster-local share at the 60–120 km ring exceeds <strong>0.05</strong> <em>and</em> its bootstrap CI excludes zero, in <strong>at least two of the four</strong> (basis × resolution) cells; <strong><code>ring-robust</code></strong> if the share stays below 0.05 with a CI containing zero in all four cells at every ring beyond the advection scale; <strong><code>inconclusive</code></strong> otherwise. The 0.05 threshold is one order of magnitude below the regional share and roughly the level at which the implied change-detector ceiling <code>sqrt(f)</code> would reach ≈ 0.22 — the smallest local share that could plausibly matter to a nowcast.</span></div>
+
+        <h3 id="fr-report">Reporting</h3>
+        <div class="req-row"><span class="req-id">REQ-040</span><span>The system shall write a tidy CSV (<code>data/derived/ring_sensitivity.csv</code>) and a plain-language findings note stating the verdict, the numbers behind it, and — if the verdict is <code>self-subtraction</code> — an explicit statement that the NOX-009 headline and the paper's Section 6.1 require correction.</span></div>
+        <div class="req-row"><span class="req-id">REQ-041</span><span>The system shall emit a figure showing the cluster-local and regional shares as a function of ring inner radius, with the 36 km advection scale marked, per basis × resolution.</span></div>
+        <div class="req-row"><span class="req-id">REQ-042</span><span>The system shall expose the sweep reproducibly as a <code>noxus</code> subcommand driven by a recorded config, following the NOX-008 <code>scale-sweep</code> and NOX-009 <code>variance</code> wiring. Existing subcommands and their defaults are unchanged.</span></div>
+      </section>
+
+      <section id="non-functional-requirements">
+        <h2>Non-functional requirements</h2>
+        <div class="req-row"><span class="req-id">NFR-001</span><span><strong>Benchmark-blind.</strong> The estimator shall take no benchmark argument and the CREA series shall never be read anywhere in this sweep — enforced structurally, as in NOX-009. The verdict rule is fixed in configuration before results are viewed.</span></div>
+        <div class="req-row"><span class="req-id">NFR-002</span><span><strong>Additive.</strong> No existing algorithm is modified. <code>background_ring</code>, <code>footprint_mask</code>, <code>partition_change_variance</code> and <code>decompose_from_levels</code> are reused read-only; the only change to existing code is threading a ring parameter that currently defaults to <code>SignalConfig</code>, preserving the present default exactly.</span></div>
+        <div class="req-row"><span class="req-id">NFR-003</span><span><strong>Backward-compatible default.</strong> Running the existing <code>noxus variance</code> command with no new flags shall reproduce the committed <code>variance_decomposition.csv</code> byte-for-byte (regression, AT-REG-1).</span></div>
+        <div class="req-row"><span class="req-id">NFR-004</span><span><strong>Deterministic.</strong> Fixed seed (reuse <code>VarianceDecompConfig.seed = 20260706</code>); repeated runs produce identical output.</span></div>
+        <div class="req-row"><span class="req-id">NFR-005</span><span><strong>No new acquisition.</strong> The sweep shall run entirely on the committed cubes; if any requested ring needs data outside the cube it is refused (REQ-004/ERR-001), never silently truncated.</span></div>
+      </section>
+
+      <section id="edge-cases">
+        <h2>Edge cases</h2>
+        <div class="req-row"><span class="req-id edge">EDGE-001</span><span><strong>Ring exceeds cube extent.</strong> The cube reaches 124 km from the centroid, so a ring with <code>outer_km &gt; 124</code> is silently truncated by the AOI clip. The system shall record the <strong>realised</strong> maximum radius per ring, not the requested one, so a truncated ring is visible.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-002</span><span><strong>Azimuthal anisotropy grows with radius.</strong> Far rings over-weight the north/south lobes of the rectangular AOI. Handled by REQ-013 (octant weighting) and REQ-022 (reported imbalance), not by dropping the ring.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-003</span><span><strong>Ring/footprint overlap.</strong> Already handled by <code>background_ring</code> (footprint cells excluded); the sweep must not reintroduce overlap when the inner radius is small.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-004</span><span><strong>Negative raw ΔR²_local.</strong> Three of four NOX-009 cells already return a small negative raw incremental R². The sweep shall report the raw value <em>and</em> the clamped share at every ring (REQ-011); the verdict rule uses the clamped share, but a raw value that crosses from negative to clearly positive is itself reportable evidence.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-005</span><span><strong>Cell-count confound.</strong> Larger rings average more cells, mechanically reducing the ring series' own noise, which could shift the partition for reasons unrelated to the plume. The system shall report ring cell count per row (REQ-011) so this is auditable, and REQ-013's octant weighting provides a partially decoupled comparison.</span></div>
+        <div class="req-row"><span class="req-id edge">EDGE-006</span><span><strong>Daily vs weekly divergence.</strong> If the verdict differs between cadences, the system shall report both and return <code>inconclusive</code> rather than selecting the cadence that agrees with the prior result.</span></div>
+      </section>
+
+      <section id="error-states">
+        <h2>Error states</h2>
+        <div class="req-row"><span class="req-id err">ERR-001</span><span><strong>Empty ring.</strong> A ring with zero cells after exclusion/clipping is recorded as refused with its cell count; the sweep continues (REQ-004).</span></div>
+        <div class="req-row"><span class="req-id err">ERR-002</span><span><strong>Missing cube.</strong> Reuse the NOX-009 messages: weekly cube absent → “run <code>noxus grid</code>”; daily cube absent and daily requested → “run <code>noxus grid --freq D</code>”.</span></div>
+        <div class="req-row"><span class="req-id err">ERR-003</span><span><strong>Missing ERA5 snapshot.</strong> Fail early with the NOX-009 message rather than silently dropping the meteo term.</span></div>
+        <div class="req-row"><span class="req-id err">ERR-004</span><span><strong>Benchmark reachable from the estimator.</strong> Any code path that would let the CREA series into the sweep is a hard failure, verified by test (AT2).</span></div>
+      </section>
+
+      <section id="acceptance-criteria">
+        <h2>Acceptance criteria</h2>
+        <div class="req-row"><span class="req-id">AC-001</span><span><code>noxus ring-sweep</code> runs end-to-end on the committed cubes and writes <code>ring_sensitivity.csv</code> with one row per (ring × basis × resolution × weighting), all cells reported.</span></div>
+        <div class="req-row"><span class="req-id">AC-002</span><span>The 25–60 km rows reproduce the committed NOX-009 numbers (regional 0.933–0.951, local 0.000/0.006, raw ΔR² −0.0209/+0.0064/−0.0264/−0.0003) to within floating-point tolerance.</span></div>
+        <div class="req-row"><span class="req-id">AC-003</span><span>A verdict of <code>ring-robust</code>, <code>self-subtraction</code> or <code>inconclusive</code> is emitted by the REQ-031 rule alone, with the driving numbers printed.</span></div>
+        <div class="req-row"><span class="req-id">AC-004</span><span>A synthetic fixture in which a known local source <em>is</em> present in the ring recovers a rising local share as the inner radius grows (positive control, AT3) — establishing that the sweep can detect self-subtraction when it exists.</span></div>
+        <div class="req-row"><span class="req-id">AC-005</span><span>Existing <code>noxus variance</code> output is unchanged (NFR-003); full test suite and <code>ruff check</code> pass.</span></div>
+      </section>
+
+      <section id="documentation-expectations">
+        <h2>Documentation expectations</h2>
+        <ul>
+          <li><code>paper/nox_convergent_nulls.tex</code> — Section 6.2(i) and control <strong>C1</strong> must be rewritten to report the result; if the verdict is <code>self-subtraction</code>, Section 6.1, the abstract and the conclusion all require correction.</li>
+          <li><code>docs/exploration-results.html</code> — new section for the sweep.</li>
+          <li><code>history.html</code>, <code>.claude/context/project-map.md</code>, and a <code>decisions/</code> entry recording the ring-radius choice and its justification.</li>
+        </ul>
+      </section>
+
+      <section id="requirement-to-test-mapping">
+        <h2>Requirement-to-test mapping</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Test</th><th>What it proves</th></tr></thead>
+        <tbody>
+          <tr><td><span class="req-id">REQ-001/002/003</span></td><td>AT1</td><td>Ring grid swept; advection flag recorded; <code>background_ring</code> reused unmodified.</td></tr>
+          <tr><td><span class="req-id">NFR-001, ERR-004</span></td><td>AT2</td><td>Estimator takes no benchmark argument; CREA never read.</td></tr>
+          <tr><td><span class="req-id">AC-004</span></td><td>AT3</td><td>Positive control: planted in-ring source ⇒ local share rises with inner radius.</td></tr>
+          <tr><td><span class="req-id">REQ-010/011/012</span></td><td>AT4</td><td>All cells reported; raw ΔR² and clamp flag present.</td></tr>
+          <tr><td><span class="req-id">REQ-013/022, EDGE-002/005</span></td><td>AT5</td><td>Octant weighting and imbalance reported; cell counts audited.</td></tr>
+          <tr><td><span class="req-id">REQ-030/031</span></td><td>AT6</td><td>Verdict rule applied mechanically; threshold not tunable post-hoc.</td></tr>
+          <tr><td><span class="req-id">NFR-003</span></td><td>AT-REG-1</td><td>Existing <code>noxus variance</code> output byte-identical.</td></tr>
+          <tr><td><span class="req-id">EDGE-001/003/004/006</span></td><td>AT7</td><td>Realised radius; no overlap; negative ΔR²; cadence disagreement ⇒ inconclusive.</td></tr>
+          <tr><td><span class="req-id">ERR-001/002/003</span></td><td>AT-ERR-1</td><td>Empty ring refused-and-continue; missing cube/ERA5 messages.</td></tr>
+        </tbody></table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

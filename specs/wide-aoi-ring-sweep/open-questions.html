@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header"><h1>Open questions — Wide-AOI ring sweep (NOX-017)</h1></header>
+    <main>
+<section id="oq"><h2>Open questions</h2>
+<table class="meta-table"><thead><tr><th>#</th><th>Question</th><th>Status</th><th>Resolution</th></tr></thead><tbody>
+<tr><td>Q1</td><td>How wide is wide enough — where does the ring stop being a background and start being a different region?</td><td><strong>Decided, not resolved.</strong></td><td>Buffer 1.25° (ring to ~150 km). Beyond that the ring is Beijing and open sea, and “regional background” loses meaning. The limit is interpretive, not computational, and is stated as such.</td></tr>
+<tr><td>Q2</td><td>Should the wide run also re-do the NOX-009 headline decomposition, not just the sweep?</td><td><strong>Out of scope.</strong></td><td>NOX-009's headline is defined against the committed 25–60 km ring. The wide run's job is to say whether that headline is ring-dependent — it does not replace it.</td></tr>
+<tr><td>Q3</td><td>If Rule A and Rule B disagree, which is the verdict of record?</td><td><strong>Pre-registered.</strong></td><td>Neither. <code>rules-disagree</code> is itself the verdict and both numbers are reported. Choosing one after seeing the data is precisely the failure NOX-015 recorded.</td></tr>
+<tr><td>Q4</td><td>Does a rise that appears only past ~120 km support the paper's spatial reading?</td><td><strong>Open — interpretive.</strong></td><td>Partly at best. A rise driven by an outer ring that is a different air mass is not the same evidence as a rise driven by escaping the plume. Flagged for the paper; not resolvable by this run.</td></tr>
+<tr><td>Q5</td><td>Should the extra ~200 MB of wide raw data be preserved?</td><td><strong>Decided.</strong></td><td>Kept locally under gitignored <code>data/raw/tropomi_wide/</code>; never committed (NFR-004). Reproducible from the recorded config and the manifest.</td></tr>
+</tbody></table></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

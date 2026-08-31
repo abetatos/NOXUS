@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Design — Wide-AOI ring sweep (NOX-017)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-017</code></td></tr>
+        <tr><th>Principle</th><td>Widen the <em>domain</em>; change nothing else. One knob moves.</td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="approach">
+        <h2>Approach</h2>
+        <p>The existing sweep machinery (<code>noxus/signal/ring_sweep.py</code>) is already fully
+        config-driven: cube paths, ring grid, weightings, thresholds. The wide run is therefore
+        <strong>the same code over a wider cube</strong>, plus three small enabling changes:</p>
+        <ol>
+          <li>a <code>--raw-dir</code> argument on <code>noxus fetch</code>, so the wide acquisition
+          cannot collide with the committed narrow store;</li>
+          <li>a <code>coverage_bbox</code> option in gridding, so the temporal mask stays identical;</li>
+          <li>an <code>aoi</code> passed through the sweep into <code>background_ring</code>, so wide
+          rings are not clipped back to the narrow box.</li>
+        </ol>
+        <p class="claude-note">Each of the three defaults to today's behaviour. Nothing on the
+        committed paths changes.</p>
+      </section>
+
+      <section id="change1">
+        <h2>Change 1 — <code>noxus fetch --raw-dir</code></h2>
+        <p><code>acquire_no2</code> already reads <code>cfg.raw_dir</code> and is resumable through
+        <code>manifest.json</code> inside that directory. The CLI simply never exposed it. Without the
+        flag a wide fetch would land in <code>data/raw/tropomi/</code>, where every date is already in
+        the manifest — so it would fetch <strong>nothing</strong>, and any date it did fetch would
+        silently mix two geometries into one store.</p>
+        <pre><code>p_fetch.add_argument("--raw-dir", help="raw store (default: data/raw/tropomi)")
+...
+cfg = replace(cfg, ..., raw_dir=Path(args.raw_dir) if args.raw_dir else cfg.raw_dir)</code></pre>
+        <p>Wide store: <code>data/raw/tropomi_wide/</code> (gitignored under <code>data/raw/</code>).</p>
+      </section>
+
+      <section id="change2">
+        <h2>Change 2 — coverage sub-box in gridding (REQ-004)</h2>
+        <p>Today <code>composite()</code> computes</p>
+        <pre><code>period_coverage = (valid &gt;= cfg.min_cell_obs).mean(dim=["y", "x"])
+no2_mean = no2_mean.where(period_coverage &gt;= cfg.min_period_coverage)</code></pre>
+        <p>over <em>every</em> cell of the box. A 4.84×-larger box changes which periods survive, so
+        <code>n</code> would move at the same time as the ring and the comparison with NOX-015 would be
+        confounded. <code>GriddingConfig.coverage_bbox: tuple[float, float, float, float] | None = None</code>
+        restricts the coverage reduction to a sub-box while leaving the data itself untouched:</p>
+        <pre><code>valid_cov = valid if cfg.coverage_bbox is None else _clip_bbox(valid, cfg.coverage_bbox)
+period_coverage = (valid_cov &gt;= cfg.min_cell_obs).mean(dim=["y", "x"])</code></pre>
+        <p><code>None</code> is the default and reproduces current behaviour exactly. The wide run
+        passes the committed 0.25°-buffer AOI bbox, so the surviving period set is decided by the
+        <strong>same</strong> geography as the committed cube.</p>
+      </section>
+
+      <section id="change3">
+        <h2>Change 3 — AOI plumbing into the ring (REQ-010)</h2>
+        <p><code>background_ring(..., aoi=None)</code> falls back to the module-level
+        <code>TANGSHAN</code> (buffer 0.25°) and clips the ring to it. On a wide cube that would silently
+        discard every cell beyond the narrow box — the wide rings would be identical to the narrow ones
+        and the run would look like a plateau that is really a clip. The <code>aoi</code> is threaded:</p>
+        <pre><code>RingSweepConfig.aoi_buffer_deg: float | None = None   # None =&gt; TANGSHAN, today's behaviour
+  → _levels_for_ring(...)  → _level_series_for_cube(..., aoi=aoi)
+                            → background_ring(..., aoi=aoi)</code></pre>
+        <p><code>ring_geometry</code> is computed from the <em>realised</em> mask, so the audit reflects
+        whatever the clip actually produced.</p>
+      </section>
+
+      <section id="config">
+        <h2>Configuration — <code>WideRingSweepConfig</code></h2>
+        <p>A <code>RingSweepConfig</code> variant, so the NOX-015 config object is untouched and both
+        runs remain reproducible from their own recorded configuration:</p>
+        <table class="meta-table"><thead><tr><th>Field</th><th>Value</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>aoi_buffer_deg</code></td><td><code>1.25</code></td><td>Full-360° ring to 148.8 km; measured 2.0 h / 200 MB.</td></tr>
+          <tr><td><code>ring_grid</code></td><td><code>(25,60) (40,80) (50,90) (60,100) (60,120) (75,135) (90,150)</code></td><td>First five reproduce NOX-015 for comparability; last two are new.</td></tr>
+          <tr><td><code>self_subtraction_threshold</code></td><td><code>0.05</code></td><td>Carried over from NOX-015 unchanged.</td></tr>
+          <tr><td><code>rise_threshold</code></td><td><code>0.05</code></td><td>Rule B (REQ-021).</td></tr>
+          <tr><td><code>plateau_threshold</code></td><td><code>0.01</code></td><td>Rule C (REQ-022).</td></tr>
+          <tr><td><code>min_cells_agreeing</code></td><td><code>2</code></td><td>Carried over.</td></tr>
+          <tr><td><code>seed</code>, <code>n_boot</code></td><td><code>20260706</code>, <code>5000</code></td><td>Carried over — same RNG stream as NOX-015.</td></tr>
+          <tr><td><code>cube_path_weekly/daily</code></td><td><code>data/derived/no2_wide/…</code></td><td>Separate output tree; committed cubes untouched.</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="verdict">
+        <h2>Verdict logic (REQ-020..023)</h2>
+        <pre><code>rule_a = LEVEL: share_local(outermost) &gt; 0.05 and CI excludes 0,  in &gt;= 2 cells
+rule_b = RISE : share_local(outermost) - share_local(25-60) &gt; 0.05,
+                with the outermost CI excluding 0,               in &gt;= 2 cells
+plateau = |share_local(outermost) - share_local(second-outermost)| &lt; 0.01, in &gt;= 2 cells
+
+verdict = "self-subtraction"        if rule_a and rule_b
+        | "ring-robust"             if (not rule_a) and (not rule_b) and plateau
+        | "domain-limited"          if (not plateau)          # rise still climbing at the edge
+        | "rules-disagree"          otherwise                 # reported, never silently resolved</code></pre>
+        <p>“Outermost” is keyed on the (inner, outer) <strong>pair</strong>, not on the inner radius —
+        the NOX-015 pooling bug where <code>inner == 60</code> matched two distinct rings. The existing
+        regression test covers it and is extended to the new grid.</p>
+      </section>
+
+      <section id="execution">
+        <h2>Execution plan</h2>
+        <ol>
+          <li>Wide acquisition, background, resumable: ~89 month-batches, ~2.0 h, ~200 MB.</li>
+          <li>Grid weekly + daily with <code>coverage_bbox</code> = committed AOI.</li>
+          <li>Compare the retained period set against the committed cubes (REQ-005).</li>
+          <li>Run the wide sweep; emit CSV + findings note.</li>
+          <li>Update paper §6.3; state plainly what it does and does not settle.</li>
+        </ol>
+      </section>
+
+      <section id="risks">
+        <h2>Risks</h2>
+        <table class="meta-table"><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>Acquisition throttled or credit-limited part-way</td><td>Manifest-resumable; a partial record is refused, not analysed (ERR-002).</td></tr>
+          <tr><td>Outer rings dominated by sea and by the Tianjin plume</td><td>Stated as a property of the test (EDGE-002); octant weighting and the geometry audit make the composition visible.</td></tr>
+          <tr><td>Rule B fires only because the outer ring is a different air mass</td><td>Reported with the plateau flag and the geometry audit; the paper must not read a rise past ~120 km as cluster physics without that caveat.</td></tr>
+          <tr><td>Committed artefacts clobbered by a default-path run</td><td>Separate raw store, separate cube tree, separate out-dir; AT-REG-1 asserts byte-identity.</td></tr>
+        </tbody></table>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Review — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-ok">review</span></td></tr>
+        <tr><th>Reviewed</th><td>2026-08-28</td></tr>
+        <tr><th>Commands run</th><td><code>uv run pytest</code> (337 passed) &middot; <code>uv run ruff check .</code> (clean) &middot; <code>uv run noxus scale-contrast --probe</code> &middot; <code>uv run noxus scale-contrast</code></td></tr>
+        <tr><th>Decision</th><td><span class="badge badge-ok">approved</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="summary">
+        <h2>Decision: approved</h2>
+        <p>Arm A is implemented and run; Arm B was gated and returned <strong>NO-GO</strong>. The
+        verdict under the pre-registered rule is <strong><code>pipeline-suspect</code></strong>
+        &mdash; the discriminating test came back on the side that does <em>not</em> support the
+        paper's spatial-scale explanation. That is reported as-is.</p>
+        <p class="claude-note">Q1 (blocking) was not answered explicitly; per the approval note the
+        spec default and recommendation were followed &mdash; option (a), probe first, build Arm B
+        only on GO.</p>
+      </section>
+
+      <section id="traceability">
+        <h2>Traceability</h2>
+        <table class="meta-table"><thead><tr><th>Requirement</th><th>Where</th><th>Test</th><th>Status</th></tr></thead><tbody>
+          <tr><td>REQ-001/002 targets loaded; cadence aggregated DOWN</td><td><code>load_target</code>, <code>_cadence_for</code></td><td>AT1</td><td class="ok">met</td></tr>
+          <tr><td>REQ-003 / NFR-001 features never refit</td><td><code>load_feature</code> (no fit entry point)</td><td>AT2</td><td class="ok">met</td></tr>
+          <tr><td>REQ-010 full robust stat set</td><td><code>_score_pairing</code></td><td>AT1/AT5</td><td class="ok">met</td></tr>
+          <tr><td>REQ-011 / NFR-002 BH over the whole family</td><td><code>scale_contrast</code></td><td>AT4</td><td class="ok">met</td></tr>
+          <tr><td>REQ-012 paired-difference CI</td><td><code>paired_corr_difference</code></td><td>AT3 (incl. narrower-than-marginal)</td><td class="ok">met</td></tr>
+          <tr><td>REQ-013 boundary / non-significant peaks flagged</td><td><code>_score_pairing</code></td><td>AT5</td><td class="ok">met</td></tr>
+          <tr><td>REQ-020/021 four-branch pre-registered verdict</td><td><code>classify_scale_verdict</code></td><td>AT6</td><td class="ok">met</td></tr>
+          <tr><td>REQ-022 limits stated in the findings note</td><td><code>render_findings</code></td><td>AT8</td><td class="ok">met</td></tr>
+          <tr><td>REQ-030/031/032 Arm-B gate; no gated substitute</td><td><code>noxus/data/nbs.py</code></td><td>AT7</td><td class="ok">met (NO-GO)</td></tr>
+          <tr><td>REQ-040/041/042 CSV, findings, figure, CLI</td><td><code>run_scale_contrast</code>, <code>analysis/scale_contrast.py</code>, <code>noxus scale-contrast</code></td><td>manual run</td><td class="ok">met</td></tr>
+          <tr><td>ERR-001/002 actionable errors; refusals counted</td><td><code>load_*</code>, <code>_score_pairing</code></td><td>AT-ERR-1</td><td class="ok">met</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="findings">
+        <h2>Blocking findings</h2>
+        <p>None.</p>
+        <h2>Non-blocking findings, recorded</h2>
+        <table class="meta-table"><thead><tr><th>#</th><th>Finding</th><th>Handling</th></tr></thead><tbody>
+          <tr><td>1</td><td><strong>Arm B unavailable.</strong> Every NBS data endpoint returns HTTP 403 from the site WAF while static assets on the same host serve normally &mdash; an access policy on the query API, not an outage.</td>
+              <td class="warning">Recorded as a reproducible probe (<code>data/derived/nbs_probe.txt</code>). No paywalled substitute (REQ-031). <strong>Consequence: the shared-publisher provenance gap is NOT closed</strong> &mdash; all four Arm-A targets are CREA/WIND. The findings note and the paper must say so.</td></tr>
+          <tr><td>2</td><td><strong>The verdict rests on one target by design.</strong> REQ-021 keys on <code>primary_national</code> (weekly national BF rate, |r| = 0.094). The monthly crude-steel pairing reaches |r| = 0.222, above the 0.20 threshold.</td>
+              <td class="ok">Rule applied as pre-registered; not re-keyed after the fact. Both numbers are in the CSV and the findings note, so a reader can see the sensitivity.</td></tr>
+          <tr><td>3</td><td><strong>The national correlations are strongly sub-period dependent</strong> and largely negative in 2019&ndash;2021 (&minus;0.34 to &minus;0.39), collapsing toward zero in 2022&ndash;2026.</td>
+              <td class="warning">Exactly the shared-secular-trend confound EDGE-003 anticipated, and inseparable from the unharmonised processor-version sequence (EDGE-005). Reported in the findings note; the paper must not quote the full-record number alone.</td></tr>
+          <tr><td>4</td><td><strong>A <code>pipeline-suspect</code> verdict is easy to over-read.</strong> The feature is a Tangshan-AOI window (~13% of national steel), not national-coverage NO&#8322;.</td>
+              <td class="ok">The verdict text and the findings note both state explicitly that this does not establish a broken pipeline, and that the decisive test needs a province/nation-scale cube (spec Q3, out of scope).</td></tr>
+        </tbody></table>
+      </section>
+
+      <section id="result">
+        <h2>Result of record</h2>
+        <p><strong>Verdict: <code>pipeline-suspect</code></strong> &mdash; "these data do not support
+        the spatial-scale explanation".</p>
+        <table class="meta-table"><thead><tr><th>Feature</th><th>Target</th><th>cadence</th><th>n</th><th>r</th><th>BH p</th><th>contrast vs Tangshan [CI]</th></tr></thead><tbody>
+          <tr><td>no2_intensity</td><td>tangshan_bf_rate</td><td>W</td><td>379</td><td>+0.063</td><td>0.466</td><td>&mdash; (baseline)</td></tr>
+          <tr><td>no2_intensity</td><td><strong>national_bf_rate</strong></td><td>W</td><td>382</td><td>&minus;0.094</td><td>0.366</td><td>&minus;0.165 [&minus;0.300, &minus;0.018]</td></tr>
+          <tr><td>no2_intensity</td><td>national_crude_steel</td><td>ME</td><td>89</td><td>&minus;0.222</td><td>0.366</td><td>&minus;0.360 [&minus;0.647, +0.034]</td></tr>
+          <tr><td>no2_residual</td><td>tangshan_bf_rate</td><td>W</td><td>364</td><td>&minus;0.014</td><td>0.864</td><td>&mdash; (baseline)</td></tr>
+          <tr><td>no2_residual</td><td><strong>national_bf_rate</strong></td><td>W</td><td>367</td><td>&minus;0.090</td><td>0.366</td><td>&minus;0.082 [&minus;0.233, +0.080]</td></tr>
+        </tbody></table>
+        <p>Nothing is robust-significant anywhere in the family of 24 pairings. Widening the target
+        from the cluster to the nation does <em>not</em> strengthen the coupling; if anything the
+        national pairings are more negative, and the paired contrast is negative throughout.</p>
+        <p><strong>What this means for the paper.</strong> The cheap test that would have corroborated
+        the spatial explanation was run and did not. The "binding constraint is spatial" claim must be
+        demoted from a conclusion the evidence selects to a hypothesis this arm failed to support. It
+        is <em>not</em> established that the pipeline is broken &mdash; a cluster-scale window was
+        never guaranteed to proxy national output &mdash; but the paper can no longer present the
+        spatial reading as the explanation its own evidence picks out.</p>
+      </section>
+
+      <section id="docs">
+        <h2>Documentation required</h2>
+        <p><strong>Yes.</strong> Targets: <code>paper/nox_convergent_nulls.tex</code> (control C2
+        replaced by the result; &sect;7 synthesis softened; &sect;8 benchmark-provenance updated with
+        the Arm-B NO-GO), <code>docs/exploration-results.html</code>, <code>history.html</code>,
+        <code>.claude/context/project-map.md</code>.</p>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

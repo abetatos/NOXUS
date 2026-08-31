@@ -1,0 +1,82 @@
+NOX-015 - background-ring radius sensitivity (paper critique C1)
+==============================================================================
+Benchmark-blind: the CREA benchmark is NEVER read in this sweep.
+
+VERDICT: inconclusive
+  reason: 0/4 outermost cells clear the 0.05 level threshold (2 needed), so self-subtraction is not established; but 5/16 beyond-advection cells carry a CI EXCLUDING zero, so the share is not indistinguishable from zero either and ring-robustness is not established
+  pre-registered threshold: local share > 0.05 with a bootstrap CI excluding zero, in >= 2 of the 4 (basis x resolution) cells at the outermost ring.
+  advection scale |U|*tau = 2.48 m/s * 4.0 h = 35.7 km (NOX-005; a marker, never a cut).
+
+Cluster-local change-variance share by ring (plain weighting)
+------------------------------------------------------------------------------
+  basis                                                   deseason         first-diff     
+  resolution                                                     D       W          D    W
+  ring_inner_km ring_outer_km ring_cells beyond_advection                                 
+  25.0          60.0          288        False              0.0000  0.0064        0.0  0.0
+  40.0          80.0          496        True               0.0001  0.0078        0.0  0.0
+  50.0          90.0          553        True               0.0024  0.0179        0.0  0.0
+  60.0          100.0         591        True               0.0076  0.0325        0.0  0.0
+                120.0         709        True               0.0113  0.0379        0.0  0.0
+
+Regional share over the same sweep (self-subtraction moves variance BETWEEN
+these two terms, so they should move in opposite directions if it is present)
+------------------------------------------------------------------------------
+  basis                       deseason         first-diff        
+  resolution                         D       W          D       W
+  ring_inner_km ring_outer_km                                    
+  25.0          60.0            0.9444  0.9515     0.9334  0.9439
+  40.0          80.0            0.9510  0.9432     0.9417  0.9365
+  50.0          90.0            0.9357  0.9156     0.9270  0.9157
+  60.0          100.0           0.9034  0.8703     0.8969  0.8834
+                120.0           0.8825  0.8406     0.8780  0.8565
+
+Ring geometry (EDGE-001/002/005: extent, size and azimuthal balance are
+confounds, so they are reported rather than assumed away)
+------------------------------------------------------------------------------
+   ring_inner_km  ring_outer_km  ring_cells  realised_max_km              octant_counts  octant_imbalance  empty_octants
+            25.0           60.0         288            59.98    10|55|50|52|17|33|52|19             5.500              0
+            40.0           80.0         496            79.99    75|66|48|73|29|77|92|36             3.172              0
+            50.0           90.0         553            89.81   111|54|37|91|52|75|86|47             3.000              0
+            60.0          100.0         591            99.96  130|32|23|119|94|61|66|66             5.652              0
+            60.0          120.0         709           118.98 140|32|23|157|144|61|66|86             6.826              0
+
+POST-HOC diagnostic: how far does the share RISE as the ring moves out? (REQ-020/021)
+------------------------------------------------------------------------------
+  NOT the decision rule. The pre-registered rule above thresholds the share's LEVEL; this
+  measures its RISE, which is what critique C1 actually asks about. The two disagree on
+  this data, so the rise is reported as a diagnostic and the pre-registered verdict stands.
+  rise from the 25-60 km ring to the 60-120 km ring, per cell:
+        deseason.D: +0.0113
+        deseason.W: +0.0315
+      first-diff.D: +0.0000
+      first-diff.W: +0.0000
+  largest rise +0.0315 (threshold 0.05)
+  cells rising monotonically with radius: 2/4
+  cells showing the regional->local transfer signature: 2/4
+  cells whose CI excludes zero at the outermost ring: 2/4
+
+Interpretation
+------------------------------------------------------------------------------
+  NEITHER reading is established, and the paper cannot claim ring-independence.
+
+  Self-subtraction is NOT established: no cell rises past the pre-registered
+  materiality threshold, and the two change bases disagree flatly -- the deseason
+  basis rises monotonically with ring radius while the first-difference basis stays
+  clamped at zero and its raw incremental R^2 becomes MORE negative. A ring simply
+  eating the cluster's plume should hand variance back to BOTH bases once it moves
+  away, so the deseason rise is not, on its own, evidence of self-subtraction.
+
+  Ring-robustness is NOT established either: the local share is demonstrably
+  ring-DEPENDENT. It rises monotonically in the deseason cells, and at the outer
+  rings its bootstrap CI excludes zero -- so the '~0 within CI' claim that NOX-009
+  makes at 25-60 km does not hold at 60-120 km. The regional share falls from ~0.94
+  to ~0.84-0.88 in every cell over the same sweep.
+
+  A further limit the sweep cannot escape: the rise has not plateaued at the outermost
+  ring available, and the cube extends only ~124 km from the cluster centroid, so we
+  cannot show the ring ever fully clears the plume.
+
+  Consequence for the paper: Section 6.1 must report the share as ring-dependent and
+  quote the range across ring geometries, not the 25-60 km value alone; Section 6.2(i)
+  must be updated from 'this control was not run' to 'run, and it did not settle the
+  question'.

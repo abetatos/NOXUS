@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header"><h1>Assumptions — Wide-AOI ring sweep (NOX-017)</h1></header>
+    <main>
+<section id="assumptions"><h2>Assumptions</h2>
+<table class="meta-table"><thead><tr><th>#</th><th>Assumption</th><th>Basis</th><th>If wrong</th></tr></thead><tbody>
+<tr><td>A1</td><td>CDSE openEO serves the 3.58° × 3.76° box for the whole record at the rate measured on one month.</td><td><strong>Measured live</strong> 2026-08-28: 81.4 s, 30 overpasses, 2.2 MB for 2023-06.</td><td>Acquisition stalls; manifest resumes; a partial record is refused (ERR-002).</td></tr>
+<tr><td>A2</td><td><s>The wide grid keeps the committed step, so the footprint sample is unchanged.</s> <strong>PARTLY FALSE — measured, and corrected here.</strong> The <em>step</em> is identical (0.05456° × 0.03472°) but the grid <em>origin</em> is not: the wide box starts exactly 1.0° west and north of the committed one, and 1.0° is not an integer multiple of either step, so the two grids are offset by a fraction of a cell.</td><td><strong>Measured</strong> on a pilot cube: the footprint discretises to <strong>447</strong> cells instead of 448 (0.2%).</td><td>The run is no longer literally “one knob moved”. Handled empirically, not by assumption: the sweep's first ring is the committed 25–60 km ring, so the wide-cube baseline row is compared directly against the committed narrow result. A baseline that reproduces makes the sub-cell offset immaterial; one that does not is reported as a confound.</td></tr>
+<tr><td>A3</td><td><s>The meteo term is identical because the footprint is far inside the ERA5 box.</s> <strong>NEARLY true — measured.</strong> ERA5 need not be re-acquired, but the nearest-neighbour regrid follows the offset grid, so the footprint-mean covariates differ slightly.</td><td><strong>Measured</strong> over 389 common weeks: max |Δ| = 0.038 m s⁻¹ (u10), 0.035 (v10), 0.048 (wind speed), 11.9 m (BLH).</td><td>Differences are far below the covariates' own variability, but they are recorded rather than described as zero, and they fold into the same baseline-row check as A2.</td></tr>
+<tr><td>A4</td><td>Holding the temporal mask on the committed sub-box makes <code>n</code> comparable between the narrow and wide runs.</td><td>REQ-004 design; verified by comparing retained period sets (REQ-005).</td><td>Reported as a difference rather than absorbed; the comparison is then caveated.</td></tr>
+<tr><td>A5</td><td>A ring at 90–150 km is still a meaningful “regional background” for this cluster.</td><td>Weak. At that radius the ring spans the Bohai Sea and the Tianjin plume.</td><td>This is the main interpretive limit and is stated in the findings note and the paper (EDGE-002), not assumed away.</td></tr>
+<tr><td>A6</td><td>The developer's instruction “<em>un cubo más ancho de ~124 km haz esto y damos por cerrado todo</em>” (2026-08-28) constitutes approval for this scoped follow-up.</td><td>Explicit instruction, recorded verbatim in <code>tasks.json</code> under <code>approval</code>.</td><td>If not intended as approval, the run is discarded; nothing is committed without a further request.</td></tr>
+</tbody></table></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

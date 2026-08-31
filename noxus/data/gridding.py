@@ -118,6 +118,27 @@ def load_overpass_cube(raw_dir: Path | str) -> xr.Dataset:
     return xr.concat(datasets, dim="time").sortby("time")
 
 
+def _clip_bbox(data: xr.DataArray, bbox: tuple[float, float, float, float]) -> xr.DataArray:
+    """Restrict ``data`` to a (min_lon, min_lat, max_lon, max_lat) sub-box (NOX-017 REQ-004).
+
+    Positional selection, so a descending latitude axis is handled without assuming an order.
+    Raises ``GriddingError`` when the sub-box selects nothing, rather than silently reducing over an
+    empty axis and masking every period.
+    """
+    lon_name, lat_name = _cube_lonlat(data)
+    min_lon, min_lat, max_lon, max_lat = bbox
+    lons = data[lon_name].values
+    lats = data[lat_name].values
+    ix = np.flatnonzero((lons >= min_lon) & (lons <= max_lon))
+    iy = np.flatnonzero((lats >= min_lat) & (lats <= max_lat))
+    if ix.size == 0 or iy.size == 0:
+        raise GriddingError(
+            f"coverage_bbox {bbox} selects no cells of the cube "
+            f"(lon {lons.min():.3f}..{lons.max():.3f}, lat {lats.min():.3f}..{lats.max():.3f})."
+        )
+    return data.isel({lon_name: ix, lat_name: iy})
+
+
 def composite(cube: xr.Dataset, cfg: GriddingConfig) -> xr.Dataset:
     """Resample to cfg.freq by mean over valid cells; add coverage; mask below thresholds (REQ-002..004)."""
     grouped = cube[NO2].resample(time=cfg.freq)
@@ -130,7 +151,11 @@ def composite(cube: xr.Dataset, cfg: GriddingConfig) -> xr.Dataset:
     no2_mean = no2_mean.where(valid >= cfg.min_cell_obs)
 
     # Period-level mask: require a minimum fraction of AOI cells valid, else drop the whole period.
-    period_coverage = (valid >= cfg.min_cell_obs).mean(dim=["y", "x"])
+    # The reduction runs over ``cfg.coverage_bbox`` when set, so a wider acquisition can be masked by
+    # the SAME geography as the committed cube (NOX-017 REQ-004); ``None`` reduces over the whole
+    # cube, which is the committed behaviour.
+    valid_for_coverage = valid if cfg.coverage_bbox is None else _clip_bbox(valid, cfg.coverage_bbox)
+    period_coverage = (valid_for_coverage >= cfg.min_cell_obs).mean(dim=["y", "x"])
     no2_mean = no2_mean.where(period_coverage >= cfg.min_period_coverage)
 
     out = xr.Dataset({NO2: no2_mean, COVERAGE: coverage_cell})
@@ -140,6 +165,7 @@ def composite(cube: xr.Dataset, cfg: GriddingConfig) -> xr.Dataset:
             "freq": cfg.freq,
             "min_cell_obs": cfg.min_cell_obs,
             "min_period_coverage": cfg.min_period_coverage,
+            "coverage_bbox": "whole-cube" if cfg.coverage_bbox is None else str(cfg.coverage_bbox),
             "note": "temporal composite of openEO-gridded TROPOMI NO2; no interpolation across gaps",
         }
     )

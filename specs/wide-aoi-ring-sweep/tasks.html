@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — Wide-AOI ring sweep (NOX-017)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header"><h1>Tasks — Wide-AOI ring sweep (NOX-017)</h1></header>
+    <main>
+<section id="tasks"><h2>Implementation tasks</h2>
+<table class="meta-table"><thead><tr><th>#</th><th>Task</th><th>Requirements</th><th>Done when</th></tr></thead><tbody>
+<tr><td>T1</td><td><code>--raw-dir</code> on <code>noxus fetch</code>; plumb into <code>AcquisitionConfig</code>.</td><td>REQ-001/002</td><td>Wide fetch writes to its own store with its own manifest; default unchanged.</td></tr>
+<tr><td>T2</td><td><code>GriddingConfig.coverage_bbox</code> + sub-box reduction in <code>composite()</code>.</td><td>REQ-004</td><td><code>None</code> reproduces current output byte-identically; a bbox restricts the coverage reduction.</td></tr>
+<tr><td>T3</td><td>Thread <code>aoi</code> through <code>_level_series_for_cube</code> and <code>_levels_for_ring</code> into <code>background_ring</code>.</td><td>REQ-010</td><td>Wide rings are not clipped to the narrow box; default path byte-identical.</td></tr>
+<tr><td>T4</td><td><code>WideRingSweepConfig</code> with the extended grid and the three pre-registered thresholds.</td><td>REQ-012, REQ-020..022</td><td>Every threshold is a config field, fixed before the run.</td></tr>
+<tr><td>T5</td><td>Verdict logic: Rules A + B + plateau, keyed on the (inner, outer) pair.</td><td>REQ-023/024</td><td>Four branches reachable and unit-tested; <code>rules-disagree</code> is a real outcome.</td></tr>
+<tr><td>T6</td><td><code>noxus ring-sweep --wide</code> entry point; CSV + findings note into a separate out-dir.</td><td>REQ-030</td><td>Committed NOX-015 artefacts untouched.</td></tr>
+<tr><td>T7</td><td>Run the wide acquisition (~2 h) and grid weekly + daily.</td><td>REQ-001/003</td><td>Full record acquired; no failed batches; period-set difference reported.</td></tr>
+<tr><td>T8</td><td>Execute the wide sweep; record the verdict verbatim, whatever it is.</td><td>REQ-023</td><td>Findings note written; verdict not edited after the fact.</td></tr>
+<tr><td>T9</td><td>Update paper §6.3 (and abstract/conclusion if the verdict moves them).</td><td>REQ-031</td><td>Paper compiles; the wide result is stated with its plateau flag and geometry caveat.</td></tr>
+<tr><td>T10</td><td>Tests: AT1..AT7, AT-REG-1, AT-ERR-1.</td><td>all</td><td><code>uv run pytest</code> green; <code>ruff check</code> clean.</td></tr>
+</tbody></table></section>
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

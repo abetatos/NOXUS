@@ -36,11 +36,13 @@ read-only (REQ-001/002); no new dependency (NFR-007).
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from noxus.validation.robust import block_bootstrap_statistic, block_length
 
@@ -567,11 +569,71 @@ def _load_cube(path: Path):
     return cube
 
 
-def _level_series_for_cube(cube, cfg, resolution: str):
-    """Build the footprint (5 km) + background-ring (25-60 km) level series + ERA5 meteo (REQ-001/002).
+def octant_ring_mean(cube, ring_mask, facilities) -> np.ndarray:
+    """Equal-octant-weighted per-period mean of ``no2`` over a ring mask (NOX-015 REQ-013).
+
+    The plain ring mean weights every cell equally, so a ring that is azimuthally lop-sided --
+    which the far rings are, because the AOI is a rectangle -- is dominated by whichever lobe holds
+    most cells. This aggregates within each of eight azimuthal octants about the cluster centroid
+    first, then averages the *octant* means with equal weight, so ring geometry cannot masquerade as
+    a change in the background. Empty octants are skipped, never imputed.
+
+    Returns an array aligned to the cube ``time`` axis (NaN where no octant has a valid cell).
+    """
+    # Read-only reuse of the NOX-002b geometry helpers; source.py itself is not modified (NFR-002).
+    from noxus.attribution.source import NO2, _cell_centres
+
+    lon2d, lat2d, _, _ = _cell_centres(cube)
+    clon = float(facilities["longitude"].mean())
+    clat = float(facilities["latitude"].mean())
+    # Azimuth about the centroid, cosine-corrected so octants are equal-angle on the ground.
+    az = np.degrees(np.arctan2((lon2d - clon) * np.cos(np.radians(clat)), lat2d - clat)) % 360.0
+    ring = np.asarray(ring_mask.values if hasattr(ring_mask, "values") else ring_mask, dtype=bool)
+
+    no2 = cube[NO2]
+    spatial_dims = [d for d in no2.dims if d != "time"]
+    means = []
+    for k in range(8):
+        sel = ring & (az >= k * 45.0) & (az < (k + 1) * 45.0)
+        if not sel.any():
+            continue
+        means.append(
+            no2.where(xr.DataArray(sel, dims=ring_mask.dims))
+            .mean(dim=spatial_dims, skipna=True)
+            .values
+        )
+    if not means:
+        return np.full(no2.sizes["time"], np.nan)
+    with warnings.catch_warnings():
+        # An all-NaN period (every octant cloud-gapped) is a legitimate gap, not an error.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmean(np.vstack(means), axis=0)
+
+
+def _level_series_for_cube(
+    cube,
+    cfg,
+    resolution: str,
+    ring: tuple[float, float] | None = None,
+    ring_weighting: str = "plain",
+    aoi=None,
+):
+    """Build the footprint (5 km) + background-ring level series + ERA5 meteo (REQ-001/002).
 
     Reuses ``noxus.attribution.source`` (footprint/background) and ``noxus.data.era5`` read-only.
     ``resolution`` sets the meteo composite frequency ("W"/"D").
+
+    ``ring`` is the NOX-015 sweep hook. When ``None`` (the default, and the only path the committed
+    NOX-009 run takes) the radii come from ``SignalConfig`` exactly as before -- this default must
+    stay byte-identical, which ``tests/signal/test_ring_sweep.py::test_default_path_unchanged``
+    enforces. When given ``(inner_km, outer_km)`` those radii are used instead.
+    ``ring_weighting="octant"`` replaces the plain ring mean with the equal-octant mean (REQ-013).
+
+    ``aoi`` is the NOX-017 wide-cube hook. ``background_ring`` clips the ring to an AOI box that
+    defaults to the 0.25-deg ``TANGSHAN`` region; on a cube acquired at a wider buffer that default
+    would silently discard every ring cell beyond the narrow box, so a wide sweep would reproduce the
+    narrow one and look like a plateau that is really a clip (REQ-010). ``None`` keeps the committed
+    default.
     """
     from noxus.attribution.source import (
         background_ring,
@@ -583,15 +645,30 @@ def _level_series_for_cube(cube, cfg, resolution: str):
     from noxus.data.era5 import era5_footprint_series
 
     sig = SignalConfig()
+    inner_km, outer_km = (
+        ring
+        if ring is not None
+        else (
+            sig.background_inner_km,
+            sig.background_outer_km,
+        )
+    )
     facilities = load_facilities(cfg.facilities_csv, set(sig.active_statuses))
     fp_mask = footprint_mask(cube, facilities, sig.footprint_radius_km)
     bg_mask = background_ring(
-        cube, fp_mask, sig.background_inner_km, sig.background_outer_km, facilities=facilities
+        cube, fp_mask, inner_km, outer_km, facilities=facilities, aoi=aoi
     )
     df = footprint_signal(cube, fp_mask, bg_mask, mode=sig.background_mode)
     idx = pd.DatetimeIndex(pd.to_datetime(df["date"]))
     footprint = pd.Series(df["no2_footprint"].to_numpy(float), index=idx, name="footprint")
-    background = pd.Series(df["no2_bg"].to_numpy(float), index=idx, name="background")
+    if ring_weighting == "octant":
+        background = pd.Series(
+            octant_ring_mean(cube, bg_mask, facilities), index=idx, name="background"
+        )
+    elif ring_weighting == "plain":
+        background = pd.Series(df["no2_bg"].to_numpy(float), index=idx, name="background")
+    else:
+        raise ValueError(f"Unknown ring weighting {ring_weighting!r} (use 'plain'/'octant').")
 
     snapshot = _latest_era5(Path(cfg.era5_snapshot_dir))
     freq = "D" if resolution == "D" else "W"

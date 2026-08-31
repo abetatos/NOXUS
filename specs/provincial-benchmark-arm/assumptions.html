@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assumptions — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Assumptions — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Assumptions</h2>
+      <p>Recorded so a reviewer can attack them directly.</p></section>
+
+      <section id="a1"><div class="card risk-high"><div class="card-header"><span class="card-title">A1 &mdash; A Tangshan-AOI NO&#8322; feature is a legitimate thing to score against national output</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> correlating a cluster-scale feature with a national target is informative rather than a category error.</p>
+      <div class="card-fields"><p><strong>Why:</strong> that is exactly the hypothesis under test. If the AOI column is dominated by a regional common mode, it should track wide-area industrial activity <em>better</em> than it tracks its own cluster &mdash; and that asymmetry is the evidence.</p>
+      <p><strong>If wrong:</strong> a reader could take a positive result as &ldquo;TROPOMI over Tangshan measures Chinese steel output&rdquo;, which it does not support (Tangshan is ~13% of national output and the AOI is ~1.6&deg;&#215;1.75&deg;).</p>
+      <p><strong>Mitigation:</strong> EDGE-006 and REQ-022 force the correct reading into the findings note and the paper.</p>
+      <p><strong>Blocks implementation:</strong> no &mdash; but it is the assumption most likely to be challenged in review.</p></div></div></div></section>
+
+      <section id="a2"><div class="card risk-high"><div class="card-header"><span class="card-title">A2 &mdash; Arm A's national series are an adequate wider-scale target</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> the CREA national BF Starting Rate (247 mills) is a fair national counterpart to the CREA Tangshan BF rate.</p>
+      <div class="card-fields"><p><strong>Why:</strong> same variable, same publisher, same cadence (weekly, n=383 since 2019) &mdash; so the contrast isolates <em>spatial scale</em> and holds everything else fixed. That is a genuinely clean experimental design.</p>
+      <p><strong>If wrong:</strong> it is also the weakness. Shared publisher means a survey-methodology artefact would move Tangshan and national together, so Arm A cannot break the feature-vs-target ambiguity on its own.</p>
+      <p><strong>Mitigation:</strong> stated as a limit (REQ-022); Arm B adds an independent publisher where feasible.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+      <section id="a3"><div class="card risk-medium"><div class="card-header"><span class="card-title">A3 &mdash; The national-scale NO&#8322;&ndash;industry link is real in the literature</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> the <code>pipeline-suspect</code> branch is meaningful because a working pipeline <em>should</em> recover something at national scale.</p>
+      <div class="card-fields"><p><strong>Why:</strong> Morris &amp; Zhang (2019), Li &amp; Zheng (2023) and the 0.5&ndash;0.75 range cited throughout this project.</p>
+      <p><strong>If wrong:</strong> those studies use national-<em>coverage</em> NO&#8322;, not a single AOI. Our feature is a Tangshan window, so a low national correlation is not automatically evidence of a broken pipeline &mdash; it could simply mean the window is too small to proxy national activity.</p>
+      <p><strong>Mitigation:</strong> the <code>pipeline-suspect</code> verdict is deliberately worded as &ldquo;does not support A&rdquo; rather than &ldquo;the pipeline is broken&rdquo;, and the out-of-scope note records that the decisive version of this test requires a province/nation-scale cube.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+      <section id="a4"><div class="card risk-medium"><div class="card-header"><span class="card-title">A4 &mdash; Deseasonalised features remove enough shared trend</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> scoring on the deseasonalised/differenced features (rather than raw levels) plus a sub-period split is sufficient protection against a spurious trend-driven contrast.</p>
+      <div class="card-fields"><p><strong>Why:</strong> the paper's Section 4 shows the raw-level &minus;0.28 is a trend-crossing artefact that largely disappears within sub-periods; the same trap applies here.</p>
+      <p><strong>If wrong:</strong> the unharmonised TROPOMI processor-version sequence contributes its own secular component (paper Section 2), which no deseasonalisation removes.</p>
+      <p><strong>Mitigation:</strong> EDGE-005 requires the caveat in the findings note; the sub-period split is mandatory, not optional.</p>
+      <p><strong>Blocks implementation:</strong> no.</p></div></div></div></section>
+
+      <section id="a5"><div class="card risk-low"><div class="card-header"><span class="card-title">A5 &mdash; 0.20 is the right <code>pipeline-suspect</code> threshold</span></div>
+      <div class="card-body"><p><strong>Assumed:</strong> a national <code>|r|</code> below 0.20 is far enough under the 0.5&ndash;0.75 literature range to be informative.</p>
+      <div class="card-fields"><p><strong>Why:</strong> it sits well below the weakest published national-scale result while staying above the near-null band this project keeps measuring.</p>
+      <p><strong>If wrong:</strong> reporting convenience only &mdash; all raw <code>r</code> values and CIs are published, so a reader can apply their own threshold.</p>
+      <p><strong>Blocks implementation:</strong> no, <strong>but it must be fixed before T8 runs</strong> and never adjusted after.</p></div></div></div></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

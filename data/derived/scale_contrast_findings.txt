@@ -1,0 +1,82 @@
+NOX-016 - provincial/national benchmark arm (paper critique C2)
+==============================================================================
+VERDICT: pipeline-suspect
+  reason: no national pairing exceeds |r|=0.2 (best |r|=0.094), far below the 0.5-0.75 range reported at national scale, so these data do not support the spatial-scale explanation
+  BH family size: 24 pairings (every computed pairing, refused included); alpha=0.05
+  primary national target (decides the verdict): national_bf_rate
+
+Arm A - full record, by target scale
+------------------------------------------------------------------------------
+        feature               target target_scale cadence   n       r  p_perm  p_fdr  fdr_significant  contrast_vs_baseline  contrast_lo  contrast_hi
+  no2_intensity     national_bf_rate     national       W 382 -0.0940  0.1048 0.3659            False               -0.1650      -0.2996      -0.0183
+  no2_intensity national_crude_steel     national      ME  89 -0.2221  0.0620 0.3659            False               -0.3603      -0.6472       0.0337
+  no2_intensity    national_pig_iron     national      ME  89 -0.1536  0.2272 0.4194            False               -0.2918      -0.5322       0.0552
+  no2_intensity     tangshan_bf_rate      cluster       W 379  0.0625  0.2911 0.4658            False                   NaN          NaN          NaN
+   no2_residual     national_bf_rate     national       W 367 -0.0903  0.1072 0.3659            False               -0.0823      -0.2328       0.0795
+   no2_residual national_crude_steel     national      ME  89 -0.1197  0.3489 0.5234            False               -0.1027      -0.4463       0.3788
+   no2_residual    national_pig_iron     national      ME  89 -0.1101  0.4153 0.5538            False               -0.0931      -0.3762       0.3333
+   no2_residual     tangshan_bf_rate      cluster       W 364 -0.0138  0.8252 0.8640            False                   NaN          NaN          NaN
+
+Sub-period split (EDGE-003: a shared secular trend can manufacture a contrast)
+------------------------------------------------------------------------------
+  subperiod                           2019-2021  2022-2026
+  feature       target                                    
+  no2_intensity national_bf_rate        -0.1419     0.0235
+                national_crude_steel    -0.3915     0.0646
+                national_pig_iron       -0.3646     0.1875
+                tangshan_bf_rate         0.0683     0.0567
+  no2_residual  national_bf_rate        -0.1252    -0.0050
+                national_crude_steel    -0.3434     0.2003
+                national_pig_iron       -0.3275     0.3059
+                tangshan_bf_rate         0.0976    -0.0165
+
+Lead/lag reporting discipline (REQ-013)
+------------------------------------------------------------------------------
+   no2_intensity x national_bf_rate       peak_lag=-6 peak_r=-0.1518 bound=±0.1003
+   no2_intensity x national_crude_steel   peak_lag=+2 peak_r=-0.2618 bound=±0.2078
+   no2_intensity x national_pig_iron      peak_lag=+2 peak_r=-0.2508 bound=±0.2078
+   no2_intensity x tangshan_bf_rate       peak_lag=-2 peak_r=+0.0824 bound=±0.1007  [inside its own white-noise band -> not significant]
+    no2_residual x national_bf_rate       peak_lag=-6 peak_r=-0.1631 bound=±0.1023
+    no2_residual x national_crude_steel   peak_lag=+2 peak_r=-0.2204 bound=±0.2078
+    no2_residual x national_pig_iron      peak_lag=+8 peak_r=+0.2536 bound=±0.2078  [AT SCAN BOUNDARY -> not an estimated lag]
+    no2_residual x tangshan_bf_rate       peak_lag=-8 peak_r=-0.0854 bound=±0.1027  [AT SCAN BOUNDARY -> not an estimated lag; inside its own white-noise band -> not significant]
+
+Arm B - independent publisher (NBS)
+------------------------------------------------------------------------------
+  NO-GO. No free programmatic NBS route from this environment, so no INDEPENDENT
+  publisher was added and, per REQ-031, no paywalled substitute was used.
+
+What this does and does NOT establish (REQ-022, EDGE-005/006)
+------------------------------------------------------------------------------
+  Limits that apply whatever the verdict:
+  * SHARED PUBLISHER. Every Arm-A target is CREA/WIND, as is the Tangshan benchmark. This
+    arm therefore tests spatial SCALE with everything else held fixed, but it does NOT
+    break the feature-versus-target ambiguity: a survey-methodology artefact would move
+    all four targets together. Arm B existed to fix that and returned NO-GO.
+  * PROCESSOR VERSIONS. The 2019-2026 TROPOMI record is not version-homogenised, so any
+    secular component of a national correlation is confounded with retrieval versioning.
+    Read the sub-period split above, not the full record alone.
+  * SCALE OF THE FEATURE. The NO2 feature is a Tangshan-AOI window (~13% of national
+    steel, under 2 degrees across), NOT national-coverage NO2. A high national correlation
+    would mean the AOI column is regionally dominated -- not that TROPOMI over Tangshan
+    measures Chinese steel output. A LOW one likewise does not prove the pipeline is
+    broken: the decisive version of that test needs a province- or nation-scale cube,
+    which is out of scope here.
+
+Interpretation
+------------------------------------------------------------------------------
+  The feature tracks national steel activity NO BETTER than it tracks Tangshan's own
+  rate -- both are near-null. This does NOT confirm the paper's spatial-scale
+  explanation; the discriminating test came back on the side that does not support it.
+
+  Be precise about what follows. It is not established that the pipeline is broken:
+  the feature is a cluster-scale window, so it was never guaranteed to proxy national
+  output, and the national targets are survey aggregates from the same publisher as
+  the Tangshan one. What IS established is that the paper can no longer present the
+  spatial explanation as the one its own evidence selects -- the cheap test that would
+  have supported it was run, and it did not.
+
+  Consequence for the paper: Section 7 must state that the wider-scale control was run
+  and returned no wider-scale signal either, and the 'binding constraint is spatial'
+  claim must be demoted from a conclusion to a hypothesis that this arm failed to
+  corroborate. The honest remaining route is a province/nation-scale cube (spec Q3).

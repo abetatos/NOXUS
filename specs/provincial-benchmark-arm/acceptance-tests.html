@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptance tests — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Acceptance tests — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Test command</th><td><code>uv run pytest tests/validation/test_scale_contrast.py tests/validation/test_paired_corr.py</code></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Acceptance tests</h2>
+      <p>Given/When/Then. AT2, AT3 and AT4 are the load-bearing ones: this is the project's first task
+      that reads multiple targets, so the anti-p-hacking guarantees and the paired estimator must be
+      proven <em>before</em> any real target is scored.</p>
+      <p>Locations: <code>tests/validation/test_scale_contrast.py</code>,
+      <code>tests/validation/test_paired_corr.py</code>.</p></section>
+
+      <section id="at1"><div class="card"><div class="card-header"><span class="card-title">AT1 &mdash; Targets load; cadence aggregated down, never interpolated</span> <span class="req-id">REQ-001/002, EDGE-002</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a synthetic weekly feature and a synthetic 10-day target with known gaps.</p>
+      <p><strong>When</strong> the pairing is aligned.</p>
+      <p><strong>Then</strong> both sides are aggregated to monthly, the realised <code>n</code> matches a hand-computed inner join, and <code>cadence</code> is recorded on the row.</p>
+      <p><strong>And not:</strong> the target is never forward-filled, interpolated or resampled <em>up</em> to weekly; no synthesised observation may enter any correlation.</p></div></div></div></section>
+
+      <section id="at2"><div class="card risk-high"><div class="card-header"><span class="card-title">AT2 &mdash; No feature is refit against any target</span> <span class="req-id">REQ-003, NFR-001, ERR-004</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> the scale-contrast module and every fitting entry point in <code>noxus.signal</code> monkeypatched to raise.</p>
+      <p><strong>When</strong> a full contrast run executes over all features &#215; targets.</p>
+      <p><strong>Then</strong> the run completes; the feature accessor exposes no fit/tune/select entry point; features are read from the committed parquet files only.</p>
+      <p><strong>And not:</strong> no target value may reach any feature-construction code path. This is the weakened form of the NOX-009 structural guarantee and it must be enforced by test, since it can no longer be enforced by signature.</p></div></div></div></section>
+
+      <section id="at3"><div class="card risk-high"><div class="card-header"><span class="card-title">AT3 &mdash; The paired-difference estimator recovers a planted contrast</span> <span class="req-id">REQ-012</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> an AR(1) fixture with a common driver <code>x</code>, a weakly-linked <code>y_a</code> and a strongly-linked <code>y_b</code>, with the true correlations known by construction.</p>
+      <p><strong>When</strong> <code>paired_corr_difference(x, y_a, y_b)</code> runs.</p>
+      <p><strong>Then</strong> the returned CI brackets the true difference and excludes zero, and it is <strong>narrower</strong> than the interval implied by comparing the two marginal CIs.</p>
+      <p><strong>And not:</strong> when <code>y_a</code> and <code>y_b</code> are constructed with equal correlation to <code>x</code>, the difference CI must contain zero &mdash; the estimator must not manufacture a contrast.</p></div></div></div></section>
+
+      <section id="at4"><div class="card risk-high"><div class="card-header"><span class="card-title">AT4 &mdash; BH correction covers every computed pairing</span> <span class="req-id">REQ-011, NFR-002, EDGE-004</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a run producing <em>k</em> pairings, of which some are refused for short overlap.</p>
+      <p><strong>When</strong> BH is applied.</p>
+      <p><strong>Then</strong> <code>family_size == k</code> including refused pairings; the family size is written to every row and printed in the findings note; dropping one pairing from the frame demonstrably changes the adjusted p-values.</p>
+      <p><strong>And not:</strong> no pairing may be computed, inspected, and then excluded from the family &mdash; the specific failure this test exists to prevent.</p></div></div></div></section>
+
+      <section id="at5"><div class="card"><div class="card-header"><span class="card-title">AT5 &mdash; Lag reporting discipline</span> <span class="req-id">REQ-013</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a fixture whose cross-correlation peaks exactly at <code>&minus;max_lag</code> with <code>|r|</code> below its per-lag bound.</p>
+      <p><strong>When</strong> the lead-lag block runs.</p>
+      <p><strong>Then</strong> <code>peak_is_boundary</code> is <code>True</code>, <code>peak_significant</code> is <code>False</code>, and the rendered findings text states that no lead or lag is identified.</p>
+      <p><strong>And not:</strong> the text must never say the feature &ldquo;leads&rdquo; or &ldquo;follows&rdquo; the target on the basis of such a peak &mdash; the exact error corrected in the paper's Section 6.5.</p></div></div></div></section>
+
+      <section id="at6"><div class="card"><div class="card-header"><span class="card-title">AT6 &mdash; All four verdict branches fire from config</span> <span class="req-id">REQ-020/021</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> hand-built frames encoding: (i) national robust-significant with difference CI excluding zero; (ii) the mirror; (iii) neither significant, difference CI containing zero, national <code>|r| = 0.35</code>; (iv) neither significant, national <code>|r| = 0.05</code>.</p>
+      <p><strong>When</strong> the verdict function is applied.</p>
+      <p><strong>Then</strong> it returns <code>scale-confirmed</code>, <code>inverted</code>, <code>no-scale-effect</code>, <code>pipeline-suspect</code> respectively; changing <code>cfg.pipeline_suspect_abs_r</code> moves the (iii)/(iv) boundary.</p>
+      <p><strong>And not:</strong> the verdict must be a pure function of the frame and config &mdash; no branch may depend on which target &ldquo;looks better&rdquo;.</p></div></div></div></section>
+
+      <section id="at7"><div class="card"><div class="card-header"><span class="card-title">AT7 &mdash; Arm-B gate honours both outcomes</span> <span class="req-id">REQ-030/031/032, ERR-003</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> the T1 probe stubbed to GO, then to NO-GO.</p>
+      <p><strong>When</strong> the task runs.</p>
+      <p><strong>Then</strong> GO &rArr; Arm-B rows present with <code>target_scale = "province"</code> and the family size increased; NO-GO &rArr; Arm A only, and the findings note records the unresolved provenance gap.</p>
+      <p><strong>And not:</strong> on NO-GO no licence- or pay-gated source may be substituted, and the task must not silently proceed as though provenance had been addressed.</p></div></div></div></section>
+
+      <section id="at8"><div class="card"><div class="card-header"><span class="card-title">AT8 &mdash; Sub-period split and mandatory caveats</span> <span class="req-id">EDGE-003/005/006, REQ-022</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> a completed run.</p>
+      <p><strong>When</strong> the CSV and findings note are written.</p>
+      <p><strong>Then</strong> rows exist for <code>full</code>, <code>2019-2021</code> and <code>2022-2026</code>; the findings note contains the shared-publisher limit (REQ-022), the processor-version caveat (EDGE-005) and the 13%-of-national reading (EDGE-006).</p>
+      <p><strong>And not:</strong> a national correlation may not be reported on the full record alone.</p></div></div></div></section>
+
+      <section id="aterr"><div class="card"><div class="card-header"><span class="card-title">AT-ERR-1 &mdash; Error states</span> <span class="req-id">ERR-001/002</span></div>
+      <div class="card-body"><div class="card-fields">
+      <p><strong>Given</strong> (a) an absent <code>benchmark_auxiliary.parquet</code>; (b) a pairing with 20 common periods.</p>
+      <p><strong>When</strong> the contrast runs.</p>
+      <p><strong>Then</strong> (a) raises naming <code>noxus ingest-benchmark</code>; (b) emits a refused row with the reason and no estimate, while still counting toward <code>family_size</code>.</p></div></div></div></section>
+
+      <section id="checklist"><h2>Pre-review checklist</h2>
+      <ul class="checklist">
+        <li>AT2, AT3, AT4 green <em>before</em> T5 scored any real target.</li>
+        <li>REQ-021 thresholds unchanged in git history since before T8 ran.</li>
+        <li><code>family_size</code> in the committed CSV equals the number of pairings actually computed.</li>
+        <li>Tangshan rows reproduce the committed NOX-013 numbers (AC-002).</li>
+        <li><code>uv run pytest</code> and <code>uv run ruff check .</code> clean.</li>
+      </ul></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>

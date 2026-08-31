@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open questions — Provincial/national benchmark arm (NOX-016)</title>
+  <link rel="stylesheet" href="spec.css">
+</head>
+<body>
+<div class="page-wrap">
+  <nav class="sidebar" aria-label="Table of contents"><p class="sidebar-title">Contents</p><div id="toc-list"></div></nav>
+  <div class="main-content">
+    <header class="spec-header">
+      <h1>Open questions — Provincial/national benchmark arm (NOX-016)</h1>
+      <table class="meta-table"><tbody>
+        <tr><th>Task ID</th><td><code>NOX-016</code></td></tr>
+        <tr><th>Feature slug</th><td><code>provincial-benchmark-arm</code></td></tr>
+        <tr><th>Status</th><td><span class="badge badge-draft">spec_draft</span></td></tr>
+        <tr><th>Human approval</th><td><span class="badge badge-pending">pending</span></td></tr>
+      </tbody></table>
+    </header>
+    <main>
+
+      <section id="intro"><h2>Open questions</h2>
+      <p><strong>1 blocking.</strong> Q1 changes what gets built and needs a decision before T1.</p></section>
+
+      <section id="q1"><div class="card risk-high"><div class="card-header"><span class="card-title">Q1 &mdash; Is Arm B in scope at all?</span> <span class="badge badge-blocking">blocking</span></div>
+      <div class="card-body"><p>Arm B (NBS Hebei/national monthly crude steel) is what adds an <strong>independent publisher</strong> and therefore what actually attacks the feature-vs-target ambiguity. Arm A alone tests spatial scale but leaves every target sourced from CREA/WIND.</p>
+      <p>Against it: NBS access is a new acquisition path with an unknown free/programmatic route, and it is the part of this task that could turn into a data-engineering project.</p>
+      <div class="card-fields">
+      <p><strong>Options:</strong> (a) run T1 as specified &mdash; probe first, build only on GO; (b) Arm A only, and record the provenance gap as permanent; (c) Arm B first, treating provenance as the primary objective and scale as secondary.</p>
+      <p><strong>Default if unanswered:</strong> (a). The probe is cheap and a NO-GO costs almost nothing.</p>
+      <p><strong>Recommendation:</strong> (a). But confirm, because if you would not act on a NO-GO by looking for another independent publisher, option (b) is more honest and saves T1 and T7 entirely.</p></div></div></div></section>
+
+      <section id="q2"><div class="card"><div class="card-header"><span class="card-title">Q2 &mdash; Should the primary national target be the BF rate or crude-steel output?</span> <span class="badge badge-pending">non-blocking</span></div>
+      <div class="card-body"><p>The spec makes the weekly BF Starting Rate (247) primary because it matches the Tangshan target's <em>variable</em> and cadence exactly, so the contrast isolates scale alone. Crude-steel output is physically closer to what a nowcast would want to predict, but it is 10-day and a different variable, so a difference could reflect either.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> BF rate primary, output series secondary and reported.</p>
+      <p><strong>Recommendation:</strong> accept the default; both are reported regardless, so nothing is lost.</p></div></div></div></section>
+
+      <section id="q3"><div class="card"><div class="card-header"><span class="card-title">Q3 &mdash; Enlarge the NO&#8322; AOI to province/national scale?</span> <span class="badge badge-pending">non-blocking</span></div>
+      <div class="card-body"><p>The decisive version of the pipeline test would compute NO&#8322; over Hebei or China and check the pipeline recovers the known national link. That is out of scope here: a Hebei-scale cube is roughly 15&#215; the AOI area and needs the full 2,641-overpass record re-acquired at a wider window.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> out of scope; recorded as a follow-up task.</p>
+      <p><strong>Recommendation:</strong> accept. Run the cheap contrast first &mdash; if it returns <code>pipeline-suspect</code>, that is the moment to justify the larger acquisition.</p></div></div></div></section>
+
+      <section id="q4"><div class="card"><div class="card-header"><span class="card-title">Q4 &mdash; How should a <code>scale-confirmed</code> verdict change the paper's title?</span> <span class="badge badge-warning">developer decision</span></div>
+      <div class="card-body"><p>A confirmed scale contrast would turn the paper's central claim from &ldquo;we could not find the signal&rdquo; into &ldquo;we located the boundary: the signal exists at regional scale and dissolves at cluster scale&rdquo; &mdash; a stronger and more publishable framing than five nulls.</p>
+      <div class="card-fields"><p><strong>Default if unanswered:</strong> report the result; leave the framing decision to the developer.</p></div></div></div></section>
+
+    </main>
+  </div>
+</div>
+<script src="spec.js"></script>
+</body>
+</html>
